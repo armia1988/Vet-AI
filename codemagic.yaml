@@ -9,6 +9,8 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.vetai.app
+      code_signing:
+        manage_code_signing: true
     scripts:
       - name: Build iOS App
         script: echo "Building Vet AI for TestFlight..."
