@@ -9,12 +9,23 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.vetai.app
+      flutter: stable
     scripts:
+      - name: Generate native iOS and Android projects
+        script: |
+          flutter create . --platforms=ios,android --project-name app --org com.vetai
+      - name: Install Flutter dependencies
+        script: flutter pub get
+      - name: Static analysis
+        script: flutter analyze
       - name: Set up code signing
         script: xcode-project use-profiles
       - name: Build iOS App
         script: |
           flutter build ipa --release --export-options-plist=$HOME/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - flutter_drive.log
     publishing:
       app_store_connect:
         auth: integration
