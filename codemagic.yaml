@@ -6,4 +6,4 @@ workflows:
     scripts:
       - name: Build iOS App
         script: |
-          echo "Building Vet AI iOS App...
+          echo "Building Vet AI iOS App
