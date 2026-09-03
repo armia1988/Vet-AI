@@ -13,7 +13,8 @@ workflows:
       - name: Set up code signing
         script: xcode-project use-profiles
       - name: Build iOS App
-        script: echo "Building Vet AI for TestFlight..."
+      script: |
+        cd ios && xcodebuild -workspace VetAI.xcworkspace -scheme VetAI -archivePath build/VetAI.xcarchive archive
     publishing:
       app_store_connect:
         auth: integration
