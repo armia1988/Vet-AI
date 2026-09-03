@@ -7,11 +7,11 @@ workflows:
       app_store_connect: Codemagic Key
     environment:
       ios_signing:
-        provisioning_profiles:
-          - Vet AI App Store
-        certificates:
-          - active_development # أو اتركها فارغة ليسحب شهادة الـ Distribution المعرفة تلقائياً
+        distribution_type: app_store
+        bundle_identifier: com.vetai.app
     scripts:
+      - name: Set up code signing
+        script: xcode-project use-profiles
       - name: Build iOS App
         script: echo "Building Vet AI for TestFlight..."
     publishing:
