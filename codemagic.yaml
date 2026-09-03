@@ -5,5 +5,4 @@ workflows:
     instance_type: mac_mini_m1
     scripts:
       - name: Build iOS App
-        script: |
-          echo "Building Vet AI iOS App
+        script: echo Building Vet AI App
