@@ -14,6 +14,7 @@ workflows:
       - name: Generate native iOS and Android projects
         script: |
           flutter create . --platforms=ios,android --project-name app --org com.vetai
+          rm -f test/widget_test.dart
       - name: Install Flutter dependencies
         script: flutter pub get
       - name: Static analysis
