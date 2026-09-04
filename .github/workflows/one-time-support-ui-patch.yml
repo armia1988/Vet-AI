@@ -13,14 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch support UI
-        run: python3 tools/patch_support_ui.py
-      - name: Commit support UI patch
+      - name: Patch file picker v12 API
+        run: python3 tools/patch_file_picker_v12.py
+      - name: Commit compatibility patch
         run: |
           git config user.name 'Vet AI Build Bot'
           git config user.email 'actions@github.com'
-          git add lib/v5_app.dart
+          git add lib/support/support_chat_v6.dart
           if ! git diff --cached --quiet; then
-            git commit -m 'Integrate rich support chat UI'
+            git commit -m 'Fix support file picker v12 API'
             git push
           fi
