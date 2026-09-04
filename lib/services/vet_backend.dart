@@ -44,16 +44,40 @@ class FarmSetupPayload {
   final String diseaseHistory;
   final String subscriptionTier;
   final String billingCycle;
+
+  Map<String, dynamic> toRpcJson() => {
+        'company_name': companyName.trim(),
+        'farm_name': farmName.trim(),
+        'country': country.trim(),
+        'region': region.trim(),
+        'worker_count': workerCount,
+        'veterinarian_count': veterinarianCount,
+        'barn_count': barnCount,
+        'total_indoor_area_m2': totalIndoorAreaM2,
+        'livestock_count': livestockCount,
+        'poultry_count': poultryCount,
+        'dog_count': dogCount,
+        'breeds': breeds.trim(),
+        'age_range': ageRange.trim(),
+        'production_purpose': productionPurpose.trim(),
+        'ventilation_system': ventilationSystem.trim(),
+        'vaccination_notes': vaccinationNotes.trim(),
+        'disease_history': diseaseHistory.trim(),
+        'subscription_tier': subscriptionTier,
+        'billing_cycle': billingCycle,
+      };
 }
 
 class VetBackend {
   VetBackend._();
 
   static final VetBackend instance = VetBackend._();
+  static const authCallbackUrl = 'vetai://login-callback/';
 
   SupabaseClient get client => Supabase.instance.client;
   User? get currentUser => client.auth.currentUser;
   bool get signedIn => currentUser != null;
+  bool get emailConfirmed => currentUser?.emailConfirmedAt != null;
 
   Stream<AuthState> get authChanges => client.auth.onAuthStateChange;
 
@@ -67,6 +91,7 @@ class VetBackend {
     return client.auth.signUp(
       email: email.trim(),
       password: password,
+      emailRedirectTo: authCallbackUrl,
       data: {
         'full_name': fullName.trim(),
         'phone': phone.trim(),
@@ -75,18 +100,23 @@ class VetBackend {
     );
   }
 
-  Future<AuthResponse> signIn({required String email, required String password}) {
-    return client.auth.signInWithPassword(
+  Future<AuthResponse> signIn({required String email, required String password}) async {
+    final response = await client.auth.signInWithPassword(
       email: email.trim(),
       password: password,
     );
+    if (response.user?.emailConfirmedAt == null) {
+      await client.auth.signOut();
+      throw const AuthException('Please confirm your email address before signing in.');
+    }
+    return response;
   }
 
   Future<void> signOut() => client.auth.signOut();
 
   Future<Map<String, dynamic>?> myFarm() async {
     final user = currentUser;
-    if (user == null) return null;
+    if (user == null || !emailConfirmed) return null;
     final rows = await client
         .from('farms')
         .select()
@@ -98,88 +128,15 @@ class VetBackend {
   }
 
   Future<String> createFarm(FarmSetupPayload p) async {
-    final user = currentUser;
-    if (user == null) throw StateError('You must be signed in.');
+    if (!signedIn) throw StateError('You must be signed in.');
+    if (!emailConfirmed) throw StateError('Confirm your email address first.');
 
-    final row = await client
-        .from('farms')
-        .insert({
-          'owner_id': user.id,
-          'company_name': p.companyName.trim(),
-          'farm_name': p.farmName.trim(),
-          'country': p.country.trim(),
-          'region': p.region.trim(),
-          'worker_count': p.workerCount,
-          'veterinarian_count': p.veterinarianCount,
-          'barn_count': p.barnCount,
-          'total_indoor_area_m2': p.totalIndoorAreaM2,
-          'livestock_count': p.livestockCount,
-          'poultry_count': p.poultryCount,
-          'dog_count': p.dogCount,
-          'breeds': p.breeds.trim(),
-          'age_range': p.ageRange.trim(),
-          'production_purpose': p.productionPurpose.trim(),
-          'ventilation_system': p.ventilationSystem.trim(),
-          'vaccination_notes': p.vaccinationNotes.trim(),
-          'disease_history': p.diseaseHistory.trim(),
-          'subscription_tier': p.subscriptionTier,
-          'billing_cycle': p.billingCycle,
-        })
-        .select('id')
-        .single();
-
-    final farmId = row['id'] as String;
-
-    final barnRows = <Map<String, dynamic>>[];
-    for (var i = 0; i < p.barnCount; i++) {
-      String group = 'livestock';
-      if (p.poultryCount > 0 && p.livestockCount == 0) group = 'poultry';
-      if (p.dogCount > 0 && p.livestockCount == 0 && p.poultryCount == 0) {
-        group = 'dogs';
-      }
-      barnRows.add({
-        'farm_id': farmId,
-        'name': 'Barn ${i + 1}',
-        'animal_group': group,
-        'indoor_area_m2': p.totalIndoorAreaM2 / p.barnCount,
-      });
-    }
-    if (barnRows.isNotEmpty) await client.from('barns').insert(barnRows);
-
-    if (p.poultryCount > 0) {
-      await client.from('flocks').insert({
-        'farm_id': farmId,
-        'animal_group': 'poultry',
-        'name': 'Primary poultry flock',
-        'head_count': p.poultryCount,
-        'breed_or_strain': p.breeds.trim(),
-        'production_cycle': p.ageRange.trim(),
-      });
-    }
-
-    if (p.livestockCount > 0) {
-      await client.from('flocks').insert({
-        'farm_id': farmId,
-        'animal_group': 'livestock',
-        'name': 'Primary livestock group',
-        'head_count': p.livestockCount,
-        'breed_or_strain': p.breeds.trim(),
-        'production_cycle': p.ageRange.trim(),
-      });
-    }
-
-    if (p.dogCount > 0) {
-      await client.from('flocks').insert({
-        'farm_id': farmId,
-        'animal_group': 'dogs',
-        'name': 'Dogs',
-        'head_count': p.dogCount,
-        'breed_or_strain': p.breeds.trim(),
-        'production_cycle': p.ageRange.trim(),
-      });
-    }
-
-    return farmId;
+    final result = await client.rpc(
+      'create_farm_onboarding',
+      params: {'p': p.toRpcJson()},
+    );
+    if (result is String && result.isNotEmpty) return result;
+    throw StateError('The farm could not be created. Please try again.');
   }
 
   Future<List<Map<String, dynamic>>> recentAlerts(String farmId) async {
@@ -208,7 +165,9 @@ class VetBackend {
     required String extension,
   }) async {
     final user = currentUser;
-    if (user == null) throw StateError('You must be signed in.');
+    if (user == null || !emailConfirmed) {
+      throw StateError('A verified account is required.');
+    }
 
     final safeExtension = extension.replaceAll('.', '').toLowerCase();
     final path = '${user.id}/$farmId/${DateTime.now().millisecondsSinceEpoch}.$safeExtension';
@@ -227,7 +186,9 @@ class VetBackend {
     String animalGroup = 'livestock',
   }) async {
     final user = currentUser;
-    if (user == null) throw StateError('You must be signed in.');
+    if (user == null || !emailConfirmed) {
+      throw StateError('A verified account is required.');
+    }
     final row = await client
         .from('assessments')
         .insert({
