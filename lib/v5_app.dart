@@ -46,20 +46,6 @@ class _VetAIAppV5State extends State<VetAIAppV5> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: buildVetTheme(),
-        home: const Scaffold(
-          body: Center(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              _BrandLockup(markWidth: 170),
-              SizedBox(height: 22),
-              SizedBox.square(dimension: 30, child: CircularProgressIndicator(strokeWidth: 3)),
-            ]),
-          ),
-        ),
-      );
-    }
-    return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Vet AI',
       theme: buildVetTheme(),

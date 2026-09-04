@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../services/vet_backend.dart';
 import '../reports/vet_pdf_report.dart';
@@ -659,27 +658,6 @@ class _ListSection extends StatelessWidget {
             ]),
           ),
       ]),
-    );
-  }
-}
-
-class _SourceTile extends StatelessWidget {
-  const _SourceTile({required this.source});
-  final Map<String, dynamic> source;
-  @override
-  Widget build(BuildContext context) {
-    final title = (source['title'] ?? source['url'] ?? '').toString();
-    final url = (source['url'] ?? '').toString();
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      dense: true,
-      leading: const Icon(Icons.open_in_new_rounded, color: VetColors.blue),
-      title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
-      subtitle: Text(url, maxLines: 1, overflow: TextOverflow.ellipsis),
-      onTap: url.isEmpty ? null : () async {
-        final uri = Uri.tryParse(url);
-        if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
-      },
     );
   }
 }
