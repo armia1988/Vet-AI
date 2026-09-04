@@ -1,7 +1,7 @@
 name: app
 description: Vet AI - veterinary decision support and smart animal monitoring.
 publish_to: 'none'
-version: 0.5.0+7
+version: 0.6.0+8
 
 environment:
   sdk: '>=3.10.0 <4.0.0'
@@ -18,6 +18,10 @@ dependencies:
   url_launcher: ^6.3.2
   flutter_svg: ^2.3.0
   flutter_tts: ^4.2.3
+  audioplayers: ^6.8.1
+  geolocator: ^14.0.3
+  pdf: ^3.13.0
+  printing: ^5.15.0
   supabase_flutter: ^2.17.2
 
 dev_dependencies:
