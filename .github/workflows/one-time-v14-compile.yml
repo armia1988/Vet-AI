@@ -1,0 +1,26 @@
+name: One-time V14 compile cleanup
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-time-v14-compile.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply compile cleanup
+        run: python3 tools/patch_v14_compile.py
+      - name: Commit compile cleanup
+        run: |
+          git config user.name 'Vet AI Build Bot'
+          git config user.email 'actions@github.com'
+          git add lib/v5_app.dart lib/analysis/vet_analysis_report.dart
+          if ! git diff --cached --quiet; then
+            git commit -m 'Remove stale loader and raw report source UI'
+            git push
+          fi
