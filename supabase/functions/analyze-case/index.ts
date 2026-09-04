@@ -1,21 +1,16 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const OPENAI_MODEL = Deno.env.get("VET_AI_ANALYSIS_MODEL") ?? "gpt-5.6-luna";
-const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
+const GEMINI_MODEL = Deno.env.get("VET_AI_GEMINI_ANALYSIS_MODEL") ?? "gemini-2.5-flash";
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: { "content-type": "application/json; charset=utf-8" },
 });
-
-const operational = (code: string, message: string, extra: Record<string, unknown> = {}) => json({
-  code,
-  risk: "insufficient_data",
-  message,
-  ...extra,
-});
-
+const operational = (code: string, message: string, extra: Record<string, unknown> = {}, status = 200) =>
+  json({ code, risk: "insufficient_data", message, ...extra }, status);
 const mimeFromPath = (path: string) => {
   const ext = path.split(".").pop()?.toLowerCase();
   if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
@@ -24,7 +19,6 @@ const mimeFromPath = (path: string) => {
   if (ext === "gif") return "image/gif";
   return null;
 };
-
 const bytesToBase64 = (bytes: Uint8Array) => {
   let binary = "";
   const chunk = 0x8000;
@@ -33,372 +27,380 @@ const bytesToBase64 = (bytes: Uint8Array) => {
   }
   return btoa(binary);
 };
-
-const responseText = (payload: any): string | null => {
-  if (typeof payload?.output_text === "string" && payload.output_text.trim()) return payload.output_text;
-  for (const item of payload?.output ?? []) {
-    if (item?.type !== "message") continue;
-    for (const part of item?.content ?? []) {
-      if (part?.type === "output_text" && typeof part.text === "string") return part.text;
+const geminiText = (payload: any): string | null => {
+  for (const candidate of payload?.candidates ?? []) {
+    for (const part of candidate?.content?.parts ?? []) {
+      if (typeof part?.text === "string" && part.text.trim()) return part.text.trim();
     }
   }
   return null;
 };
-
-const riskRank: Record<string, number> = {
-  insufficient_data: -1,
-  none: 0,
-  yellow: 1,
-  orange: 2,
-  red: 3,
-};
+const riskRank: Record<string, number> = { insufficient_data: -1, none: 0, yellow: 1, orange: 2, red: 3 };
 const maxRisk = (a: string, b: string) => (riskRank[a] ?? -1) >= (riskRank[b] ?? -1) ? a : b;
+const cleanText = (value: unknown) => String(value ?? "")
+  .replace(/https?:\/\/\S+/gi, "")
+  .replace(/\bwww\.\S+/gi, "")
+  .replace(/\b(?:[a-z0-9-]+\.)+(?:com|org|gov|int|eu|edu|nl|uk)\b\S*/gi, "")
+  .replace(/\s{2,}/g, " ")
+  .trim();
+const cleanArray = (value: unknown) => Array.isArray(value) ? value.map(cleanText).filter(Boolean) : [];
+
+const triageSchema = {
+  type: "OBJECT",
+  properties: {
+    image_quality: { type: "STRING", enum: ["insufficient", "limited", "adequate"] },
+    group_match: { type: "STRING", enum: ["match", "mismatch", "uncertain"] },
+    group_match_reason: { type: "STRING" },
+    species_observed: { type: "STRING" },
+    summary: { type: "STRING" },
+    observed_signs: { type: "ARRAY", items: { type: "STRING" } },
+    differentials: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          catalog_slug: { type: "STRING" },
+          display_name: { type: "STRING" },
+          suspicion: { type: "STRING", enum: ["low", "moderate", "high"] },
+          reasoning: { type: "STRING" },
+          cause_user: { type: "STRING" },
+          treatment_user: { type: "STRING" },
+          prevention_user: { type: "STRING" },
+          owner_actions_user: { type: "STRING" },
+        },
+        required: ["catalog_slug", "display_name", "suspicion", "reasoning", "cause_user", "treatment_user", "prevention_user", "owner_actions_user"],
+      },
+    },
+    risk: { type: "STRING", enum: ["none", "yellow", "orange", "red", "insufficient_data"] },
+    urgent_vet_review: { type: "BOOLEAN" },
+    isolation_recommended: { type: "BOOLEAN" },
+    lab_confirmation_required: { type: "BOOLEAN" },
+    immediate_actions: { type: "ARRAY", items: { type: "STRING" } },
+    follow_up_questions: { type: "ARRAY", items: { type: "STRING" } },
+    confidence_statement: { type: "STRING" },
+  },
+  required: [
+    "image_quality", "group_match", "group_match_reason", "species_observed", "summary",
+    "observed_signs", "differentials", "risk", "urgent_vet_review", "isolation_recommended",
+    "lab_confirmation_required", "immediate_actions", "follow_up_questions", "confidence_statement",
+  ],
+};
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-
-  const auth = req.headers.get("Authorization");
-  if (!auth) return json({ error: "Missing authorization" }, 401);
-
-  const body = await req.json().catch(() => ({}));
-  const assessmentId = body?.assessment_id;
-  const requestedLanguage = typeof body?.language === "string" && /^[a-zA-Z-]{2,12}$/.test(body.language)
-    ? body.language
-    : "en";
-  if (!assessmentId || typeof assessmentId !== "string") return json({ error: "assessment_id is required" }, 400);
-
-  const providerKey = Deno.env.get("VET_AI_PROVIDER_KEY") ?? Deno.env.get("OPENAI_API_KEY");
-  if (!providerKey) {
-    console.error("Vet AI provider key is not configured for analyze-case");
-    return operational(
-      "AI_PROVIDER_NOT_CONFIGURED",
-      "The protected AI provider key is not available to the analysis service.",
-    );
-  }
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const supabase = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: auth } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) return json({ error: "Invalid session" }, 401);
-
-  const { data: assessment, error: assessmentError } = await supabase
-    .from("assessments")
-    .select("id,farm_id,media_path,symptom_notes,status,risk,animal_group")
-    .eq("id", assessmentId)
-    .single();
-  if (assessmentError || !assessment) return json({ error: "Assessment not found or access denied" }, 404);
-  if (!assessment.media_path) return json({ error: "Assessment has no image" }, 400);
-
-  const animalGroup = assessment.animal_group ?? "livestock";
-
-  const { data: diseaseRows, error: diseaseError } = await supabase
-    .from("disease_catalog")
-    .select("id,slug,display_name,animal_groups,agent_type,cause,condition_type,body_systems,species_scope,preclinical_notes,diagnostics_summary,prevention_summary,epidemiology_summary,default_risk,isolation_guidance,lab_confirmation_required,reportable_or_listed,zoonotic,source_org,source_url,source_reviewed_at,curation_status")
-    .eq("curation_status", "reviewed")
-    .order("display_name");
-  if (diseaseError || !diseaseRows) {
-    console.error("Vet AI knowledge catalog read failed", diseaseError?.message);
-    return operational("KNOWLEDGE_BASE_UNAVAILABLE", "The reviewed veterinary knowledge base is temporarily unavailable.");
-  }
-
-  const diseases = diseaseRows.filter((d: any) => Array.isArray(d.animal_groups) && d.animal_groups.includes(animalGroup));
-  if (!diseases.length) {
-    return operational("KNOWLEDGE_GAP", "No reviewed production knowledge is available for the selected animal group yet.");
-  }
-
-  const ids = diseases.map((d: any) => d.id);
-  const { data: signRows, error: signError } = await supabase
-    .from("disease_signs")
-    .select("disease_id,phase,sign,visible_in_image,visible_in_video,sensor_detectable")
-    .in("disease_id", ids);
-  if (signError) {
-    console.error("Vet AI knowledge sign read failed", signError.message);
-    return operational("KNOWLEDGE_BASE_UNAVAILABLE", "The reviewed veterinary sign library is temporarily unavailable.");
-  }
-
-  const catalogContext = diseases.map((d: any) => ({
-    slug: d.slug,
-    name: d.display_name,
-    condition_type: d.condition_type,
-    agent_type: d.agent_type,
-    cause: d.cause,
-    body_systems: d.body_systems,
-    species_scope: d.species_scope,
-    preclinical_notes: d.preclinical_notes,
-    diagnostics_summary: d.diagnostics_summary,
-    prevention_summary: d.prevention_summary,
-    epidemiology_summary: d.epidemiology_summary,
-    default_risk: d.default_risk,
-    reportable_or_listed: d.reportable_or_listed,
-    zoonotic: d.zoonotic,
-    isolation_guidance: d.isolation_guidance,
-    lab_confirmation_required: d.lab_confirmation_required,
-    source_org: d.source_org,
-    source_url: d.source_url,
-    source_reviewed_at: d.source_reviewed_at,
-    signs: (signRows ?? [])
-      .filter((s: any) => s.disease_id === d.id)
-      .map((s: any) => ({ phase: s.phase, sign: s.sign, visible_in_image: s.visible_in_image, sensor_detectable: s.sensor_detectable })),
-  }));
-
-  const { data: mediaBlob, error: mediaError } = await supabase.storage.from("diagnostic-media").download(assessment.media_path);
-  if (mediaError || !mediaBlob) return json({ error: "Image unavailable or access denied" }, 404);
-  if (mediaBlob.size > MAX_IMAGE_BYTES) return operational("IMAGE_TOO_LARGE", "The image is too large for safe analysis.");
-
-  const mime = mimeFromPath(assessment.media_path);
-  if (!mime) return operational("UNSUPPORTED_IMAGE_FORMAT", "Use JPEG, PNG, WEBP or GIF for AI analysis.");
-  const imageBytes = new Uint8Array(await mediaBlob.arrayBuffer());
-  const imageUrl = `data:${mime};base64,${bytesToBase64(imageBytes)}`;
-  const validSlugs = new Set(diseases.map((d: any) => d.slug));
-
-  const developerPrompt = `You are the veterinary decision-support inference layer for Vet AI. This is a high-stakes animal-health triage system, not an autonomous veterinarian.
-
-Safety rules:
-1. First verify whether the image is compatible with the animal group selected by the user (livestock, poultry, or dogs). If the image is a human, unrelated object, clearly different animal group, or too ambiguous to establish compatibility, set group_match to mismatch or uncertain. For mismatch, do not name disease differentials and do not infer animal disease from the image.
-2. Never claim a definitive diagnosis from one image. Separate visible findings, history, sensor-compatible signs, and differential possibilities.
-3. Use only disease/condition slugs present in the supplied reviewed catalog when naming a differential. The catalog includes diseases, disease complexes, syndromes and inflammatory conditions. If evidence does not fit, return an empty differential list.
-4. Never invent numerical confidence percentages. Use low/moderate/high suspicion only.
-5. Preclinical signs are useful for questions and monitoring but cannot be falsely claimed as visible when they are not visible.
-6. Red means critical/urgent animal-health or biosecurity concern. Orange means prompt veterinary assessment. Yellow means monitor/follow up. none means no current concerning signal from available evidence. insufficient_data means evidence cannot support triage.
-7. For suspected reportable, zoonotic or high-consequence infectious patterns, favor biosecurity, PPE where appropriate, movement restriction and urgent veterinary/competent-authority review over reassurance.
-8. Laboratory/diagnostic confirmation is required whenever the reviewed entry says so or the differential cannot be safely distinguished clinically.
-9. Do not provide drug doses, prescription instructions or treatment regimens.
-10. Write all user-facing text in language code: ${requestedLanguage}.
-11. Keep conclusions operational, cautious and explicit about uncertainty.`;
-
-  const userPrompt = `Selected animal group: ${animalGroup}
-User symptoms/history notes: ${assessment.symptom_notes?.trim() || "No symptom notes supplied."}
-
-Reviewed veterinary knowledge for this selected group:
-${JSON.stringify(catalogContext)}
-
-Analyze the image and notes. Check selected-group compatibility before any disease reasoning. Return visible findings, cautious reviewed-catalog differential possibilities, triage risk, immediate non-pharmacologic safety actions, isolation/biosecurity needs, urgent veterinary review need, laboratory/diagnostic confirmation need, and useful follow-up questions.`;
-
-  const providerResponse = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${providerKey}`,
-      "Content-Type": "application/json",
-      "X-Client-Request-Id": crypto.randomUUID(),
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      store: false,
-      reasoning: { effort: "low" },
-      max_output_tokens: 1400,
-      input: [
-        { role: "developer", content: [{ type: "input_text", text: developerPrompt }] },
-        { role: "user", content: [{ type: "input_text", text: userPrompt }, { type: "input_image", image_url: imageUrl, detail: "high" }] },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "vet_ai_assessment_v2",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            required: [
-              "image_quality", "group_match", "group_match_reason", "species_observed", "summary",
-              "observed_signs", "differentials", "risk", "urgent_vet_review", "isolation_recommended",
-              "lab_confirmation_required", "immediate_actions", "follow_up_questions", "confidence_statement"
-            ],
-            properties: {
-              image_quality: { type: "string", enum: ["insufficient", "limited", "adequate"] },
-              group_match: { type: "string", enum: ["match", "mismatch", "uncertain"] },
-              group_match_reason: { type: "string" },
-              species_observed: { type: "string" },
-              summary: { type: "string" },
-              observed_signs: { type: "array", items: { type: "string" } },
-              differentials: {
-                type: "array",
-                items: {
-                  type: "object",
-                  additionalProperties: false,
-                  required: ["catalog_slug", "suspicion", "reasoning"],
-                  properties: {
-                    catalog_slug: { type: "string" },
-                    suspicion: { type: "string", enum: ["low", "moderate", "high"] },
-                    reasoning: { type: "string" }
-                  }
-                }
-              },
-              risk: { type: "string", enum: ["none", "yellow", "orange", "red", "insufficient_data"] },
-              urgent_vet_review: { type: "boolean" },
-              isolation_recommended: { type: "boolean" },
-              lab_confirmation_required: { type: "boolean" },
-              immediate_actions: { type: "array", items: { type: "string" } },
-              follow_up_questions: { type: "array", items: { type: "string" } },
-              confidence_statement: { type: "string" }
-            }
-          }
-        }
-      }
-    }),
-  });
-
-  const providerRequestId = providerResponse.headers.get("x-request-id");
-  const providerPayload = await providerResponse.json().catch(() => null);
-  if (!providerResponse.ok || !providerPayload) {
-    const providerCode = String(providerPayload?.error?.code ?? providerPayload?.error?.type ?? "");
-    console.error("Vet AI provider error", providerResponse.status, providerCode, providerRequestId);
-    if (providerResponse.status === 401 || providerResponse.status === 403) {
-      return operational("AI_PROVIDER_AUTH_ERROR", "The AI provider rejected the server credential.", { provider_request_id: providerRequestId });
-    }
-    if (providerResponse.status === 429 && (providerCode.includes("quota") || providerCode.includes("billing"))) {
-      return operational("AI_PROVIDER_QUOTA", "The AI provider account has no available API quota or billing capacity.", { provider_request_id: providerRequestId });
-    }
-    if (providerResponse.status === 429) {
-      return operational("AI_PROVIDER_RATE_LIMIT", "AI analysis is temporarily rate-limited. Please retry later.", { provider_request_id: providerRequestId });
-    }
-    return operational("AI_PROVIDER_ERROR", "The protected AI provider could not complete this case.", { provider_request_id: providerRequestId });
-  }
-
-  const rawText = responseText(providerPayload);
-  if (!rawText) return operational("AI_EMPTY_RESPONSE", "The AI provider returned no usable assessment text.", { provider_request_id: providerRequestId });
-
-  let modelResult: any;
   try {
-    modelResult = JSON.parse(rawText);
-  } catch {
-    return operational("AI_INVALID_RESPONSE", "The AI provider returned a response that did not match the safety schema.", { provider_request_id: providerRequestId });
-  }
+    if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+    const auth = req.headers.get("Authorization");
+    if (!auth) return json({ error: "Missing authorization" }, 401);
 
-  if (modelResult.group_match === "mismatch") {
-    const mismatchResult = {
-      code: "SPECIES_GROUP_MISMATCH",
+    const body = await req.json().catch(() => ({}));
+    const assessmentId = typeof body?.assessment_id === "string" ? body.assessment_id : "";
+    const requestedLanguage = typeof body?.language === "string" && /^[a-zA-Z-]{2,12}$/.test(body.language)
+      ? body.language.toLowerCase()
+      : "en";
+    if (!assessmentId) return json({ error: "assessment_id is required" }, 400);
+
+    const geminiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!geminiKey) {
+      return operational(
+        "GEMINI_NOT_CONFIGURED",
+        requestedLanguage.startsWith("ar") ? "مفتاح Gemini غير متاح لخدمة التحليل." : "Gemini is not configured for the analysis service.",
+        {},
+        503,
+      );
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: auth } }, auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) return json({ error: "Invalid session" }, 401);
+
+    const { data: assessment, error: assessmentError } = await supabase
+      .from("assessments")
+      .select("id,farm_id,media_path,symptom_notes,status,risk,animal_group")
+      .eq("id", assessmentId)
+      .single();
+    if (assessmentError || !assessment) return json({ error: "Assessment not found or access denied" }, 404);
+    if (!assessment.media_path) return json({ error: "Assessment has no image" }, 400);
+    const animalGroup = assessment.animal_group ?? "livestock";
+
+    const { data: diseaseRows, error: diseaseError } = await supabase
+      .from("disease_catalog")
+      .select("id,slug,display_name,animal_groups,agent_type,cause,condition_type,body_systems,species_scope,preclinical_notes,diagnostics_summary,prevention_summary,epidemiology_summary,treatment_summary,owner_actions_summary,clinical_red_flags,jurisdiction_note,default_risk,isolation_guidance,lab_confirmation_required,reportable_or_listed,zoonotic,source_org,source_url,source_reviewed_at,curation_status")
+      .eq("curation_status", "reviewed")
+      .order("display_name");
+    if (diseaseError || !diseaseRows) {
+      return operational("KNOWLEDGE_BASE_UNAVAILABLE", requestedLanguage.startsWith("ar") ? "قاعدة المعرفة البيطرية غير متاحة مؤقتًا." : "The reviewed veterinary knowledge base is temporarily unavailable.");
+    }
+    const diseases = diseaseRows.filter((d: any) => Array.isArray(d.animal_groups) && d.animal_groups.includes(animalGroup));
+    if (!diseases.length) {
+      return operational("KNOWLEDGE_GAP", requestedLanguage.startsWith("ar") ? "لا توجد معرفة بيطرية مراجعة كافية للنوع المختار حتى الآن." : "No reviewed veterinary knowledge is available for the selected animal group yet.");
+    }
+
+    const ids = diseases.map((d: any) => d.id);
+    const { data: signRows, error: signError } = await supabase
+      .from("disease_signs")
+      .select("disease_id,phase,sign,visible_in_image,visible_in_video,sensor_detectable")
+      .in("disease_id", ids);
+    if (signError) return operational("KNOWLEDGE_BASE_UNAVAILABLE", "The reviewed veterinary sign library is temporarily unavailable.");
+
+    const catalogContext = diseases.map((d: any) => ({
+      slug: d.slug,
+      name: d.display_name,
+      condition_type: d.condition_type,
+      agent_type: d.agent_type,
+      cause: d.cause,
+      body_systems: d.body_systems,
+      species_scope: d.species_scope,
+      preclinical_notes: d.preclinical_notes,
+      diagnostics_summary: d.diagnostics_summary,
+      prevention_summary: d.prevention_summary,
+      treatment_summary: d.treatment_summary,
+      owner_actions_summary: d.owner_actions_summary,
+      clinical_red_flags: d.clinical_red_flags,
+      jurisdiction_note: d.jurisdiction_note,
+      epidemiology_summary: d.epidemiology_summary,
+      default_risk: d.default_risk,
+      reportable_or_listed: d.reportable_or_listed,
+      zoonotic: d.zoonotic,
+      isolation_guidance: d.isolation_guidance,
+      lab_confirmation_required: d.lab_confirmation_required,
+      source_org: d.source_org,
+      source_reviewed_at: d.source_reviewed_at,
+      signs: (signRows ?? []).filter((s: any) => s.disease_id === d.id).map((s: any) => ({
+        phase: s.phase,
+        sign: s.sign,
+        visible_in_image: s.visible_in_image,
+        sensor_detectable: s.sensor_detectable,
+      })),
+    }));
+
+    const { data: mediaBlob, error: mediaError } = await supabase.storage.from("diagnostic-media").download(assessment.media_path);
+    if (mediaError || !mediaBlob) return json({ error: "Image unavailable or access denied" }, 404);
+    if (mediaBlob.size > MAX_IMAGE_BYTES) {
+      return operational("IMAGE_TOO_LARGE", requestedLanguage.startsWith("ar") ? "حجم الصورة كبير جدًا للتحليل. اختر صورة أوضح وأصغر." : "The image is too large for analysis. Choose a smaller clear image.");
+    }
+    const mime = mimeFromPath(assessment.media_path);
+    if (!mime) return operational("UNSUPPORTED_IMAGE_FORMAT", "Use JPEG, PNG, WEBP or GIF for AI analysis.");
+    const imageBase64 = bytesToBase64(new Uint8Array(await mediaBlob.arrayBuffer()));
+    const validSlugs = new Set(diseases.map((d: any) => d.slug));
+
+    const languageRule = requestedLanguage.startsWith("ar")
+      ? "Write EVERY user-facing field in clear professional Egyptian Arabic. Do not mix English explanatory sentences into Arabic. Use familiar Egyptian wording while keeping veterinary terminology accurate. Scientific Latin names may appear only when useful. Never include URLs or bibliography text in user-facing fields."
+      : `Write every user-facing field naturally in language code ${requestedLanguage}. Do not mix another language into explanatory text. Never include URLs in user-facing fields.`;
+
+    const systemPrompt = `You are the fast first-pass veterinary decision-support inference layer for Vet AI. This is high-stakes animal-health triage, not an autonomous veterinarian.\n\n${languageRule}\n\nRules:\n1. Verify image compatibility with the selected animal group first. A human, unrelated object, or clearly different animal group must return mismatch and no disease guess.\n2. Never make a definitive diagnosis from one image. Separate visible findings, history and differential possibilities.\n3. Name only catalog_slug values present in the supplied reviewed catalog. If the pattern does not fit, return no differential rather than forcing one.\n4. Never invent confidence percentages; use low/moderate/high suspicion only.\n5. Red is reserved for credible critical/high-consequence patterns, not merely because one listed disease is dangerous.\n6. For cattle skin lesions, distinguish superficial annular/scaly/alopecic/crusted lesions from deep firm dermal nodules. Do not assign high suspicion for lumpy skin disease from circular superficial alopecic crusted plaques alone. High LSD suspicion normally requires a compatible nodule pattern plus systemic or epidemiological support such as fever, enlarged superficial lymph nodes, oedema, marked milk drop, widespread characteristic firm nodules, or a known outbreak/exposure. If circular scaly alopecic gray/white crusted plaques dominate without systemic signs, dermatophytosis/ringworm should rank ahead of LSD when present in the catalog. Also consider dermatophilosis, papillomatosis, mange and photosensitization when their pattern fits.\n7. Reportable, zoonotic or high-consequence patterns require conservative biosecurity and veterinary/laboratory confirmation.\n8. Do not provide drug doses or prescription regimens. Owner-safe topical/external management may be summarized only when supported by the reviewed catalog.\n9. Localize disease display names and user guidance instead of copying English catalog prose into a different-language UI.\n10. Keep the first-pass report concise and ask only discriminating follow-up questions.`;
+
+    const userPrompt = `Selected animal group: ${animalGroup}\nUser symptoms/history notes: ${assessment.symptom_notes?.trim() || "No symptom notes supplied."}\n\nReviewed veterinary knowledge:\n${JSON.stringify(catalogContext)}\n\nPerform a fast first-pass image triage. Return visible findings, reviewed-catalog differentials, risk, immediate safety actions and the smallest useful set of follow-up questions needed before a final report.`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    let providerResponse: Response;
+    try {
+      providerResponse = await fetch(`${GEMINI_BASE}/${encodeURIComponent(GEMINI_MODEL)}:generateContent`, {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "x-goog-api-key": geminiKey,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{
+            role: "user",
+            parts: [
+              { text: userPrompt },
+              { inline_data: { mime_type: mime, data: imageBase64 } },
+            ],
+          }],
+          generationConfig: {
+            temperature: 0.15,
+            maxOutputTokens: 1600,
+            responseMimeType: "application/json",
+            responseSchema: triageSchema,
+          },
+        }),
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return operational("GEMINI_TIMEOUT", requestedLanguage.startsWith("ar") ? "تحليل Gemini أخذ وقتًا أطول من المتوقع. جرّب مرة أخرى بصورة واضحة." : "Gemini analysis took longer than expected. Retry with a clear image.");
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const providerPayload = await providerResponse.json().catch(() => null);
+    const providerRequestId = String(providerPayload?.responseId ?? providerResponse.headers.get("x-request-id") ?? "");
+    if (!providerResponse.ok || !providerPayload) {
+      const statusName = String(providerPayload?.error?.status ?? "");
+      const providerMessage = String(providerPayload?.error?.message ?? "");
+      console.error("Vet AI Gemini error", providerResponse.status, statusName, providerRequestId, providerMessage);
+      if (providerResponse.status === 401 || providerResponse.status === 403 || statusName === "PERMISSION_DENIED" || statusName === "UNAUTHENTICATED") {
+        return operational("GEMINI_AUTH_ERROR", requestedLanguage.startsWith("ar") ? "Gemini رفض مفتاح الـAPI أو الصلاحية الخاصة به." : "Gemini rejected the API key or its permissions.", { provider_request_id: providerRequestId }, 502);
+      }
+      if (providerResponse.status === 429 || statusName === "RESOURCE_EXHAUSTED") {
+        return operational("GEMINI_RATE_LIMIT", requestedLanguage.startsWith("ar") ? "Gemini وصل لحد استخدام مؤقت على حساب الـAPI. ده مش معناه إن رصيدك خلص. حاول بعد وقت قصير." : "Gemini reached a temporary API account limit. This does not necessarily mean the account balance is exhausted. Retry shortly.", { provider_request_id: providerRequestId }, 429);
+      }
+      if (providerResponse.status === 400 || statusName === "INVALID_ARGUMENT") {
+        return operational("GEMINI_REQUEST_ERROR", requestedLanguage.startsWith("ar") ? "Gemini رفض إعدادات طلب التحليل. تم تسجيل الخطأ للمراجعة." : "Gemini rejected the analysis request configuration.", { provider_request_id: providerRequestId }, 502);
+      }
+      return operational("GEMINI_PROVIDER_ERROR", requestedLanguage.startsWith("ar") ? "Gemini لم يتمكن من إكمال التحليل الآن." : "Gemini could not complete the analysis.", { provider_request_id: providerRequestId, provider_status: providerResponse.status }, 502);
+    }
+
+    const rawText = geminiText(providerPayload);
+    if (!rawText) return operational("GEMINI_EMPTY_RESPONSE", "Gemini returned no usable assessment text.", { provider_request_id: providerRequestId }, 502);
+
+    let modelResult: any;
+    try {
+      modelResult = JSON.parse(rawText);
+    } catch {
+      return operational("GEMINI_INVALID_RESPONSE", requestedLanguage.startsWith("ar") ? "Gemini أعاد نتيجة غير صالحة للعرض الآمن." : "Gemini returned a response that did not match the safety schema.", { provider_request_id: providerRequestId }, 502);
+    }
+
+    if (modelResult.group_match === "mismatch") {
+      const mismatchResult = {
+        code: "SPECIES_GROUP_MISMATCH",
+        assessment_id: assessmentId,
+        animal_group: animalGroup,
+        image_quality: modelResult.image_quality,
+        species_observed: cleanText(modelResult.species_observed),
+        summary: cleanText(modelResult.group_match_reason || modelResult.summary),
+        observed_signs: [],
+        differential_diagnoses: [],
+        risk: "insufficient_data",
+        urgent_vet_review: false,
+        isolation_recommended: false,
+        lab_confirmation_required: false,
+        immediate_actions: [],
+        follow_up_questions: [],
+        confidence_statement: cleanText(modelResult.confidence_statement),
+        report_stage: "triage",
+        model: GEMINI_MODEL,
+        provider: "gemini",
+        provider_request_id: providerRequestId,
+        generated_at: new Date().toISOString(),
+      };
+      await supabase.from("assessments").update({
+        observed_signs: [],
+        differential_diagnoses: [],
+        risk: "insufficient_data",
+        isolation_recommended: false,
+        urgent_vet_review: false,
+        lab_confirmation_required: false,
+        status: "ai_review",
+        ai_analysis: mismatchResult,
+        ai_model: GEMINI_MODEL,
+        ai_provider_request_id: providerRequestId || null,
+        ai_usage: providerPayload.usageMetadata ?? {},
+        ai_generated_at: mismatchResult.generated_at,
+      }).eq("id", assessmentId);
+      return json(mismatchResult);
+    }
+
+    const enrichedDifferentials = (Array.isArray(modelResult.differentials) ? modelResult.differentials : [])
+      .filter((d: any) => validSlugs.has(d.catalog_slug))
+      .slice(0, 6)
+      .map((d: any) => {
+        const catalog = diseases.find((x: any) => x.slug === d.catalog_slug)!;
+        return {
+          catalog_slug: catalog.slug,
+          name: cleanText(d.display_name || catalog.display_name),
+          condition_type: catalog.condition_type,
+          suspicion: d.suspicion,
+          reasoning: cleanText(d.reasoning),
+          cause: cleanText(d.cause_user),
+          default_risk: catalog.default_risk,
+          zoonotic: catalog.zoonotic,
+          reportable_or_listed: catalog.reportable_or_listed,
+          lab_confirmation_required: catalog.lab_confirmation_required,
+          diagnostics_required: Boolean(catalog.lab_confirmation_required),
+          prevention_summary: cleanText(d.prevention_user),
+          treatment_summary: cleanText(d.treatment_user),
+          owner_actions_summary: cleanText(d.owner_actions_user),
+          clinical_red_flags: cleanArray(catalog.clinical_red_flags),
+          jurisdiction_note: cleanText(catalog.jurisdiction_note),
+          source_org: cleanText(catalog.source_org),
+          isolation_guidance: cleanText(catalog.isolation_guidance),
+        };
+      });
+
+    let finalRisk = String(modelResult.risk ?? "insufficient_data");
+    if (!(finalRisk in riskRank)) finalRisk = "insufficient_data";
+    if (modelResult.urgent_vet_review === true) finalRisk = maxRisk(finalRisk, "orange");
+    for (const d of enrichedDifferentials) {
+      if (d.suspicion === "high" && d.default_risk === "red") finalRisk = "red";
+      else if (d.suspicion === "moderate" && d.default_risk === "red") finalRisk = maxRisk(finalRisk, "orange");
+      else if (d.suspicion === "high" && d.default_risk === "orange") finalRisk = maxRisk(finalRisk, "orange");
+    }
+    if ((modelResult.group_match === "uncertain" || modelResult.image_quality === "insufficient") && !assessment.symptom_notes?.trim() && enrichedDifferentials.length === 0) {
+      finalRisk = "insufficient_data";
+    }
+
+    const isolationRecommended = modelResult.isolation_recommended === true || enrichedDifferentials.some((d: any) =>
+      (d.suspicion === "moderate" || d.suspicion === "high") && Boolean(d.isolation_guidance));
+    const labRequired = modelResult.lab_confirmation_required === true || enrichedDifferentials.some((d: any) =>
+      (d.suspicion === "moderate" || d.suspicion === "high") && d.lab_confirmation_required === true);
+
+    const result = {
+      code: "AI_ANALYSIS_COMPLETE",
       assessment_id: assessmentId,
       animal_group: animalGroup,
+      group_match: modelResult.group_match,
       image_quality: modelResult.image_quality,
-      species_observed: modelResult.species_observed,
-      summary: modelResult.group_match_reason || modelResult.summary,
-      observed_signs: [],
-      differential_diagnoses: [],
-      risk: "insufficient_data",
-      urgent_vet_review: false,
-      isolation_recommended: false,
-      lab_confirmation_required: false,
-      immediate_actions: [],
-      follow_up_questions: [],
-      confidence_statement: modelResult.confidence_statement,
-      model: OPENAI_MODEL,
+      species_observed: cleanText(modelResult.species_observed),
+      summary: cleanText(modelResult.summary),
+      observed_signs: cleanArray(modelResult.observed_signs).slice(0, 12),
+      differential_diagnoses: enrichedDifferentials,
+      risk: finalRisk,
+      urgent_vet_review: modelResult.urgent_vet_review === true,
+      isolation_recommended: isolationRecommended,
+      lab_confirmation_required: labRequired,
+      immediate_actions: cleanArray(modelResult.immediate_actions).slice(0, 8),
+      follow_up_questions: cleanArray(modelResult.follow_up_questions).slice(0, 6),
+      confidence_statement: cleanText(modelResult.confidence_statement),
+      report_stage: "triage",
+      model: GEMINI_MODEL,
+      provider: "gemini",
       provider_request_id: providerRequestId,
       generated_at: new Date().toISOString(),
     };
-    await supabase.from("assessments").update({
-      observed_signs: [],
-      differential_diagnoses: [],
-      risk: "insufficient_data",
-      isolation_recommended: false,
-      urgent_vet_review: false,
-      lab_confirmation_required: false,
-      status: "ai_review",
-      ai_analysis: mismatchResult,
-      ai_model: OPENAI_MODEL,
-      ai_provider_request_id: providerRequestId,
-      ai_usage: providerPayload.usage ?? {},
-      ai_generated_at: mismatchResult.generated_at,
-    }).eq("id", assessmentId);
-    return json(mismatchResult);
-  }
 
-  const enrichedDifferentials = (Array.isArray(modelResult.differentials) ? modelResult.differentials : [])
-    .filter((d: any) => validSlugs.has(d.catalog_slug))
-    .slice(0, 6)
-    .map((d: any) => {
-      const catalog = diseases.find((x: any) => x.slug === d.catalog_slug)!;
-      return {
-        catalog_slug: catalog.slug,
-        name: catalog.display_name,
-        condition_type: catalog.condition_type,
-        suspicion: d.suspicion,
-        reasoning: d.reasoning,
-        default_risk: catalog.default_risk,
-        zoonotic: catalog.zoonotic,
-        reportable_or_listed: catalog.reportable_or_listed,
-        lab_confirmation_required: catalog.lab_confirmation_required,
-        diagnostics_summary: catalog.diagnostics_summary,
-        source_org: catalog.source_org,
-        source_url: catalog.source_url,
-        isolation_guidance: catalog.isolation_guidance,
-      };
-    });
-
-  let finalRisk = String(modelResult.risk ?? "insufficient_data");
-  if (!(finalRisk in riskRank)) finalRisk = "insufficient_data";
-  if (modelResult.urgent_vet_review === true) finalRisk = maxRisk(finalRisk, "orange");
-  for (const d of enrichedDifferentials) {
-    if (d.suspicion === "high" && d.default_risk === "red") finalRisk = "red";
-    else if (d.suspicion === "moderate" && d.default_risk === "red") finalRisk = maxRisk(finalRisk, "orange");
-    else if (d.suspicion === "high" && d.default_risk === "orange") finalRisk = maxRisk(finalRisk, "orange");
-  }
-  if ((modelResult.group_match === "uncertain" || modelResult.image_quality === "insufficient") && !assessment.symptom_notes?.trim() && enrichedDifferentials.length === 0) {
-    finalRisk = "insufficient_data";
-  }
-
-  const isolationRecommended = modelResult.isolation_recommended === true || enrichedDifferentials.some(
-    (d: any) => (d.suspicion === "moderate" || d.suspicion === "high") && Boolean(d.isolation_guidance)
-  );
-  const labRequired = modelResult.lab_confirmation_required === true || enrichedDifferentials.some(
-    (d: any) => (d.suspicion === "moderate" || d.suspicion === "high") && d.lab_confirmation_required === true
-  );
-
-  const result = {
-    code: "AI_ANALYSIS_COMPLETE",
-    assessment_id: assessmentId,
-    animal_group: animalGroup,
-    group_match: modelResult.group_match,
-    image_quality: modelResult.image_quality,
-    species_observed: modelResult.species_observed,
-    summary: modelResult.summary,
-    observed_signs: Array.isArray(modelResult.observed_signs) ? modelResult.observed_signs.slice(0, 12) : [],
-    differential_diagnoses: enrichedDifferentials,
-    risk: finalRisk,
-    urgent_vet_review: modelResult.urgent_vet_review === true,
-    isolation_recommended: isolationRecommended,
-    lab_confirmation_required: labRequired,
-    immediate_actions: Array.isArray(modelResult.immediate_actions) ? modelResult.immediate_actions.slice(0, 8) : [],
-    follow_up_questions: Array.isArray(modelResult.follow_up_questions) ? modelResult.follow_up_questions.slice(0, 8) : [],
-    confidence_statement: modelResult.confidence_statement,
-    model: OPENAI_MODEL,
-    provider_request_id: providerRequestId,
-    generated_at: new Date().toISOString(),
-  };
-
-  const { error: updateError } = await supabase.from("assessments").update({
-    observed_signs: result.observed_signs,
-    differential_diagnoses: result.differential_diagnoses,
-    risk: result.risk,
-    isolation_recommended: result.isolation_recommended,
-    urgent_vet_review: result.urgent_vet_review,
-    lab_confirmation_required: result.lab_confirmation_required,
-    status: "ai_review",
-    ai_analysis: result,
-    ai_model: OPENAI_MODEL,
-    ai_provider_request_id: providerRequestId,
-    ai_usage: providerPayload.usage ?? {},
-    ai_generated_at: result.generated_at,
-  }).eq("id", assessmentId);
-  if (updateError) {
-    console.error("Vet AI assessment save failed", updateError.message);
-    return operational("AI_RESULT_SAVE_FAILED", "The assessment was generated but could not be saved safely.");
-  }
-
-  await supabase.from("alerts").delete().eq("assessment_id", assessmentId);
-  if (result.risk === "red" || result.risk === "orange") {
-    await supabase.from("alerts").insert({
-      farm_id: assessment.farm_id,
-      assessment_id: assessmentId,
+    const { error: updateError } = await supabase.from("assessments").update({
+      observed_signs: result.observed_signs,
+      differential_diagnoses: result.differential_diagnoses,
       risk: result.risk,
-      title: result.risk === "red" ? "Critical Vet AI health alert" : "Vet AI veterinary review alert",
-      details: result.summary,
-    });
-  }
+      isolation_recommended: result.isolation_recommended,
+      urgent_vet_review: result.urgent_vet_review,
+      lab_confirmation_required: result.lab_confirmation_required,
+      status: "ai_review",
+      ai_analysis: result,
+      ai_model: GEMINI_MODEL,
+      ai_provider_request_id: providerRequestId || null,
+      ai_usage: providerPayload.usageMetadata ?? {},
+      ai_generated_at: result.generated_at,
+    }).eq("id", assessmentId);
+    if (updateError) return operational("AI_RESULT_SAVE_FAILED", "The assessment was generated but could not be saved safely.", {}, 500);
 
-  return json(result);
+    await supabase.from("alerts").delete().eq("assessment_id", assessmentId);
+    if (result.risk === "red" || result.risk === "orange") {
+      const title = requestedLanguage.startsWith("ar")
+        ? (result.risk === "red" ? "تنبيه صحي عاجل من Vet AI" : "حالة محتاجة مراجعة بيطرية")
+        : (result.risk === "red" ? "Urgent Vet AI health alert" : "Vet AI veterinary review alert");
+      await supabase.from("alerts").insert({
+        farm_id: assessment.farm_id,
+        assessment_id: assessmentId,
+        risk: result.risk,
+        title,
+        details: result.summary,
+      });
+    }
+
+    return json(result);
+  } catch (error) {
+    console.error("analyze-case-unhandled", error);
+    return operational("ANALYSIS_INTERNAL_ERROR", "The analysis service hit an internal error. Please retry.", {}, 500);
+  }
 });
