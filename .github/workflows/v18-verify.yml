@@ -1,0 +1,57 @@
+name: V18 Verify
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix-v18-icons-ai-header-2
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix-v18-icons-ai-header-2
+          fetch-depth: 0
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Apply V18 code fixes
+        run: python3 tools/apply_v18_reliability.py
+
+      - name: Restore approved animal icons
+        shell: bash
+        run: |
+          cat tools/icon_payloads_v18/dog_*.b64 | base64 -d > assets/icons/dog_final.png
+          cat tools/icon_payloads_v18/livestock_*.b64 | base64 -d > assets/icons/livestock_final.png
+          cat tools/icon_payloads_v18/poultry_*.b64 | base64 -d > assets/icons/poultry_final.png
+          test $(stat -c%s assets/icons/dog_final.png) -gt 15000
+          test $(stat -c%s assets/icons/livestock_final.png) -gt 10000
+          test $(stat -c%s assets/icons/poultry_final.png) -gt 10000
+          file assets/icons/dog_final.png assets/icons/livestock_final.png assets/icons/poultry_final.png
+
+      - name: Flutter dependencies
+        run: flutter pub get
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Commit verified V18 files
+        shell: bash
+        run: |
+          git config user.name "Vet AI Build Bot"
+          git config user.email "actions@github.com"
+          git add lib/v5_app.dart lib/services/vet_backend.dart lib/i18n/vet_locale.dart assets/icons/dog_final.png assets/icons/livestock_final.png assets/icons/poultry_final.png
+          if git diff --cached --quiet; then
+            echo "No verified changes to commit"
+          else
+            git commit -m "Fix V18 approved icons header and AI retry"
+            git push origin HEAD:fix-v18-icons-ai-header-2
+          fi
