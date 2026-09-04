@@ -97,7 +97,27 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
 
   Future<void> _speakCurrent() async {
     if (_muted || !mounted) return;
-    final text = (_result['voice_summary'] ?? _result['summary'] ?? '').toString().trim();
+    String text = (_result['voice_summary'] ?? '').toString().trim();
+    if (text.isEmpty) {
+      final parts = <String>[];
+      final summary = (_result['summary'] ?? '').toString().trim();
+      if (summary.isNotEmpty) parts.add(summary);
+      final differentials = _maps(_result['differential_diagnoses']);
+      if (differentials.isNotEmpty) {
+        final top = differentials.first;
+        final name = (top['name'] ?? '').toString().trim();
+        final cause = (top['cause'] ?? '').toString().trim();
+        final treatment = (top['treatment_summary'] ?? '').toString().trim();
+        final prevention = (top['prevention_summary'] ?? '').toString().trim();
+        if (name.isNotEmpty) parts.add(widget.translate('Most likely at this stage: $name.', 'الأكثر احتمالًا في هذه المرحلة: $name.', 'Meest waarschijnlijk in deze fase: $name.'));
+        if (cause.isNotEmpty) parts.add(widget.translate('Cause: $cause.', 'السبب: $cause.', 'Oorzaak: $cause.'));
+        if (treatment.isNotEmpty) parts.add(widget.translate('Management: $treatment', 'التعامل والعلاج: $treatment', 'Behandeling en management: $treatment'));
+        if (prevention.isNotEmpty) parts.add(widget.translate('Prevention: $prevention', 'الوقاية: $prevention', 'Preventie: $prevention'));
+      }
+      final actions = _strings(_result['immediate_actions']);
+      if (actions.isNotEmpty) parts.add(widget.translate('Do now: ${actions.first}', 'افعل الآن: ${actions.first}', 'Doe nu: ${actions.first}'));
+      text = parts.join(' ');
+    }
     if (text.isEmpty) return;
     try {
       await _tts.stop();

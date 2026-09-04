@@ -60,7 +60,7 @@ class _VetAIAppV5State extends State<VetAIAppV5> {
         home: const Scaffold(
           body: Center(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              _BrandLockup(markWidth: 150),
+              _BrandLockup(markWidth: 170),
               SizedBox(height: 22),
               SizedBox.square(dimension: 30, child: CircularProgressIndicator(strokeWidth: 3)),
             ]),
@@ -251,7 +251,7 @@ class _V5AuthScreenState extends State<V5AuthScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Spacer(),
-                const _BrandLockup(markWidth: 154),
+                const _BrandLockup(markWidth: 178),
                 Expanded(
                   child: Align(
                     alignment: AlignmentDirectional.topEnd,
@@ -663,7 +663,7 @@ class _V5DashboardState extends State<V5Dashboard> {
   }
 
   NavigationDestination _nav(IconData icon, IconData selected, String label, Color color) => NavigationDestination(
-        icon: Icon(icon, size: 30, color: VetColors.muted),
+        icon: Icon(icon, size: 30, color: color.withValues(alpha: .78)),
         selectedIcon: Container(
           width: 48,
           height: 40,
@@ -685,7 +685,7 @@ class V5Home extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
       children: [
         Row(children: [
-          const _BrandLockup(markWidth: 112, compact: true),
+          const _BrandLockup(markWidth: 132, compact: true),
           const Spacer(),
           IconButton.filledTonal(
             tooltip: tr(context, 'Language', 'اللغة', 'Taal'),
