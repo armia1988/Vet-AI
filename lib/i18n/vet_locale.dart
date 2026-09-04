@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -65,6 +66,72 @@ const vetLanguages = <VetLanguage>[
   VetLanguage('zu', 'Zulu', 'isiZulu'),
 ];
 
+const vetCoreUiStrings = <String>[
+  'Language',
+  'Automatic',
+  'Device language',
+  'Preparing language…',
+  'Home',
+  'AI Scan',
+  'Sensors',
+  'Alerts',
+  'History',
+  'Account & settings',
+  'Real data policy',
+  'No demo sensor readings and no definitive diagnosis from one image.',
+  'Health monitoring overview',
+  'Barns',
+  'Workers',
+  'Veterinarians',
+  'Plan',
+  'Smart monitoring',
+  'Software only',
+  'AI health scan',
+  'Image + symptoms + reviewed veterinary knowledge. Not a definitive diagnosis.',
+  'Livestock',
+  'Poultry',
+  'Dogs',
+  'Camera',
+  'Photos',
+  'Symptoms / history / recent changes',
+  'Analyze case',
+  'Analyzing safely…',
+  'Fast preliminary assessment',
+  'Final verified report',
+  'Most likely at this stage',
+  'Disease / most likely condition',
+  'Cause',
+  'Treatment / management',
+  'Treatment & management',
+  'Prevention',
+  'What to do now',
+  'What you should do now',
+  'Veterinary next steps',
+  'Danger signs',
+  'How to confirm',
+  'Trusted sources used',
+  'Answer these to improve the report',
+  'Yes',
+  'No',
+  'Unknown',
+  'Send answers & create final report',
+  'Create final verified report',
+  'Checking trusted sources…',
+  'Mute result',
+  'Turn sound on',
+  'Create account',
+  'Sign in',
+  'Full name',
+  'Phone',
+  'Email',
+  'Password',
+  'Confirm your email',
+  'Profile & farm data',
+  'Subscription',
+  'Support chat',
+  'About Vet AI',
+];
+
 class VetLocaleController extends ChangeNotifier {
   VetLocaleController._();
   static final instance = VetLocaleController._();
@@ -104,10 +171,12 @@ class VetLocaleController extends ChangeNotifier {
 class VetTranslator extends ChangeNotifier {
   VetTranslator._();
   static final instance = VetTranslator._();
-  static const _pref = 'vet_ai_ui_translation_cache_v1';
+  static const _pref = 'vet_ai_ui_translation_cache_v2';
 
   final Map<String, String> _cache = {};
-  final Set<String> _pending = {};
+  final Map<String, Set<String>> _queued = {};
+  final Map<String, Timer> _timers = {};
+  final Set<String> _running = {};
   bool _loaded = false;
 
   Future<void> load() async {
@@ -127,93 +196,232 @@ class VetTranslator extends ChangeNotifier {
     }
   }
 
+  bool _bundled(String code) => code == 'en' || code == 'ar' || code == 'nl';
+  String _key(String language, String source) => '$language\u0001$source';
+
   String text({required String localeCode, required String en, required String ar, required String nl}) {
     if (localeCode == 'ar') return ar;
     if (localeCode == 'nl') return nl;
     if (localeCode == 'en') return en;
-    final key = '$localeCode\u0001$en';
-    final translated = _cache[key];
+    final translated = _cache[_key(localeCode, en)];
     if (translated != null && translated.trim().isNotEmpty) return translated;
-    _schedule(localeCode, en, key);
+    _queue(localeCode, en);
     return en;
   }
 
-  void _schedule(String language, String source, String key) {
-    if (!_loaded || _pending.contains(key) || source.trim().isEmpty) return;
-    _pending.add(key);
-    Future<void>(() async {
-      try {
-        final response = await Supabase.instance.client.functions.invoke(
-          'translate-ui',
-          body: {'target_language': language, 'text': source},
-        );
-        final data = response.data;
-        final translated = data is Map ? data['translation']?.toString() : null;
-        if (translated != null && translated.trim().isNotEmpty) {
-          _cache[key] = translated.trim();
-          final p = await SharedPreferences.getInstance();
-          await p.setString(_pref, jsonEncode(_cache));
-          notifyListeners();
-        }
-      } catch (_) {
-        // Keep the safe English fallback until the translation service becomes available.
-      } finally {
-        _pending.remove(key);
+  Future<bool> prepareLanguage(String language, Iterable<String> sources) async {
+    if (_bundled(language)) return true;
+    if (!_loaded) await load();
+    final missing = sources
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty && !_cache.containsKey(_key(language, e)))
+        .toSet()
+        .toList();
+    if (missing.isEmpty) return true;
+    if (Supabase.instance.client.auth.currentSession == null) return false;
+
+    var changed = false;
+    for (var i = 0; i < missing.length; i += 70) {
+      final batch = missing.sublist(i, i + 70 > missing.length ? missing.length : i + 70);
+      final translated = await _translateBatch(language, batch);
+      if (translated == null) return false;
+      for (var n = 0; n < batch.length; n++) {
+        _cache[_key(language, batch[n])] = translated[n];
       }
-    });
+      changed = true;
+    }
+    if (changed) {
+      await _save();
+      notifyListeners();
+    }
+    return true;
+  }
+
+  void _queue(String language, String source) {
+    if (!_loaded || source.trim().isEmpty || Supabase.instance.client.auth.currentSession == null) return;
+    final set = _queued.putIfAbsent(language, () => <String>{});
+    set.add(source.trim());
+    _timers[language]?.cancel();
+    _timers[language] = Timer(const Duration(milliseconds: 90), () => _flush(language));
+  }
+
+  Future<void> _flush(String language) async {
+    if (_running.contains(language)) return;
+    final sources = _queued.remove(language)?.toList() ?? const <String>[];
+    if (sources.isEmpty) return;
+    _running.add(language);
+    try {
+      final translated = await _translateBatch(language, sources);
+      if (translated == null) return;
+      for (var i = 0; i < sources.length; i++) {
+        _cache[_key(language, sources[i])] = translated[i];
+      }
+      await _save();
+      notifyListeners();
+    } finally {
+      _running.remove(language);
+      if ((_queued[language]?.isNotEmpty ?? false)) {
+        _timers[language]?.cancel();
+        _timers[language] = Timer(const Duration(milliseconds: 60), () => _flush(language));
+      }
+    }
+  }
+
+  Future<List<String>?> _translateBatch(String language, List<String> texts) async {
+    try {
+      final response = await Supabase.instance.client.functions.invoke(
+        'translate-ui',
+        body: {'target_language': language, 'texts': texts},
+      );
+      final data = response.data;
+      final raw = data is Map ? data['translations'] : null;
+      if (raw is! List || raw.length != texts.length) return null;
+      final out = raw.map((e) => e.toString().trim()).toList();
+      if (out.any((e) => e.isEmpty)) return null;
+      return out;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _save() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_pref, jsonEncode(_cache));
+  }
+
+  @override
+  void dispose() {
+    for (final timer in _timers.values) timer.cancel();
+    super.dispose();
   }
 }
 
 List<Locale> get vetSupportedLocales => vetLanguages.map((e) => e.locale).toList(growable: false);
 
+String _pickerText(BuildContext context, String en, String ar, String nl) => VetTranslator.instance.text(
+      localeCode: Localizations.localeOf(context).languageCode,
+      en: en,
+      ar: ar,
+      nl: nl,
+    );
+
 Future<void> showVetLanguagePicker(BuildContext context) async {
-  final controller = VetLocaleController.instance;
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: VetColors.surface,
-    builder: (sheetContext) => SafeArea(
+    builder: (_) => const _VetLanguagePickerSheet(),
+  );
+}
+
+class _VetLanguagePickerSheet extends StatefulWidget {
+  const _VetLanguagePickerSheet();
+  @override
+  State<_VetLanguagePickerSheet> createState() => _VetLanguagePickerSheetState();
+}
+
+class _VetLanguagePickerSheetState extends State<_VetLanguagePickerSheet> {
+  String? preparing;
+
+  Future<void> _choose(String code) async {
+    if (preparing != null) return;
+    setState(() => preparing = code);
+    await VetTranslator.instance.prepareLanguage(code, vetCoreUiStrings);
+    await VetLocaleController.instance.choose(code);
+    if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _automatic() async {
+    if (preparing != null) return;
+    setState(() => preparing = 'auto');
+    final device = WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+    if (vetLanguages.any((l) => l.code == device)) {
+      await VetTranslator.instance.prepareLanguage(device, vetCoreUiStrings);
+    }
+    await VetLocaleController.instance.automatic();
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = VetLocaleController.instance;
+    final busy = preparing != null;
+    return SafeArea(
       child: FractionallySizedBox(
-        heightFactor: .82,
-        child: Column(
+        heightFactor: .84,
+        child: Stack(
           children: [
-            const SizedBox(height: 10),
-            Container(width: 44, height: 4, decoration: BoxDecoration(color: VetColors.border, borderRadius: BorderRadius.circular(4))),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Row(children: [Icon(Icons.language_rounded, color: VetColors.blue, size: 31), SizedBox(width: 12), Text('Language / اللغة', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900))]),
+            Column(
+              children: [
+                const SizedBox(height: 10),
+                Container(width: 44, height: 4, decoration: BoxDecoration(color: VetColors.border, borderRadius: BorderRadius.circular(4))),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: Row(children: [
+                    const Icon(Icons.language_rounded, color: VetColors.blue, size: 31),
+                    const SizedBox(width: 12),
+                    Text(_pickerText(context, 'Language', 'اللغة', 'Taal'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+                  ]),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.phone_iphone_rounded, size: 30, color: VetColors.primary),
+                  title: Text(_pickerText(context, 'Automatic', 'تلقائي', 'Automatisch'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text(_pickerText(context, 'Device language', 'حسب لغة الهاتف', 'Taal van apparaat')),
+                  trailing: controller.isAutomatic ? const Icon(Icons.check_circle_rounded, color: VetColors.primary) : null,
+                  onTap: busy ? null : _automatic,
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: vetLanguages.length,
+                    itemBuilder: (context, i) {
+                      final language = vetLanguages[i];
+                      final selected = controller.manualCode == language.code;
+                      return ListTile(
+                        leading: CircleAvatar(backgroundColor: VetColors.surface3, child: Text(language.code.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: VetColors.primaryDark))),
+                        title: Text(language.nativeName, style: const TextStyle(fontWeight: FontWeight.w800)),
+                        subtitle: language.nativeName == language.englishName ? null : Text(language.englishName),
+                        trailing: selected ? const Icon(Icons.check_circle_rounded, color: VetColors.primary) : null,
+                        onTap: busy ? null : () => _choose(language.code),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 14),
+                  child: Text(
+                    _pickerText(
+                      context,
+                      'English, Arabic and Dutch are bundled. Other languages are prepared as one batch and cached so the screen changes together instead of line by line.',
+                      'الإنجليزية والعربية والهولندية مدمجة. اللغات الأخرى تُجهز دفعة واحدة وتُحفظ حتى تتغير الشاشة معًا بدلًا من سطر وراء سطر.',
+                      'Engels, Arabisch en Nederlands zijn ingebouwd. Andere talen worden als één pakket voorbereid en gecachet, zodat het scherm in één keer omschakelt.',
+                    ),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: VetColors.muted, fontSize: 12, height: 1.35),
+                  ),
+                ),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.phone_iphone_rounded, size: 30, color: VetColors.primary),
-              title: const Text('Automatic • Device language', style: TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: const Text('تلقائي • حسب لغة الهاتف'),
-              trailing: controller.isAutomatic ? const Icon(Icons.check_circle_rounded, color: VetColors.primary) : null,
-              onTap: () async { await controller.automatic(); if (sheetContext.mounted) Navigator.pop(sheetContext); },
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView.builder(
-                itemCount: vetLanguages.length,
-                itemBuilder: (context, i) {
-                  final language = vetLanguages[i];
-                  final selected = controller.manualCode == language.code;
-                  return ListTile(
-                    leading: CircleAvatar(backgroundColor: VetColors.surface3, child: Text(language.code.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900))),
-                    title: Text(language.nativeName, style: const TextStyle(fontWeight: FontWeight.w800)),
-                    subtitle: language.nativeName == language.englishName ? null : Text(language.englishName),
-                    trailing: selected ? const Icon(Icons.check_circle_rounded, color: VetColors.primary) : null,
-                    onTap: () async { await controller.choose(language.code); if (context.mounted) Navigator.pop(context); },
-                  );
-                },
+            if (busy)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: Colors.white.withValues(alpha: .78),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+                      decoration: BoxDecoration(color: VetColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: VetColors.border)),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 12),
+                        Text(_pickerText(context, 'Preparing language…', 'جاري تجهيز اللغة…', 'Taal voorbereiden…'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                      ]),
+                    ),
+                  ),
+                ),
               ),
-            ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(18, 8, 18, 14),
-              child: Text('Arabic, English and Dutch are bundled. Other languages are securely translated and cached when the protected translation service is available.', textAlign: TextAlign.center, style: TextStyle(color: VetColors.muted, fontSize: 12, height: 1.35)),
-            ),
           ],
         ),
       ),
-    ),
-  );
+    );
+  }
 }
