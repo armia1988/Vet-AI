@@ -8,11 +8,37 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'services/vet_backend.dart';
 import 'theme/app_theme.dart';
-import 'v2_app.dart' show V2Text;
+import 'i18n/vet_locale.dart';
 import 'v3_app.dart' show V3AnalysisCard;
 
-class VetAIAppV5 extends StatelessWidget {
+class VetAIAppV5 extends StatefulWidget {
   const VetAIAppV5({super.key});
+
+  @override
+  State<VetAIAppV5> createState() => _VetAIAppV5State();
+}
+
+class _VetAIAppV5State extends State<VetAIAppV5> {
+  final localeController = VetLocaleController.instance;
+  final translator = VetTranslator.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    localeController.addListener(_refresh);
+    translator.addListener(_refresh);
+    localeController.load();
+    translator.load();
+  }
+
+  void _refresh() { if (mounted) setState(() {}); }
+
+  @override
+  void dispose() {
+    localeController.removeListener(_refresh);
+    translator.removeListener(_refresh);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +46,8 @@ class VetAIAppV5 extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Vet AI',
       theme: buildVetTheme(),
-      supportedLocales: V2Text.supportedLocales,
+      locale: localeController.locale,
+      supportedLocales: vetSupportedLocales,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -39,14 +66,12 @@ class VetAIAppV5 extends StatelessWidget {
 }
 
 String tr(BuildContext context, String en, String ar, String nl) {
-  switch (Localizations.localeOf(context).languageCode) {
-    case 'ar':
-      return ar;
-    case 'nl':
-      return nl;
-    default:
-      return en;
-  }
+  return VetTranslator.instance.text(
+    localeCode: Localizations.localeOf(context).languageCode,
+    en: en,
+    ar: ar,
+    nl: nl,
+  );
 }
 
 class V5AuthGate extends StatefulWidget {
@@ -583,19 +608,24 @@ class _V5DashboardState extends State<V5Dashboard> {
         selectedIndex: index,
         onDestinationSelected: (v) => setState(() => index = v),
         destinations: [
-          _nav(Icons.home_outlined, Icons.home_rounded, tr(context, 'Home', 'الرئيسية', 'Home')),
-          _nav(Icons.document_scanner_outlined, Icons.document_scanner_rounded, tr(context, 'AI Scan', 'فحص AI', 'AI-scan')),
-          _nav(smart ? Icons.sensors_outlined : Icons.lock_outline_rounded, smart ? Icons.sensors_rounded : Icons.lock_rounded, tr(context, 'Sensors', 'الحساسات', 'Sensoren')),
-          _nav(Icons.warning_amber_outlined, Icons.warning_rounded, tr(context, 'Alerts', 'الإنذارات', 'Meldingen')),
-          _nav(Icons.history_rounded, Icons.manage_history_rounded, tr(context, 'History', 'السجل', 'Historie')),
+          _nav(Icons.home_outlined, Icons.home_rounded, tr(context, 'Home', 'الرئيسية', 'Home'), VetColors.green),
+          _nav(Icons.document_scanner_outlined, Icons.document_scanner_rounded, tr(context, 'AI Scan', 'فحص AI', 'AI-scan'), VetColors.blue),
+          _nav(smart ? Icons.sensors_outlined : Icons.lock_outline_rounded, smart ? Icons.sensors_rounded : Icons.lock_rounded, tr(context, 'Sensors', 'الحساسات', 'Sensoren'), VetColors.purple),
+          _nav(Icons.warning_amber_outlined, Icons.warning_rounded, tr(context, 'Alerts', 'الإنذارات', 'Meldingen'), VetColors.orange),
+          _nav(Icons.history_rounded, Icons.manage_history_rounded, tr(context, 'History', 'السجل', 'Historie'), VetColors.history),
         ],
       ),
     );
   }
 
-  NavigationDestination _nav(IconData icon, IconData selected, String label) => NavigationDestination(
-        icon: Icon(icon, size: 29),
-        selectedIcon: Icon(selected, size: 31),
+  NavigationDestination _nav(IconData icon, IconData selected, String label, Color color) => NavigationDestination(
+        icon: Icon(icon, size: 30, color: VetColors.muted),
+        selectedIcon: Container(
+          width: 48,
+          height: 40,
+          decoration: BoxDecoration(color: color.withValues(alpha: .18), borderRadius: BorderRadius.circular(14)),
+          child: Icon(selected, size: 32, color: color),
+        ),
         label: label,
       );
 }
@@ -614,8 +644,16 @@ class V5Home extends StatelessWidget {
           const _BrandLockup(markWidth: 112, compact: true),
           const Spacer(),
           IconButton.filledTonal(
+            tooltip: tr(context, 'Language', 'اللغة', 'Taal'),
+            style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
+            icon: const Icon(Icons.language_rounded, size: 33, color: VetColors.blue),
+            onPressed: () => showVetLanguagePicker(context),
+          ),
+          const SizedBox(width: 8),
+          IconButton.filledTonal(
             tooltip: tr(context, 'Account & settings', 'الحساب والإعدادات', 'Account & instellingen'),
-            icon: const Icon(Icons.account_circle_outlined, size: 34),
+            style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
+            icon: const Icon(Icons.account_circle_outlined, size: 34, color: VetColors.primary),
             onPressed: onAccount,
           ),
         ]),
