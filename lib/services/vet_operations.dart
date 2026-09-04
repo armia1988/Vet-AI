@@ -1,5 +1,3 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import 'vet_backend.dart';
 
 extension VetOperations on VetBackend {

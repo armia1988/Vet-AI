@@ -222,7 +222,7 @@ class _RuleEditorState extends State<_RuleEditor> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(_rt(context, widget.initial == null ? 'Add real sensor alert rule' : 'Edit sensor alert rule', widget.initial == null ? 'إضافة قاعدة إنذار حساس حقيقية' : 'تعديل قاعدة إنذار الحساس', widget.initial == null ? 'Echte sensorwaarschuwingsregel toevoegen' : 'Sensorwaarschuwingsregel wijzigen'), style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
             const SizedBox(height: 16),
-            DropdownButtonFormField<String>(value: metric, decoration: InputDecoration(labelText: _rt(context, 'Metric', 'المؤشر', 'Meting')), items: metrics.map((m) => DropdownMenuItem(value: m, child: Text(_metricLabel(context, m)))).toList(), onChanged: (v) => setState(() => metric = v ?? metric)),
+            DropdownButtonFormField<String>(initialValue: metric, decoration: InputDecoration(labelText: _rt(context, 'Metric', 'المؤشر', 'Meting')), items: metrics.map((m) => DropdownMenuItem(value: m, child: Text(_metricLabel(context, m)))).toList(), onChanged: (v) => setState(() => metric = v ?? metric)),
             const SizedBox(height: 11),
             TextField(controller: label, decoration: InputDecoration(labelText: _rt(context, 'Alert label', 'اسم الإنذار', 'Meldingsnaam'), prefixIcon: const Icon(Icons.label_outline_rounded))),
             const SizedBox(height: 11),
