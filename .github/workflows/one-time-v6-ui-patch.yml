@@ -13,14 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply UI patch
-        run: python3 tools/patch_v6_ui.py
-      - name: Commit UI patch
+      - name: Add pre-login language button
+        run: python3 tools/patch_auth_language_button.py
+      - name: Commit language selector
         run: |
           git config user.name 'Vet AI Build Bot'
           git config user.email 'actions@github.com'
           git add lib/v5_app.dart
           if ! git diff --cached --quiet; then
-            git commit -m 'Add automatic manual languages and colored navigation'
+            git commit -m 'Add language selector before sign in'
             git push
           fi
