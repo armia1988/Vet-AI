@@ -1,0 +1,35 @@
+name: One-time V20b AI message
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-time-v20b-ai-message.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Apply V20b AI message patch
+        run: python3 tools/patch_v20b_ai_message.py
+      - name: Get dependencies
+        run: flutter pub get
+      - name: Verify static analysis
+        run: flutter analyze --no-fatal-infos
+      - name: Commit verified V20b patch
+        run: |
+          git config user.name 'Vet AI Build Bot'
+          git config user.email 'actions@github.com'
+          git add lib/v5_app.dart
+          if ! git diff --cached --quiet; then
+            git commit -m 'Clarify AI provider rate limit message'
+            git pull --rebase origin main
+            git push
+          fi
