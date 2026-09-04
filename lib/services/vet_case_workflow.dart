@@ -22,7 +22,7 @@ extension VetCaseWorkflow on VetBackend {
               'answers': answers,
             },
           )
-          .timeout(const Duration(seconds: 65));
+          .timeout(const Duration(seconds: 20));
       final data = response.data;
       if (data is Map<String, dynamic>) return data;
       if (data is Map) return Map<String, dynamic>.from(data);
@@ -31,8 +31,8 @@ extension VetCaseWorkflow on VetBackend {
         'code': 'FINAL_REPORT_TIMEOUT',
         'risk': 'insufficient_data',
         'message': language.toLowerCase().startsWith('ar')
-            ? 'المراجعة الموثقة أخدت وقت أطول من المتوقع. جرّب إنشاء التقرير النهائي تاني.'
-            : 'The verified evidence review took longer than expected. Please retry the final report.',
+            ? 'التقرير النهائي أخد وقت أطول من المتوقع. جرّب مرة تانية؛ النظام بيستخدم المعرفة البيطرية المراجعة بدل ما يسيبك مستني.'
+            : 'The final report took longer than expected. Please retry; Vet AI uses its reviewed veterinary knowledge instead of leaving the case waiting indefinitely.',
       };
     } on FunctionException catch (error) {
       final details = error.details;
@@ -43,7 +43,7 @@ extension VetCaseWorkflow on VetBackend {
         'risk': 'insufficient_data',
         'message': language.toLowerCase().startsWith('ar')
             ? 'ماقدرناش نكمل التقرير النهائي دلوقتي. جرّب تاني.'
-            : (error.reasonPhrase ?? 'The final veterinary evidence review could not be completed.'),
+            : (error.reasonPhrase ?? 'The final veterinary report could not be completed.'),
       };
     }
     return {
@@ -51,7 +51,7 @@ extension VetCaseWorkflow on VetBackend {
       'risk': 'insufficient_data',
       'message': language.toLowerCase().startsWith('ar')
           ? 'التقرير النهائي رجع بصيغة غير قابلة للعرض. جرّب تاني.'
-          : 'The final veterinary evidence service returned an unreadable response.',
+          : 'The final veterinary report service returned an unreadable response.',
     };
   }
 
@@ -70,7 +70,7 @@ extension VetCaseWorkflow on VetBackend {
               'language': language,
             },
           )
-          .timeout(const Duration(seconds: 24));
+          .timeout(const Duration(seconds: 12));
       final data = response.data;
       final encoded = data is Map ? data['audio_base64']?.toString() : null;
       if (encoded == null || encoded.isEmpty) return null;
