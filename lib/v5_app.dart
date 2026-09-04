@@ -761,7 +761,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
           Expanded(child: OutlinedButton.icon(onPressed: busy ? null : () => pick(ImageSource.gallery), icon: const Icon(Icons.photo_library_outlined, size: 29), label: Text(tr(context, 'Photos', 'الصور', 'Foto’s')))),
         ]),
         const SizedBox(height: 14),
-        _Field(controller: notes, label: tr(context, 'Symptoms / history / recent changes', 'الأعراض / التاريخ / التغيّرات الأخيرة', 'Symptomen / historie / recente veranderingen'), icon: Icons.clinical_notes_outlined, lines: 4),
+        _Field(controller: notes, label: tr(context, 'Symptoms / history / recent changes', 'الأعراض / التاريخ / التغيّرات الأخيرة', 'Symptomen / historie / recente veranderingen'), icon: Icons.description_outlined, lines: 4),
         const SizedBox(height: 14),
         ElevatedButton.icon(
           onPressed: file == null || busy ? null : analyze,
@@ -871,7 +871,7 @@ class V5HistoryPanel extends StatelessWidget {
             if (s.connectionState != ConnectionState.done) const Center(child: CircularProgressIndicator()),
             if (s.connectionState == ConnectionState.done && (s.data ?? []).isEmpty) _Notice(icon: Icons.inbox_outlined, title: tr(context, 'No assessments yet', 'لا توجد فحوصات حتى الآن', 'Nog geen beoordelingen'), text: tr(context, 'Your first AI Scan case will appear here.', 'أول حالة من فحص AI ستظهر هنا.', 'Je eerste AI-scan verschijnt hier.')),
             for (final a in s.data ?? [])
-              Card(margin: const EdgeInsets.only(bottom: 10), child: ListTile(leading: const Icon(Icons.clinical_notes_outlined, size: 32, color: VetColors.primary), title: Text('${a['animal_group'] ?? ''} • ${a['risk'] ?? ''}'), subtitle: Text('${a['status'] ?? ''}\n${a['created_at'] ?? ''}'), isThreeLine: true)),
+              Card(margin: const EdgeInsets.only(bottom: 10), child: ListTile(leading: const Icon(Icons.description_outlined, size: 32, color: VetColors.primary), title: Text('${a['animal_group'] ?? ''} • ${a['risk'] ?? ''}'), subtitle: Text('${a['status'] ?? ''}\n${a['created_at'] ?? ''}'), isThreeLine: true)),
           ],
         ),
       );
