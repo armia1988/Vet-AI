@@ -224,6 +224,7 @@ class VetBackend {
     required String farmId,
     required String mediaPath,
     String symptomNotes = '',
+    String animalGroup = 'livestock',
   }) async {
     final user = currentUser;
     if (user == null) throw StateError('You must be signed in.');
@@ -234,6 +235,7 @@ class VetBackend {
           'created_by': user.id,
           'media_path': mediaPath,
           'symptom_notes': symptomNotes.trim(),
+          'animal_group': animalGroup,
           'risk': 'insufficient_data',
           'status': 'draft',
         })
@@ -242,10 +244,16 @@ class VetBackend {
     return row['id'] as String;
   }
 
-  Future<Map<String, dynamic>> analyzeAssessment(String assessmentId) async {
+  Future<Map<String, dynamic>> analyzeAssessment(
+    String assessmentId, {
+    String language = 'en',
+  }) async {
     final response = await client.functions.invoke(
       'analyze-case',
-      body: {'assessment_id': assessmentId},
+      body: {
+        'assessment_id': assessmentId,
+        'language': language,
+      },
     );
     final data = response.data;
     if (data is Map<String, dynamic>) return data;
