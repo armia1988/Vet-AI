@@ -3,6 +3,14 @@ workflows:
     name: Vet AI iOS TestFlight Build
     max_build_duration: 60
     instance_type: mac_mini_m1
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+      cancel_previous_builds: true
     integrations:
       app_store_connect: Codemagic Key
     environment:
