@@ -1,7 +1,7 @@
 name: app
 description: Vet AI - veterinary decision support and smart animal monitoring.
 publish_to: 'none'
-version: 0.2.0+2
+version: 0.2.0+3
 
 environment:
   sdk: '>=3.9.0 <4.0.0'
@@ -27,6 +27,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/vet_ai_logo.svg
+    - assets/vet_ai_app_icon.svg
 
 flutter_launcher_icons:
   ios: true
