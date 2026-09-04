@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const OPENAI_MODEL = "gpt-5.6-terra";
+const OPENAI_MODEL = Deno.env.get("VET_AI_ANALYSIS_MODEL") ?? "gpt-5.6-luna";
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
@@ -189,8 +189,8 @@ Analyze the image and notes. Check selected-group compatibility before any disea
     body: JSON.stringify({
       model: OPENAI_MODEL,
       store: false,
-      reasoning: { effort: "medium" },
-      max_output_tokens: 2400,
+      reasoning: { effort: "low" },
+      max_output_tokens: 1400,
       input: [
         { role: "developer", content: [{ type: "input_text", text: developerPrompt }] },
         { role: "user", content: [{ type: "input_text", text: userPrompt }, { type: "input_image", image_url: imageUrl, detail: "high" }] },
