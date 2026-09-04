@@ -133,28 +133,28 @@ class _VetStartupExperienceState extends State<VetStartupExperience> {
         color: VetColors.blue,
         title: _t(context, 'Veterinary intelligence for faster decisions', 'ذكاء بيطري يساعدك تاخد قرار أسرع', 'Veterinaire intelligentie voor snellere beslissingen'),
         body: _t(context, 'Scan an animal photo, add the symptoms and receive a cautious first assessment.', 'صوّر الحيوان، ضيف الأعراض، وVet AI يديك تقييم أولي حذر من غير ما يدّعي تشخيص نهائي من صورة واحدة.', 'Scan een foto van het dier, voeg symptomen toe en ontvang een voorzichtige eerste beoordeling.'),
-        asset: 'assets/icons/cow.svg',
+        asset: 'assets/icons/livestock_final.png',
       ),
       _IntroPageData(
         icon: Icons.sensors_rounded,
         color: VetColors.purple,
         title: _t(context, 'Smart monitoring when sensors are connected', 'مراقبة ذكية لما الحساسات الحقيقية تكون متوصلة', 'Slimme monitoring wanneer sensoren gekoppeld zijn'),
         body: _t(context, 'Follow body temperature, environment, activity, feeding, rumination, resting and herd distance from real sensor data.', 'تابع حرارة الجسم والجو، النشاط، الأكل، الاجترار، الراحة، والخروج عن القطيع من قراءات حقيقية للحساسات.', 'Volg lichaamstemperatuur, omgeving, activiteit, voeren, herkauwen, rust en afstand tot de kudde met echte sensordata.'),
-        asset: 'assets/icons/buffalo.svg',
+        asset: 'assets/icons/livestock_final.png',
       ),
       _IntroPageData(
         icon: Icons.fact_check_rounded,
         color: VetColors.green,
         title: _t(context, 'One clear final veterinary report', 'تقرير بيطري نهائي واضح في مكان واحد', 'Eén duidelijk definitief veterinair rapport'),
         body: _t(context, 'Answer the follow-up questions and Vet AI reviews trusted sources before preparing the final summary and PDF report.', 'جاوب على أسئلة المتابعة، وبعدها Vet AI يراجع مصادر موثوقة ويجهز الخلاصة والتصرف المطلوب وتقرير PDF.', 'Beantwoord vervolgvragen; Vet AI controleert betrouwbare bronnen en maakt daarna de samenvatting en het PDF-rapport.'),
-        asset: 'assets/icons/chicken.svg',
+        asset: 'assets/icons/poultry_final.png',
       ),
       _IntroPageData(
         icon: Icons.privacy_tip_outlined,
         color: VetColors.orange,
         title: _t(context, 'Your data stays under your control', 'بياناتك وصورك بإذنك إنت', 'Je gegevens blijven onder jouw controle'),
         body: _t(context, 'Vet AI asks before using location, camera, photos or files. You can refuse and continue where the feature allows it.', 'قبل الموقع أو الكاميرا أو الصور أو الملفات، Vet AI هيطلب إذنك الأول. تقدر ترفض، ومش هنرفع حاجة من غير موافقتك.', 'Vet AI vraagt toestemming voordat locatie, camera, foto’s of bestanden worden gebruikt. Je kunt weigeren waar de functie dat toelaat.'),
-        asset: 'assets/icons/dog.svg',
+        asset: 'assets/icons/dog_final.png',
       ),
     ];
 
@@ -324,7 +324,7 @@ class _IntroPage extends StatelessWidget {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        SvgPicture.asset(data.asset, width: 92, height: 92),
+                        Image.asset(data.asset, width: 112, height: 112, fit: BoxFit.contain, filterQuality: FilterQuality.high),
                         Positioned(right: 15, bottom: 15, child: CircleAvatar(radius: 22, backgroundColor: data.color, child: Icon(data.icon, color: Colors.white, size: 24))),
                       ],
                     ),

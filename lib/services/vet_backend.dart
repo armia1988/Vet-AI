@@ -87,6 +87,11 @@ class VetBackend {
     required String fullName,
     required String phone,
     required String preferredLanguage,
+    required String emailSubject,
+    required String emailHeading,
+    required String emailBody,
+    required String emailButton,
+    required String emailFooter,
   }) {
     return client.auth.signUp(
       email: email.trim(),
@@ -96,6 +101,13 @@ class VetBackend {
         'full_name': fullName.trim(),
         'phone': phone.trim(),
         'preferred_language': preferredLanguage,
+        'language': preferredLanguage,
+        'brand_name': 'Vet AI',
+        'email_subject': emailSubject,
+        'email_heading': emailHeading,
+        'email_body': emailBody,
+        'email_button': emailButton,
+        'email_footer': emailFooter,
       },
     );
   }

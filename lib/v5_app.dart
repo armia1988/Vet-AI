@@ -196,6 +196,11 @@ class _V5AuthScreenState extends State<V5AuthScreen> {
           fullName: fullName.text,
           phone: phone.text,
           preferredLanguage: Localizations.localeOf(context).languageCode,
+          emailSubject: tr(context, 'Vet AI — Confirm your account', 'Vet AI — أكّد حسابك', 'Vet AI — Bevestig je account'),
+          emailHeading: tr(context, 'Welcome to Vet AI', 'أهلاً بيك في Vet AI', 'Welkom bij Vet AI'),
+          emailBody: tr(context, 'Confirm your email address to finish creating your Vet AI account and securely access your farm data.', 'أكّد بريدك الإلكتروني علشان تكمّل إنشاء حساب Vet AI وتدخل على بيانات مزرعتك بأمان.', 'Bevestig je e-mailadres om je Vet AI-account af te ronden en veilig toegang te krijgen tot je boerderijgegevens.'),
+          emailButton: tr(context, 'Confirm Vet AI account', 'تأكيد حساب Vet AI', 'Vet AI-account bevestigen'),
+          emailFooter: tr(context, 'If you did not create this Vet AI account, you can ignore this email.', 'لو إنت ماعملتش حساب Vet AI ده، تجاهل الرسالة دي.', 'Als je dit Vet AI-account niet hebt aangemaakt, kun je deze e-mail negeren.'),
         );
         if (!mounted) return;
         if (response.session == null) {
@@ -668,34 +673,24 @@ class V5Home extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
       children: [
         SizedBox(
-          height: 108,
-          child: Stack(
+          height: 74,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Align(
-                alignment: Alignment.topCenter,
-                child: _BrandLockup(markWidth: 118, compact: true),
+              const _HeaderBrand(),
+              const Spacer(),
+              IconButton.filledTonal(
+                tooltip: tr(context, 'Language', 'اللغة', 'Taal'),
+                style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
+                icon: const Icon(Icons.language_rounded, size: 30, color: VetColors.blue),
+                onPressed: () => showVetLanguagePicker(context),
               ),
-              PositionedDirectional(
-                top: 0,
-                end: 0,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton.filledTonal(
-                      tooltip: tr(context, 'Language', 'اللغة', 'Taal'),
-                      style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
-                      icon: const Icon(Icons.language_rounded, size: 30, color: VetColors.blue),
-                      onPressed: () => showVetLanguagePicker(context),
-                    ),
-                    const SizedBox(width: 5),
-                    IconButton.filledTonal(
-                      tooltip: tr(context, 'Account & settings', 'الحساب والإعدادات', 'Account & instellingen'),
-                      style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
-                      icon: const Icon(Icons.account_circle_outlined, size: 31, color: VetColors.primary),
-                      onPressed: onAccount,
-                    ),
-                  ],
-                ),
+              const SizedBox(width: 6),
+              IconButton.filledTonal(
+                tooltip: tr(context, 'Account & settings', 'الحساب والإعدادات', 'Account & instellingen'),
+                style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
+                icon: const Icon(Icons.account_circle_outlined, size: 31, color: VetColors.primary),
+                onPressed: onAccount,
               ),
             ],
           ),
@@ -867,9 +862,9 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
         _StepTitle(icon: Icons.document_scanner_rounded, title: tr(context, 'AI health scan', 'الفحص الصحي بالذكاء الاصطناعي', 'AI-gezondheidsscan'), subtitle: tr(context, 'Image + symptoms + reviewed veterinary knowledge. Not a definitive diagnosis.', 'صورة + أعراض + معرفة بيطرية مراجعة. ليست تشخيصًا نهائيًا.', 'Beeld + symptomen + beoordeelde veterinaire kennis. Geen definitieve diagnose.')),
         const SizedBox(height: 16),
         if (groups.length > 1)
-          Wrap(spacing: 8, runSpacing: 8, children: groups.map((g) => ChoiceChip(avatar: SvgPicture.asset(asset(g), width: 26, height: 26), label: Text(label(g)), selected: group == g, onSelected: busy ? null : (_) => setState(() => group = g))).toList()),
+          Wrap(spacing: 8, runSpacing: 8, children: groups.map((g) => ChoiceChip(avatar: Image.asset(asset(g), width: 34, height: 34, fit: BoxFit.contain, filterQuality: FilterQuality.high), label: Text(label(g)), selected: group == g, onSelected: busy ? null : (_) => setState(() => group = g))).toList()),
         if (groups.length == 1)
-          _Notice(icon: Icons.pets_rounded, title: label(groups.first), text: tr(context, 'This is the animal group enabled for this farm.', 'هذا هو نوع الحيوان المفعّل لهذه المزرعة.', 'Dit is de diergroep die voor deze boerderij is ingeschakeld.')),
+          _AnimalGroupBanner(asset: asset(groups.first), title: label(groups.first), text: tr(context, 'This is the animal group enabled for this farm.', 'ده نوع الحيوان المفعّل للمزرعة دي.', 'Dit is de diergroep die voor deze boerderij is ingeschakeld.')),
         const SizedBox(height: 16),
         Container(
           height: 285,
@@ -1222,6 +1217,27 @@ class _Notice extends StatelessWidget {
   @override Widget build(BuildContext context)=>Container(padding:const EdgeInsets.all(16),decoration:BoxDecoration(color:danger?VetColors.softRed:VetColors.surface,borderRadius:BorderRadius.circular(18),border:Border.all(color:danger?VetColors.red:VetColors.border)),child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[Icon(icon,size:30,color:danger?VetColors.red:VetColors.primary),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(fontSize:16,fontWeight:FontWeight.w900)),const SizedBox(height:5),Text(text,style:const TextStyle(color:VetColors.muted,height:1.42))]))]));
 }
 
+class _AnimalGroupBanner extends StatelessWidget {
+  const _AnimalGroupBanner({required this.asset, required this.title, required this.text});
+  final String asset;
+  final String title;
+  final String text;
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: VetColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: VetColors.border)),
+        child: Row(children: [
+          Image.asset(asset, width: 64, height: 64, fit: BoxFit.contain, filterQuality: FilterQuality.high),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 5),
+            Text(text, style: const TextStyle(color: VetColors.muted, height: 1.4)),
+          ])),
+        ]),
+      );
+}
+
 class _AnimalChoice extends StatelessWidget {
   const _AnimalChoice({required this.group,required this.label,required this.asset,required this.selected,required this.onTap}); final String group; final String label; final String asset; final bool selected; final VoidCallback onTap;
   @override Widget build(BuildContext context)=>InkWell(onTap:onTap,borderRadius:BorderRadius.circular(18),child:Container(padding:const EdgeInsets.symmetric(horizontal:16,vertical:15),decoration:BoxDecoration(color:selected?VetColors.surface3:VetColors.surface,borderRadius:BorderRadius.circular(18),border:Border.all(color:selected?VetColors.primary:VetColors.border,width:selected?1.5:1)),child:Row(children:[Image.asset(asset,width:54,height:54,fit:BoxFit.contain,filterQuality:FilterQuality.high),const SizedBox(width:14),Expanded(child:Text(label,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w800))),Icon(selected?Icons.check_circle_rounded:Icons.radio_button_unchecked_rounded,size:29,color:selected?VetColors.primary:VetColors.muted)])));
@@ -1245,6 +1261,27 @@ class _MenuTile extends StatelessWidget {
 class _MiniBrand extends StatelessWidget {
   const _MiniBrand();
   @override Widget build(BuildContext context)=>SvgPicture.asset('assets/vet_ai_logo.svg',width:58,height:42,colorFilter:const ColorFilter.mode(VetColors.primary,BlendMode.srcIn));
+}
+
+class _HeaderBrand extends StatelessWidget {
+  const _HeaderBrand();
+  @override
+  Widget build(BuildContext context) => Row(
+        textDirection: TextDirection.ltr,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SvgPicture.asset('assets/vet_ai_logo.svg', width: 72, height: 49, colorFilter: const ColorFilter.mode(VetColors.primary, BlendMode.srcIn)),
+          const SizedBox(width: 9),
+          Text.rich(
+            TextSpan(children: [
+              const TextSpan(text: 'Vet ', style: TextStyle(color: VetColors.text)),
+              const TextSpan(text: 'AI', style: TextStyle(color: VetColors.primary)),
+            ]),
+            style: const TextStyle(fontSize: 29, fontWeight: FontWeight.w900, letterSpacing: .1),
+          ),
+        ],
+      );
 }
 
 class _BrandLockup extends StatelessWidget {

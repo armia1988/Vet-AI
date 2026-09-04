@@ -548,13 +548,20 @@ class _SupportImageAnnotatorState extends State<SupportImageAnnotator> {
                       ),
                     ),
                   ),
-                const Spacer(),
-                FilledButton.icon(
-                  onPressed: saving ? null : _save,
-                  icon: saving ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.check_rounded),
-                  label: Text(_t(context, 'Use image', 'استخدام الصورة', 'Afbeelding gebruiken')),
-                ),
               ]),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: SizedBox(
+                  width: 260,
+                  height: 50,
+                  child: FilledButton.icon(
+                    onPressed: saving ? null : _save,
+                    icon: saving ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.check_rounded),
+                    label: Text(_t(context, 'Use image', 'استخدام الصورة', 'Afbeelding gebruiken')),
+                  ),
+                ),
+              ),
             ]),
           ),
         ),

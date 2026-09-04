@@ -130,12 +130,17 @@ const vetCoreUiStrings = <String>[
   'Subscription',
   'Support chat',
   'About Vet AI',
+  'Vet AI — Confirm your account',
+  'Welcome to Vet AI',
+  'Confirm your email address to finish creating your Vet AI account and securely access your farm data.',
+  'Confirm Vet AI account',
+  'If you did not create this Vet AI account, you can ignore this email.',
 ];
 
 class VetLocaleController extends ChangeNotifier {
   VetLocaleController._();
   static final instance = VetLocaleController._();
-  static const _pref = 'vet_ai_language_override';
+  static const _pref = 'vet_ai_language_override_v3';
 
   String? _manualCode;
   bool _loaded = false;
@@ -147,6 +152,7 @@ class VetLocaleController extends ChangeNotifier {
     if (_loaded) return;
     _loaded = true;
     final p = await SharedPreferences.getInstance();
+    await p.remove('vet_ai_language_override');
     final code = p.getString(_pref);
     if (code != null && vetLanguages.any((l) => l.code == code)) _manualCode = code;
     notifyListeners();
