@@ -1,0 +1,89 @@
+name: One-time V22 restore approved animal icons
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-v22-restore-approved-icons.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  restore-approved-icons:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Restore the approved animal artwork and keep it sharp
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('lib/v5_app.dart')
+          s = p.read_text(encoding='utf-8')
+
+          # Restore the exact approved raster artwork that already existed in Vet AI.
+          s = s.replace("assets/icons/livestock.svg", "assets/icons/livestock_final.png")
+          s = s.replace("assets/icons/poultry.svg", "assets/icons/poultry_final.png")
+          s = s.replace("assets/icons/dog.svg", "assets/icons/dog_final.png")
+
+          # The V21 patch switched the animal widgets to SVG rendering. Put those
+          # widgets back on Image.asset because the approved artwork is PNG.
+          s = s.replace("SvgPicture.asset(asset(g),", "Image.asset(asset(g),")
+          s = s.replace("SvgPicture.asset(asset,", "Image.asset(asset,")
+
+          # Add high quality sampling to the approved PNG artwork without changing it.
+          s = s.replace(
+              "Image.asset(asset(g), width: 66, height: 48, fit: BoxFit.contain)",
+              "Image.asset(asset(g), width: 66, height: 48, fit: BoxFit.contain, filterQuality: FilterQuality.high, isAntiAlias: true)",
+          )
+          s = s.replace(
+              "Image.asset(asset, fit: BoxFit.contain)",
+              "Image.asset(asset, fit: BoxFit.contain, filterQuality: FilterQuality.high, isAntiAlias: true)",
+          )
+          s = s.replace(
+              "Image.asset(asset, width: 146, height: 96, fit: BoxFit.contain)",
+              "Image.asset(asset, width: 146, height: 96, fit: BoxFit.contain, filterQuality: FilterQuality.high, isAntiAlias: true)",
+          )
+
+          p.write_text(s, encoding='utf-8')
+
+          pub = Path('pubspec.yaml')
+          ps = pub.read_text(encoding='utf-8')
+          import re
+          ps, n = re.subn(r'^version:\s*[^\n]+$', 'version: 0.6.6+17', ps, count=1, flags=re.M)
+          if n != 1:
+              raise SystemExit('Could not bump Vet AI build version')
+          pub.write_text(ps, encoding='utf-8')
+          PY
+
+          # Never allow the rejected outline replacements to be referenced again.
+          if grep -R -n -E "assets/icons/(livestock|poultry|dog)\.svg" lib; then
+            echo "Rejected outline icon reference still exists" >&2
+            exit 1
+          fi
+
+          git rm -f assets/icons/livestock.svg assets/icons/poultry.svg assets/icons/dog.svg
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Verify app
+        run: flutter analyze --no-fatal-infos
+
+      - name: Commit approved icons restoration
+        run: |
+          git config user.name "Vet AI Build Bot"
+          git config user.email "actions@github.com"
+          git rm -f .github/workflows/one-time-v22-restore-approved-icons.yml
+          git add lib/v5_app.dart pubspec.yaml pubspec.lock assets/icons
+          git commit -m "Restore approved Vet AI animal icons"
+          git push origin HEAD:main
