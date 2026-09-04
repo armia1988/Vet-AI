@@ -1,0 +1,26 @@
+name: One-time V8 light report patch
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-time-v8-light-report.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply light UI and report patch
+        run: python3 tools/patch_v8_light_report.py
+      - name: Commit final UI patch
+        run: |
+          git config user.name 'Vet AI Build Bot'
+          git config user.email 'actions@github.com'
+          git add lib/v5_app.dart lib/support/support_chat_v6.dart lib/analysis/vet_analysis_report.dart
+          if ! git diff --cached --quiet; then
+            git commit -m 'Finish bright UI and interactive final reports'
+            git push
+          fi
