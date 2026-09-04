@@ -7,10 +7,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'services/vet_backend.dart';
+import 'analysis/vet_analysis_report.dart';
 import 'support/support_chat_v6.dart';
 import 'theme/app_theme.dart';
 import 'i18n/vet_locale.dart';
-import 'v3_app.dart' show V3AnalysisCard;
 
 class VetAIAppV5 extends StatefulWidget {
   const VetAIAppV5({super.key});
@@ -732,6 +732,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
   Uint8List? bytes;
   bool busy = false;
   Map<String, dynamic>? result;
+  String? assessmentId;
   late String group;
 
   List<String> get groups => [
@@ -766,8 +767,9 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
       final extension = file!.name.contains('.') ? file!.name.split('.').last : 'jpg';
       final farmId = widget.farm['id'] as String;
       final path = await VetBackend.instance.uploadDiagnosticMedia(farmId: farmId, bytes: bytes!, extension: extension);
-      final assessmentId = await VetBackend.instance.createDraftAssessment(farmId: farmId, mediaPath: path, symptomNotes: notes.text, animalGroup: group);
-      final response = await VetBackend.instance.analyzeAssessment(assessmentId, language: Localizations.localeOf(context).languageCode);
+      final newAssessmentId = await VetBackend.instance.createDraftAssessment(farmId: farmId, mediaPath: path, symptomNotes: notes.text, animalGroup: group);
+      assessmentId = newAssessmentId;
+      final response = await VetBackend.instance.analyzeAssessment(newAssessmentId, language: Localizations.localeOf(context).languageCode);
       if (mounted) setState(() => result = response);
     } catch (_) {
       if (mounted) {
@@ -828,7 +830,13 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
         if (result != null) ...[
           const SizedBox(height: 16),
           if (complete)
-            V3AnalysisCard(result: result!)
+            VetAnalysisReportCard(
+              initialResult: result!,
+              assessmentId: assessmentId ?? result!['assessment_id']?.toString() ?? '',
+              languageCode: Localizations.localeOf(context).languageCode,
+              translate: (en, ar, nl) => tr(context, en, ar, nl),
+              onFinalized: (finalReport) { if (mounted) setState(() => result = finalReport); },
+            )
           else
             _Notice(
               icon: code == 'AI_PROVIDER_NOT_CONFIGURED' ? Icons.key_off_outlined : Icons.info_outline_rounded,
