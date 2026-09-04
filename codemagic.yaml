@@ -39,8 +39,11 @@ workflows:
           python3 -m pip install --quiet cairosvg
           python3 - <<'PY'
           import cairosvg
+          source = open('assets/vet_ai_app_icon.svg', encoding='utf-8').read()
+          source = source.replace('#07181B', '#181D21').replace('#39E6B1', '#8EB9AF')
+          source = source.replace('translate(121 249) scale(3.4)', 'translate(-15 54) scale(4.6)')
           cairosvg.svg2png(
-              url='assets/vet_ai_app_icon.svg',
+              bytestring=source.encode('utf-8'),
               write_to='assets/vet_ai_app_icon.png',
               output_width=1024,
               output_height=1024,
