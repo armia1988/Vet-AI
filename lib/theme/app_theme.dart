@@ -103,7 +103,7 @@ ThemeData buildVetTheme() {
         iconSize: 29,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w850, fontSize: 16.5),
+        textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16.5),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
