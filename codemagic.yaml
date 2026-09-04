@@ -15,6 +15,7 @@ workflows:
         script: |
           flutter create . --platforms=ios,android --project-name app --org com.vetai
           rm -f test/widget_test.dart
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" ios/Runner/Info.plist
       - name: Install Flutter dependencies
         script: flutter pub get
       - name: Static analysis
