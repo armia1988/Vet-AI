@@ -27,7 +27,7 @@ jobs:
         run: |
           git config user.name 'Vet AI Build Bot'
           git config user.email 'actions@github.com'
-          git add lib/legal/vet_legal_pages.dart lib/monitoring/sensor_alert_rules.dart lib/services/vet_operations.dart
+          git add lib/v5_app.dart lib/legal/vet_legal_pages.dart lib/monitoring/sensor_alert_rules.dart lib/services/vet_operations.dart
           if ! git diff --cached --quiet; then
             git commit -m 'Fix V17 static analysis warnings'
             git push
