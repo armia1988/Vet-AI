@@ -1,0 +1,90 @@
+name: One-time V21 production fix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-time-v21-production-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-verify-cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Apply V21 production fixes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          app = Path('lib/v5_app.dart')
+          s = app.read_text()
+
+          replacements = {
+              "assets/icons/livestock_final.png": "assets/icons/livestock.svg",
+              "assets/icons/poultry_final.png": "assets/icons/poultry.svg",
+              "assets/icons/dog_final.png": "assets/icons/dog.svg",
+              "imageQuality: 88, maxWidth: 2200": "imageQuality: 84, maxWidth: 1600",
+              "ChoiceChip(avatar: Transform.scale(scale: 1.45, child: Image.asset(asset(g), width: 52, height: 52, fit: BoxFit.contain, filterQuality: FilterQuality.high)),": "ChoiceChip(avatar: SizedBox(width: 56, height: 42, child: SvgPicture.asset(asset(g), fit: BoxFit.contain)),",
+              "Transform.scale(scale: 1.45, child: Image.asset(asset, width: 90, height: 90, fit: BoxFit.contain, filterQuality: FilterQuality.high))": "SizedBox(width: 112, height: 84, child: SvgPicture.asset(asset, fit: BoxFit.contain))",
+              "Transform.scale(scale:1.35,child:Image.asset(asset,width:78,height:78,fit:BoxFit.contain,filterQuality:FilterQuality.high))": "SizedBox(width:92,height:68,child:SvgPicture.asset(asset,fit:BoxFit.contain))",
+              "child: Transform.scale(\n                    scale: 1.7,\n                    child: Image.asset(asset, width: 100, height: 100, fit: BoxFit.contain, filterQuality: FilterQuality.high),\n                  ),": "child: SvgPicture.asset(asset, width: 146, height: 96, fit: BoxFit.contain),",
+              "offset: const Offset(5, 0)": "offset: const Offset(2, 0)",
+              "SvgPicture.asset('assets/vet_ai_logo.svg', width: 74, height: 51": "SvgPicture.asset('assets/vet_ai_logo.svg', width: 82, height: 56",
+              "const SizedBox(width: 1),": "const SizedBox(width: 0),",
+              "SvgPicture.asset('assets/vet_ai_logo.svg',width:58,height:42": "SvgPicture.asset('assets/vet_ai_logo.svg',width:64,height:46",
+          }
+          for old, new in replacements.items():
+              if old not in s:
+                  raise SystemExit(f'missing expected app pattern: {old[:90]}')
+              s = s.replace(old, new)
+          app.write_text(s)
+
+          strokes = {
+              'assets/icons/livestock.svg': ('stroke-width="3.6"', 'stroke-width="4.6"'),
+              'assets/icons/poultry.svg': ('stroke-width="3.4"', 'stroke-width="4.4"'),
+              'assets/icons/dog.svg': ('stroke-width="3.5"', 'stroke-width="4.5"'),
+          }
+          for name, (old, new) in strokes.items():
+              p = Path(name)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'missing stroke pattern in {name}')
+              p.write_text(text.replace(old, new, 1))
+
+          pubspec = Path('pubspec.yaml')
+          text = pubspec.read_text()
+          if 'version: 0.6.4+14' not in text:
+              raise SystemExit('unexpected pubspec version')
+          pubspec.write_text(text.replace('version: 0.6.4+14', 'version: 0.6.5+15', 1))
+
+          edge = Path('supabase/functions/analyze-case/index.ts')
+          text = edge.read_text()
+          text = text.replace('const OPENAI_MODEL = "gpt-5.6-terra";', 'const OPENAI_MODEL = Deno.env.get("VET_AI_ANALYSIS_MODEL") ?? "gpt-5.6-luna";', 1)
+          text = text.replace('reasoning: { effort: "medium" },\n      max_output_tokens: 2400,', 'reasoning: { effort: "low" },\n      max_output_tokens: 1400,', 1)
+          edge.write_text(text)
+
+          migration = Path('supabase/migrations/0017_support_agent_rpc_select_grant.sql')
+          migration.write_text("""-- Restore the SELECT privilege required by the SECURITY INVOKER support-agent RPC.\n-- RLS still limits authenticated users to their own support_agents row.\ngrant select on table public.support_agents to authenticated;\nrevoke all on table public.support_agents from anon;\n""")
+
+          # Remove obsolete one-shot workflows so they can no longer generate noisy run-failure emails.
+          for f in Path('.github/workflows').glob('one-time-*.yml'):
+              f.unlink()
+          PY
+      - name: Get dependencies
+        run: flutter pub get
+      - name: Verify static analysis
+        run: flutter analyze --no-fatal-infos
+      - name: Commit verified V21 and remove obsolete one-time workflows
+        run: |
+          git config user.name 'Vet AI Build Bot'
+          git config user.email 'actions@github.com'
+          git add -A
+          git commit -m 'V21 sharpen animal icons reduce AI load and clean workflows'
+          git pull --rebase origin main
+          git push
