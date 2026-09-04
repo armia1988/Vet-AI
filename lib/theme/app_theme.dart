@@ -45,7 +45,7 @@ ThemeData buildVetTheme() {
       foregroundColor: VetColors.text,
       iconTheme: IconThemeData(size: 30, color: VetColors.text),
       actionsIconTheme: IconThemeData(size: 31, color: VetColors.text),
-      titleTextStyle: TextStyle(color: VetColors.text, fontSize: 22, fontWeight: FontWeight.w850),
+      titleTextStyle: TextStyle(color: VetColors.text, fontSize: 22, fontWeight: FontWeight.w800),
       elevation: 0,
       surfaceTintColor: Colors.transparent,
     ),
@@ -99,7 +99,7 @@ ThemeData buildVetTheme() {
       backgroundColor: Color(0xFF273137),
       indicatorColor: Color(0xFF405057),
       iconTheme: WidgetStatePropertyAll(IconThemeData(size: 30)),
-      labelTextStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12.5, fontWeight: FontWeight.w650)),
+      labelTextStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
@@ -109,7 +109,7 @@ ThemeData buildVetTheme() {
         iconSize: 30,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w850, fontSize: 16.5),
+        textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16.5),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
