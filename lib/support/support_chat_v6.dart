@@ -312,9 +312,9 @@ class SupportMessageBubble extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         constraints: const BoxConstraints(maxWidth: 330),
         decoration: BoxDecoration(
-          color: mine ? const Color(0xFF3C5550) : VetColors.surface2,
+          color: mine ? VetColors.softBlue : VetColors.surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: mine ? VetColors.primaryDark : VetColors.border),
+          border: Border.all(color: mine ? VetColors.blue : VetColors.border),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (isImage)

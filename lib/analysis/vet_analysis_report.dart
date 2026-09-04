@@ -288,6 +288,23 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
             _ErrorBox(text: _finalError!),
           ],
         ],
+        if (questions.isEmpty) ...[
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            onPressed: _finalizing ? null : _finalize,
+            style: FilledButton.styleFrom(backgroundColor: VetColors.blue, foregroundColor: Colors.white, minimumSize: const Size.fromHeight(58)),
+            icon: _finalizing
+                ? const SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.fact_check_outlined, size: 28),
+            label: Text(_finalizing
+                ? widget.translate('Checking trusted sources…', 'جاري مراجعة المصادر الموثوقة…', 'Betrouwbare bronnen controleren…')
+                : widget.translate('Create final verified report', 'إنشاء التقرير النهائي الموثق', 'Definitief geverifieerd rapport maken')),
+          ),
+          if (_finalError != null) ...[
+            const SizedBox(height: 10),
+            _ErrorBox(text: _finalError!),
+          ],
+        ],
       ],
     );
   }
