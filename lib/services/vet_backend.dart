@@ -141,7 +141,7 @@ class VetBackend {
         'farm_id': farmId,
         'name': 'Barn ${i + 1}',
         'animal_group': group,
-        'indoor_area_m2': p.barnCount == 0 ? p.totalIndoorAreaM2 : p.totalIndoorAreaM2 / p.barnCount,
+        'indoor_area_m2': p.totalIndoorAreaM2 / p.barnCount,
       });
     }
     if (barnRows.isNotEmpty) await client.from('barns').insert(barnRows);
@@ -240,5 +240,20 @@ class VetBackend {
         .select('id')
         .single();
     return row['id'] as String;
+  }
+
+  Future<Map<String, dynamic>> analyzeAssessment(String assessmentId) async {
+    final response = await client.functions.invoke(
+      'analyze-case',
+      body: {'assessment_id': assessmentId},
+    );
+    final data = response.data;
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {
+      'code': 'INVALID_AI_RESPONSE',
+      'risk': 'insufficient_data',
+      'message': 'The protected AI service returned an unreadable response.',
+    };
   }
 }
