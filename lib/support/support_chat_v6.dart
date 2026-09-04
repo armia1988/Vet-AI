@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../i18n/vet_locale.dart';
@@ -127,13 +128,25 @@ class _V6SupportScreenState extends State<V6SupportScreen> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    final access = await _confirmAccess(
-      title: source == ImageSource.camera ? _t(context, 'Open camera?', 'فتح الكاميرا؟', 'Camera openen?') : _t(context, 'Open photos?', 'فتح الصور؟', 'Foto’s openen?'),
-      message: source == ImageSource.camera
-          ? _t(context, 'Vet AI Support will open the camera only after your approval. Nothing is sent until you approve the upload after editing.', 'دعم Vet AI هيفتح الكاميرا بعد موافقتك بس. مش هيتبعت أي حاجة إلا بعد ما توافق كمان على الرفع بعد التعديل.', 'Vet AI Support opent de camera pas na jouw toestemming. Er wordt niets verstuurd totdat je na het bewerken ook de upload bevestigt.')
-          : _t(context, 'Vet AI Support will open your photo picker only after your approval. Nothing is sent until you approve the upload.', 'دعم Vet AI هيفتح اختيار الصور بعد موافقتك بس. مش هيتبعت أي ملف إلا لما توافق على الرفع.', 'Vet AI Support opent de fotokiezer pas na jouw toestemming. Er wordt niets verstuurd totdat je de upload bevestigt.'),
-      icon: source == ImageSource.camera ? Icons.photo_camera_rounded : Icons.photo_library_rounded,
-    );
+    bool access = true;
+    if (source == ImageSource.camera) {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'vet_ai_camera_intro_seen_${VetBackend.instance.currentUser?.id ?? 'signed_out'}';
+      if (prefs.getBool(key) != true) {
+        access = await _confirmAccess(
+          title: _t(context, 'Open camera?', 'فتح الكاميرا؟', 'Camera openen?'),
+          message: _t(context, 'This one-time camera explanation is shared across Vet AI for this account. Nothing is sent until you approve an upload.', 'شرح الكاميرا ده بيظهر مرة واحدة للحساب في Vet AI كله. مش هيتبعت أي حاجة إلا لما توافق على الرفع.', 'Deze eenmalige camera-uitleg geldt voor heel Vet AI voor dit account. Er wordt niets verstuurd voordat je een upload bevestigt.'),
+          icon: Icons.photo_camera_rounded,
+        );
+        if (access) await prefs.setBool(key, true);
+      }
+    } else {
+      access = await _confirmAccess(
+        title: _t(context, 'Open photos?', 'فتح الصور؟', 'Foto’s openen?'),
+        message: _t(context, 'Vet AI Support will open your photo picker only after your approval. Nothing is sent until you approve the upload.', 'دعم Vet AI هيفتح اختيار الصور بعد موافقتك بس. مش هيتبعت أي ملف إلا لما توافق على الرفع.', 'Vet AI Support opent de fotokiezer pas na jouw toestemming. Er wordt niets verstuurd totdat je de upload bevestigt.'),
+        icon: Icons.photo_library_rounded,
+      );
+    }
     if (!access || !mounted) return;
     final selected = await picker.pickImage(source: source, imageQuality: 94, maxWidth: 2600);
     if (selected == null || !mounted) return;

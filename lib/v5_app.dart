@@ -3,16 +3,22 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'services/vet_backend.dart';
+import 'services/vet_operations.dart';
 import 'analysis/vet_analysis_report.dart';
 import 'support/support_chat_v6.dart';
+import 'support/support_console.dart';
 import 'theme/app_theme.dart';
 import 'i18n/vet_locale.dart';
 import 'startup/vet_startup_experience.dart';
 import 'monitoring/smart_home_vitals.dart';
+import 'monitoring/sensor_alert_rules.dart';
+import 'legal/vet_legal_pages.dart';
 
 class VetAIAppV5 extends StatefulWidget {
   const VetAIAppV5({super.key});
@@ -673,33 +679,55 @@ class V5Home extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
       children: [
         SizedBox(
-          height: 74,
+          height: 116,
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _HeaderBrand(),
-              const Spacer(),
-              IconButton.filledTonal(
-                tooltip: tr(context, 'Language', 'اللغة', 'Taal'),
-                style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
-                icon: const Icon(Icons.language_rounded, size: 30, color: VetColors.blue),
-                onPressed: () => showVetLanguagePicker(context),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: Directionality.of(context) == TextDirection.rtl ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                  children: [
+                    const _HeaderBrand(),
+                    const SizedBox(height: 3),
+                    Text(
+                      farm['farm_name']?.toString() ?? 'Vet AI',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                    ),
+                    if ((farm['company_name']?.toString() ?? '').isNotEmpty)
+                      Text(
+                        farm['company_name'].toString(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: VetColors.muted, fontSize: 14, fontWeight: FontWeight.w700),
+                      ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 6),
-              IconButton.filledTonal(
-                tooltip: tr(context, 'Account & settings', 'الحساب والإعدادات', 'Account & instellingen'),
-                style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
-                icon: const Icon(Icons.account_circle_outlined, size: 31, color: VetColors.primary),
-                onPressed: onAccount,
+              const SizedBox(width: 10),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton.filledTonal(
+                    tooltip: tr(context, 'Language', 'اللغة', 'Taal'),
+                    style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
+                    icon: const Icon(Icons.language_rounded, size: 30, color: VetColors.blue),
+                    onPressed: () => showVetLanguagePicker(context),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton.filledTonal(
+                    tooltip: tr(context, 'Account & settings', 'الحساب والإعدادات', 'Account & instellingen'),
+                    style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
+                    icon: const Icon(Icons.account_circle_outlined, size: 31, color: VetColors.primary),
+                    onPressed: onAccount,
+                  ),
+                ],
               ),
             ],
           ),
         ),
-        const SizedBox(height: 2),
-        Text(farm['farm_name']?.toString() ?? 'Vet AI', textAlign: TextAlign.center, style: const TextStyle(fontSize: 29, fontWeight: FontWeight.w900)),
-        if ((farm['company_name']?.toString() ?? '').isNotEmpty)
-          Padding(padding: const EdgeInsets.only(top: 4), child: Text(farm['company_name'].toString(), textAlign: TextAlign.center, style: const TextStyle(color: VetColors.muted, fontSize: 16, fontWeight: FontWeight.w600))),
-        const SizedBox(height: 18),
+        const SizedBox(height: 8),
         _Notice(icon: Icons.shield_outlined, title: tr(context, 'Real data policy', 'سياسة البيانات الحقيقية', 'Echte-data beleid'), text: tr(context, 'No demo sensor readings and no definitive diagnosis from one image.', 'لا توجد قراءات حساسات وهمية ولا تشخيص نهائي من صورة واحدة.', 'Geen demo-sensormetingen en geen definitieve diagnose op basis van één beeld.')),
         const SizedBox(height: 18),
         Row(children: [
@@ -797,13 +825,26 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
     return approved == true;
   }
 
-  Future<bool> _confirmMedia(ImageSource source) => _confirmAccess(
-        title: source == ImageSource.camera ? tr(context, 'Open camera?', 'فتح الكاميرا؟', 'Camera openen?') : tr(context, 'Open photos?', 'فتح الصور؟', 'Foto’s openen?'),
-        message: source == ImageSource.camera
-            ? tr(context, 'Vet AI will open the camera only after your approval. The photo is not uploaded until you explicitly start the health analysis.', 'Vet AI هيفتح الكاميرا بعد موافقتك بس. الصورة مش هتترفع إلا لما تضغط بنفسك على تحليل الحالة.', 'Vet AI opent de camera pas na jouw toestemming. De foto wordt pas geüpload wanneer je zelf de gezondheidsanalyse start.')
-            : tr(context, 'Vet AI will let you choose a photo only after your approval. It will not upload the selected image until you explicitly start the health analysis.', 'Vet AI هيسمحلك تختار صورة بعد موافقتك بس، ومش هيرفع الصورة المختارة إلا لما تضغط بنفسك على تحليل الحالة.', 'Vet AI laat je pas na toestemming een foto kiezen. De gekozen foto wordt pas geüpload wanneer je zelf de gezondheidsanalyse start.'),
-        icon: source == ImageSource.camera ? Icons.photo_camera_rounded : Icons.photo_library_rounded,
+  Future<bool> _confirmMedia(ImageSource source) async {
+    if (source == ImageSource.camera) {
+      final userId = VetBackend.instance.currentUser?.id;
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'vet_ai_camera_intro_seen_${userId ?? 'signed_out'}';
+      if (prefs.getBool(key) == true) return true;
+      final approved = await _confirmAccess(
+        title: tr(context, 'Open camera?', 'فتح الكاميرا؟', 'Camera openen?'),
+        message: tr(context, 'This one-time Vet AI explanation appears for a new account before camera use. The photo is not uploaded until you explicitly start the health analysis.', 'الشرح ده بيظهر مرة واحدة بس للحساب الجديد قبل استخدام الكاميرا. الصورة مش هتترفع إلا لما تضغط بنفسك على تحليل الحالة.', 'Deze eenmalige Vet AI-uitleg verschijnt voor een nieuw account vóór cameragebruik. De foto wordt pas geüpload wanneer je zelf de gezondheidsanalyse start.'),
+        icon: Icons.photo_camera_rounded,
       );
+      if (approved) await prefs.setBool(key, true);
+      return approved;
+    }
+    return _confirmAccess(
+      title: tr(context, 'Open photos?', 'فتح الصور؟', 'Foto’s openen?'),
+      message: tr(context, 'Vet AI will let you choose a photo only after your approval. It will not upload the selected image until you explicitly start the health analysis.', 'Vet AI هيسمحلك تختار صورة بعد موافقتك بس، ومش هيرفع الصورة المختارة إلا لما تضغط بنفسك على تحليل الحالة.', 'Vet AI laat je pas na toestemming een foto kiezen. De gekozen foto wordt pas geüpload wanneer je zelf de gezondheidsanalyse start.'),
+      icon: Icons.photo_library_rounded,
+    );
+  }
 
   Future<void> pick(ImageSource source) async {
     if (!await _confirmMedia(source)) return;
@@ -951,6 +992,12 @@ class V5SensorsPanel extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           children: [
             _StepTitle(icon: Icons.sensors_rounded, title: tr(context, 'Smart monitoring', 'المراقبة الذكية', 'Slimme monitoring'), subtitle: tr(context, 'Only real connected hardware is shown.', 'يتم عرض الهاردوير الحقيقي المتصل فقط.', 'Alleen echt gekoppelde hardware wordt getoond.')),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SensorAlertRulesScreen(farmId: farmId))),
+              icon: const Icon(Icons.notifications_active_outlined, size: 27),
+              label: Text(tr(context, 'Configure real sensor alert rules', 'ضبط قواعد إنذارات الحساسات الحقيقية', 'Echte sensorwaarschuwingsregels instellen')),
+            ),
             const SizedBox(height: 18),
             if (devices.connectionState != ConnectionState.done) const Center(child: CircularProgressIndicator()),
             if (devices.connectionState == ConnectionState.done && (devices.data ?? []).isEmpty)
@@ -964,24 +1011,93 @@ class V5SensorsPanel extends StatelessWidget {
   }
 }
 
-class V5AlertsPanel extends StatelessWidget {
+class V5AlertsPanel extends StatefulWidget {
   const V5AlertsPanel({super.key, required this.farmId});
   final String farmId;
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<List<Map<String, dynamic>>>(
-        future: VetBackend.instance.recentAlerts(farmId),
-        builder: (context, s) => ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            _StepTitle(icon: Icons.warning_amber_rounded, title: tr(context, 'Health alerts', 'الإنذارات الصحية', 'Gezondheidsmeldingen'), subtitle: tr(context, 'Red and orange cases requiring attention.', 'الحالات الحمراء والبرتقالية التي تحتاج انتباهًا.', 'Rode en oranje casussen die aandacht vereisen.')),
-            const SizedBox(height: 18),
-            if (s.connectionState != ConnectionState.done) const Center(child: CircularProgressIndicator()),
-            if (s.connectionState == ConnectionState.done && (s.data ?? []).isEmpty) _Notice(icon: Icons.check_circle_outline_rounded, title: tr(context, 'No active alerts', 'لا توجد إنذارات حالية', 'Geen actieve meldingen'), text: tr(context, 'No red/orange AI alert is stored for this farm.', 'لا يوجد إنذار AI أحمر أو برتقالي محفوظ لهذه المزرعة.', 'Er is geen rode/oranje AI-melding voor deze boerderij opgeslagen.')),
-            for (final a in s.data ?? [])
-              Card(margin: const EdgeInsets.only(bottom: 10), child: ListTile(leading: Icon(a['risk'] == 'red' ? Icons.error_rounded : Icons.warning_rounded, size: 34, color: a['risk'] == 'red' ? VetColors.red : VetColors.orange), title: Text(a['title']?.toString() ?? ''), subtitle: Text(a['details']?.toString() ?? ''))),
-          ],
-        ),
+  State<V5AlertsPanel> createState() => _V5AlertsPanelState();
+}
+
+class _V5AlertsPanelState extends State<V5AlertsPanel> {
+  final seen = <String>{};
+  bool initialized = false;
+
+  void _onRows(List<Map<String, dynamic>> rows) {
+    final ids = rows.map((e) => e['id']?.toString()).whereType<String>().toSet();
+    if (!initialized) {
+      seen.addAll(ids);
+      initialized = true;
+      return;
+    }
+    final fresh = ids.difference(seen);
+    if (fresh.isNotEmpty) {
+      seen.addAll(fresh);
+      SystemSound.play(SystemSoundType.alert);
+      HapticFeedback.heavyImpact();
+    }
+  }
+
+  String _metric(String value) => switch (value) {
+        'body_temperature_c' => tr(context, 'Body temperature', 'حرارة جسم الحيوان', 'Lichaamstemperatuur'),
+        'ambient_temperature_c' => tr(context, 'Barn temperature', 'حرارة العنبر', 'Staltemperatuur'),
+        'humidity_percent' => tr(context, 'Humidity', 'الرطوبة', 'Luchtvochtigheid'),
+        'activity_index' => tr(context, 'Activity', 'النشاط', 'Activiteit'),
+        'steps' => tr(context, 'Steps', 'الخطوات', 'Stappen'),
+        'distance_from_herd_m' => tr(context, 'Distance from herd', 'البعد عن القطيع', 'Afstand tot kudde'),
+        'lying_minutes' => tr(context, 'Lying / resting', 'الرقاد / الراحة', 'Liggen / rusten'),
+        'feeding_minutes' => tr(context, 'Feeding', 'الأكل', 'Voeren'),
+        'rumination_minutes' => tr(context, 'Rumination', 'الاجترار', 'Herkauwen'),
+        _ => value.replaceAll('_', ' '),
+      };
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder<List<Map<String, dynamic>>>(
+        stream: VetBackend.instance.alertsStream(widget.farmId),
+        builder: (context, snapshot) {
+          final rows = snapshot.data ?? const <Map<String, dynamic>>[];
+          if (snapshot.hasData) WidgetsBinding.instance.addPostFrameCallback((_) => _onRows(rows));
+          return ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              _StepTitle(
+                icon: Icons.warning_amber_rounded,
+                title: tr(context, 'Health & sensor alerts', 'إنذارات الصحة والحساسات', 'Gezondheids- & sensormeldingen'),
+                subtitle: tr(context, 'AI risk alerts plus real configured sensor thresholds. New alerts make a sound while Vet AI is active.', 'إنذارات خطورة AI + حدود الحساسات الحقيقية اللي إنت ضابطها. الإنذار الجديد يطلع صوت واهتزاز وVet AI مفتوح.', 'AI-risicomeldingen plus echte ingestelde sensordrempels. Nieuwe meldingen geven geluid/trilling terwijl Vet AI actief is.'),
+              ),
+              const SizedBox(height: 18),
+              if (!snapshot.hasData) const Center(child: CircularProgressIndicator()),
+              if (snapshot.hasData && rows.isEmpty)
+                _Notice(
+                  icon: Icons.check_circle_outline_rounded,
+                  title: tr(context, 'No active alerts', 'لا توجد إنذارات حالية', 'Geen actieve meldingen'),
+                  text: tr(context, 'No AI or configured real-sensor alert is stored for this farm.', 'مفيش إنذار AI أو إنذار حساس حقيقي متضبط محفوظ للمزرعة دي.', 'Er is geen AI- of ingestelde echte-sensormelding voor deze boerderij opgeslagen.'),
+                ),
+              for (final a in rows)
+                Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: ListTile(
+                    leading: Icon(
+                      a['risk'] == 'red' ? Icons.error_rounded : Icons.warning_rounded,
+                      size: 34,
+                      color: a['risk'] == 'red' ? VetColors.red : a['risk'] == 'orange' ? VetColors.orange : VetColors.history,
+                    ),
+                    title: Text(a['title']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.w900)),
+                    subtitle: a['source'] == 'sensor'
+                        ? Text('${_metric(a['metric']?.toString() ?? '')}: ${a['value_numeric'] ?? '—'}\n${tr(context, 'Configured threshold', 'الحد المتضبط', 'Ingestelde drempel')}: ${a['threshold_text'] ?? '—'}')
+                        : Text(a['details']?.toString() ?? ''),
+                    isThreeLine: a['source'] == 'sensor',
+                  ),
+                ),
+              const SizedBox(height: 10),
+              Text(
+                tr(context, 'Background push notifications when the app is fully closed require APNs/push credentials and are a separate deployment step. This screen never fabricates sensor alerts.', 'الإشعارات في الخلفية والتطبيق مقفول تمامًا محتاجة إعداد APNs/Push منفصل. الشاشة دي ما بتختلقش إنذارات حساسات.', 'Achtergrond-pushmeldingen wanneer de app volledig gesloten is vereisen aparte APNs/pushconfiguratie. Dit scherm verzint nooit sensormeldingen.'),
+                style: const TextStyle(color: VetColors.muted, fontSize: 11.5, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          );
+        },
       );
 }
 
@@ -1019,7 +1135,18 @@ class V5AccountHub extends StatelessWidget {
         _MenuTile(icon: Icons.workspace_premium_outlined, title: tr(context, 'Subscription', 'الاشتراك', 'Abonnement'), subtitle: tr(context, 'Animal groups, monthly/annual and sensor access.', 'أنواع الحيوانات والشهري/السنوي وصلاحية الحساسات.', 'Diergroepen, maandelijks/jaarlijks en sensortoegang.'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => V5SubscriptionScreen(farm: farm)))),
         _MenuTile(icon: Icons.language_rounded, title: tr(context, 'Language', 'اللغة', 'Taal'), subtitle: tr(context, 'Automatic device language or choose manually.', 'تلقائي حسب لغة الهاتف أو اختر اللغة يدويًا.', 'Automatisch volgens het toestel of handmatig kiezen.'), onTap: () => showVetLanguagePicker(context)),
         _MenuTile(icon: Icons.support_agent_rounded, title: tr(context, 'Support chat', 'شات الدعم', 'Supportchat'), subtitle: tr(context, 'Realtime private chat with photos, marked images and files.', 'شات خاص مباشر مع الصور والتعديل عليها والملفات.', 'Privé realtime chat met foto’s, gemarkeerde beelden en bestanden.'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => V6SupportScreen(farmId: farm['id'] as String)))),
-        _MenuTile(icon: Icons.info_outline_rounded, title: tr(context, 'About Vet AI', 'عن Vet AI', 'Over Vet AI'), subtitle: tr(context, 'Safety scope, data policy and product purpose.', 'نطاق الأمان وسياسة البيانات وهدف المنتج.', 'Veiligheidsbereik, databeleid en productdoel.'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const V5AboutScreen()))),
+        FutureBuilder<bool>(
+          future: VetBackend.instance.isSupportAgent(),
+          builder: (context, agent) => agent.data == true
+              ? _MenuTile(
+                  icon: Icons.admin_panel_settings_outlined,
+                  title: tr(context, 'Company support console', 'كونسول دعم الشركة', 'Bedrijfssupportconsole'),
+                  subtitle: tr(context, 'See customer support threads and reply as Vet AI Support.', 'شوف محادثات العملاء ورد عليهم باسم دعم Vet AI.', 'Bekijk klantgesprekken en antwoord als Vet AI Support.'),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VetSupportConsoleScreen())),
+                )
+              : const SizedBox.shrink(),
+        ),
+        _MenuTile(icon: Icons.info_outline_rounded, title: tr(context, 'Vet AI information & legal', 'معلومات وسياسات Vet AI', 'Vet AI informatie & juridisch'), subtitle: tr(context, 'About, mission, safety, knowledge, privacy and terms.', 'عن Vet AI والهدف والأمان والمعرفة والخصوصية والشروط.', 'Over Vet AI, missie, veiligheid, kennis, privacy en voorwaarden.'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VetLegalHubScreen()))),
         const SizedBox(height: 16),
         OutlinedButton.icon(onPressed: () async { await VetBackend.instance.signOut(); if (context.mounted) Navigator.of(context).popUntil((r) => r.isFirst); }, icon: const Icon(Icons.logout_rounded, size: 29), label: Text(tr(context, 'Sign out', 'تسجيل الخروج', 'Uitloggen'))),
       ]),
