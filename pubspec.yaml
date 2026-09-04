@@ -1,10 +1,10 @@
 name: app
 description: Vet AI - veterinary decision support and smart animal monitoring.
 publish_to: 'none'
-version: 0.3.0+5
+version: 0.4.0+6
 
 environment:
-  sdk: '>=3.9.0 <4.0.0'
+  sdk: '>=3.10.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -13,15 +13,16 @@ dependencies:
     sdk: flutter
   intl: ^0.20.2
   shared_preferences: ^2.5.3
-  image_picker: ^1.1.2
-  flutter_svg: ^2.0.17
+  image_picker: ^1.2.3
+  file_picker: ^12.2.0
+  flutter_svg: ^2.3.0
   supabase_flutter: ^2.17.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
-  flutter_launcher_icons: ^0.14.3
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
