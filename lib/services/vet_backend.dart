@@ -126,6 +126,16 @@ class VetBackend {
 
   Future<void> signOut() => client.auth.signOut();
 
+  Future<ResendResponse> resendSignupConfirmation(String email) {
+    return client.auth.resend(
+      type: OtpType.signup,
+      email: email.trim(),
+      emailRedirectTo: authCallbackUrl,
+    );
+  }
+
+  Future<AuthResponse> refreshAuthSession() => client.auth.refreshSession();
+
   Future<Map<String, dynamic>?> myProfile() async {
     final user = currentUser;
     if (user == null) return null;

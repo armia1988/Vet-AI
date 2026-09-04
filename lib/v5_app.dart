@@ -144,6 +144,7 @@ class V5AuthScreen extends StatefulWidget {
 class _V5AuthScreenState extends State<V5AuthScreen> {
   bool create = true;
   bool busy = false;
+  bool resending = false;
   String? confirmationEmail;
   final fullName = TextEditingController();
   final phone = TextEditingController();
@@ -178,6 +179,44 @@ class _V5AuthScreenState extends State<V5AuthScreen> {
       );
     }
     return e.message;
+  }
+
+  Future<void> resendConfirmation() async {
+    FocusScope.of(context).unfocus();
+    final target = (confirmationEmail ?? email.text).trim();
+    if (target.isEmpty) {
+      _snack(
+        tr(context, 'Enter the email address first.', 'اكتب البريد الإلكتروني الأول.', 'Vul eerst het e-mailadres in.'),
+        true,
+      );
+      return;
+    }
+    setState(() => resending = true);
+    try {
+      await VetBackend.instance.resendSignupConfirmation(target);
+      if (!mounted) return;
+      setState(() => confirmationEmail = target);
+      _snack(
+        tr(
+          context,
+          'A new Vet AI confirmation email was sent. Open the newest message and use its confirmation button.',
+          'تم إرسال رسالة تفعيل جديدة من Vet AI. افتح أحدث رسالة واضغط زر التفعيل الموجود فيها.',
+          'Er is een nieuwe Vet AI-bevestigingsmail verzonden. Open het nieuwste bericht en gebruik de bevestigingsknop.',
+        ),
+        false,
+      );
+    } on AuthException catch (e) {
+      if (mounted) _snack(_friendlyAuth(e), true);
+    } catch (_) {
+      if (mounted) {
+        _snack(
+          tr(context, 'Could not resend the confirmation email.', 'تعذر إعادة إرسال رسالة التفعيل.', 'De bevestigingsmail kon niet opnieuw worden verzonden.'),
+          true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => resending = false);
+    }
   }
 
   Future<void> submit() async {
@@ -272,6 +311,31 @@ class _V5AuthScreenState extends State<V5AuthScreen> {
                   'A confirmation link was sent to $confirmationEmail. The account cannot enter farm data until confirmation succeeds.',
                   'تم إرسال رابط تفعيل إلى $confirmationEmail. لن يدخل الحساب إلى بيانات المزرعة قبل نجاح التفعيل.',
                   'Er is een bevestigingslink gestuurd naar $confirmationEmail. Het account krijgt pas toegang tot boerderijgegevens na bevestiging.',
+                ),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: busy || resending ? null : resendConfirmation,
+                icon: resending
+                    ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.refresh_rounded, size: 26),
+                label: Text(
+                  resending
+                      ? tr(context, 'Sending…', 'جاري الإرسال…', 'Verzenden…')
+                      : tr(context, 'Resend confirmation email', 'إعادة إرسال رسالة التفعيل', 'Bevestigingsmail opnieuw verzenden'),
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextButton.icon(
+                onPressed: busy || resending ? null : () => setState(() => create = false),
+                icon: const Icon(Icons.login_rounded, size: 25),
+                label: Text(
+                  tr(
+                    context,
+                    'I confirmed my email — sign in',
+                    'فعّلت البريد — تسجيل الدخول',
+                    'Ik heb mijn e-mail bevestigd — inloggen',
+                  ),
                 ),
               ),
               const SizedBox(height: 18),
