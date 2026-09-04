@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/vet_backend.dart';
+import '../reports/vet_pdf_report.dart';
 import '../services/vet_case_workflow.dart';
 import '../theme/app_theme.dart';
 
@@ -18,6 +20,7 @@ class VetAnalysisReportCard extends StatefulWidget {
     required this.languageCode,
     required this.translate,
     this.onFinalized,
+    this.onBack,
   });
 
   final Map<String, dynamic> initialResult;
@@ -25,6 +28,7 @@ class VetAnalysisReportCard extends StatefulWidget {
   final String languageCode;
   final VetUiTranslate translate;
   final ValueChanged<Map<String, dynamic>>? onFinalized;
+  final VoidCallback? onBack;
 
   @override
   State<VetAnalysisReportCard> createState() => _VetAnalysisReportCardState();
@@ -33,6 +37,7 @@ class VetAnalysisReportCard extends StatefulWidget {
 class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
     with SingleTickerProviderStateMixin {
   final FlutterTts _tts = FlutterTts();
+  final AudioPlayer _audio = AudioPlayer();
   final Map<String, TextEditingController> _answerControllers = {};
   late Map<String, dynamic> _result;
   late final AnimationController _pulse;
@@ -106,34 +111,58 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
       if (differentials.isNotEmpty) {
         final top = differentials.first;
         final name = (top['name'] ?? '').toString().trim();
-        final cause = (top['cause'] ?? '').toString().trim();
-        final treatment = (top['treatment_summary'] ?? '').toString().trim();
-        final prevention = (top['prevention_summary'] ?? '').toString().trim();
-        if (name.isNotEmpty) parts.add(widget.translate('Most likely at this stage: $name.', 'الأكثر احتمالًا في هذه المرحلة: $name.', 'Meest waarschijnlijk in deze fase: $name.'));
-        if (cause.isNotEmpty) parts.add(widget.translate('Cause: $cause.', 'السبب: $cause.', 'Oorzaak: $cause.'));
-        if (treatment.isNotEmpty) parts.add(widget.translate('Management: $treatment', 'التعامل والعلاج: $treatment', 'Behandeling en management: $treatment'));
-        if (prevention.isNotEmpty) parts.add(widget.translate('Prevention: $prevention', 'الوقاية: $prevention', 'Preventie: $prevention'));
+        if (name.isNotEmpty) {
+          parts.add(widget.translate(
+            'Most likely at this stage: $name.',
+            'الأكثر احتمالًا دلوقتي: $name.',
+            'Meest waarschijnlijk in deze fase: $name.',
+          ));
+        }
       }
       final actions = _strings(_result['immediate_actions']);
-      if (actions.isNotEmpty) parts.add(widget.translate('Do now: ${actions.first}', 'افعل الآن: ${actions.first}', 'Doe nu: ${actions.first}'));
+      if (actions.isNotEmpty) {
+        parts.add(widget.translate(
+          'What to do now: ${actions.first}',
+          'تعمل إيه دلوقتي: ${actions.first}',
+          'Wat nu te doen: ${actions.first}',
+        ));
+      }
       text = parts.join(' ');
     }
     if (text.isEmpty) return;
+
+    try {
+      await _audio.stop();
+      await _tts.stop();
+      final natural = await VetBackend.instance.naturalCaseVoice(
+        text: text,
+        language: widget.languageCode,
+      );
+      if (_muted || !mounted) return;
+      if (natural != null && natural.isNotEmpty) {
+        await _audio.play(BytesSource(natural));
+        return;
+      }
+    } catch (_) {
+      // Fall through to the local device voice.
+    }
+
     try {
       await _tts.stop();
       await _tts.setLanguage(_speechLanguage(widget.languageCode));
       await _tts.setSpeechRate(.47);
-      await _tts.setPitch(1.0);
+      await _tts.setPitch(1.04);
       await _tts.awaitSpeakCompletion(false);
       await _tts.speak(text);
     } catch (_) {
-      // Text remains visible if a device has no matching system voice installed.
+      // The complete written result remains available if audio is unavailable.
     }
   }
 
   Future<void> _toggleMute() async {
     setState(() => _muted = !_muted);
     if (_muted) {
+      await _audio.stop();
       await _tts.stop();
     } else {
       await _speakCurrent();
@@ -199,6 +228,7 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
   @override
   void dispose() {
     _pulse.dispose();
+    unawaited(_audio.dispose());
     unawaited(_tts.stop());
     for (final c in _answerControllers.values) c.dispose();
     super.dispose();
@@ -216,9 +246,17 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                if (widget.onBack != null) ...[
+                  IconButton(
+                    tooltip: widget.translate('Back to scan', 'رجوع للفحص', 'Terug naar scan'),
+                    onPressed: widget.onBack,
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 24),
+                  ),
+                  const SizedBox(width: 2),
+                ],
                 AnimatedBuilder(
                   animation: _pulse,
-                  builder: (context, _) => _RiskLight(risk: risk, glow: _pulse.value),
+                  builder: (context, _) => _RiskLight(risk: risk, glow: _pulse.value, translate: widget.translate),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -260,7 +298,7 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
             icon: Icons.coronavirus_outlined,
             color: VetColors.blue,
             title: widget.translate('Most likely at this stage', 'الأكثر احتمالًا في هذه المرحلة', 'Meest waarschijnlijk in deze fase'),
-            text: '${top['name'] ?? top['catalog_slug']} • ${top['suspicion'] ?? ''}',
+            text: '${top['name'] ?? top['catalog_slug']} • ${_suspicionLabel((top['suspicion'] ?? '').toString())}',
           ),
           if ((top['cause'] ?? '').toString().trim().isNotEmpty)
             _KeyValueSection(icon: Icons.science_outlined, color: VetColors.purple, title: widget.translate('Cause', 'السبب', 'Oorzaak'), text: top['cause'].toString()),
@@ -329,35 +367,152 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
     );
   }
 
+  String _suspicionLabel(String value) => switch (value) {
+        'high' => widget.translate('high', 'احتمال مرتفع', 'hoog'),
+        'moderate' => widget.translate('moderate', 'احتمال متوسط', 'matig'),
+        'low' => widget.translate('low', 'احتمال منخفض', 'laag'),
+        _ => widget.translate('uncertain', 'غير مؤكد', 'onzeker'),
+      };
+
+  String _vetRequirementLabel(String value) => switch (value) {
+        'now' => widget.translate('Veterinarian needed NOW', 'محتاج طبيب بيطري فورًا', 'Dierenarts NU nodig'),
+        'today' => widget.translate('Veterinarian needed today', 'محتاج طبيب بيطري النهارده', 'Dierenarts vandaag nodig'),
+        'soon' => widget.translate('Arrange a veterinary review soon', 'رتّب مراجعة مع طبيب بيطري قريب', 'Plan binnenkort een veterinaire controle'),
+        'not_routinely' => widget.translate('A veterinarian is not routinely required unless the condition changes', 'مش محتاج طبيب بشكل روتيني إلا لو الحالة اتغيرت أو ساءت', 'Een dierenarts is niet routinematig nodig tenzij de situatie verandert'),
+        _ => widget.translate('Veterinary need depends on confirmation and progression', 'الحاجة لطبيب بتعتمد على التأكيد وتطور الحالة', 'Veterinaire noodzaak hangt af van bevestiging en verloop'),
+      };
+
   Widget _finalReport(BuildContext context) {
-    final primary = _result['primary_condition'] is Map ? Map<String, dynamic>.from(_result['primary_condition'] as Map) : <String, dynamic>{};
-    final sources = _maps(_result['sources']);
+    final primary = _result['primary_condition'] is Map
+        ? Map<String, dynamic>.from(_result['primary_condition'] as Map)
+        : <String, dynamic>{};
+    final verified = _result['evidence_verified'] == true;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _SummaryBox(text: (_result['summary'] ?? '').toString()),
         const SizedBox(height: 14),
-        _KeyValueSection(icon: Icons.coronavirus_outlined, color: VetColors.blue, title: widget.translate('Disease / most likely condition', 'المرض / الحالة الأكثر احتمالًا', 'Ziekte / meest waarschijnlijke aandoening'), text: '${primary['name'] ?? ''}\n${primary['why'] ?? ''}'),
-        _KeyValueSection(icon: Icons.science_outlined, color: VetColors.purple, title: widget.translate('Cause', 'السبب', 'Oorzaak'), text: (_result['cause'] ?? '').toString()),
-        _ListSection(icon: Icons.medical_services_outlined, color: VetColors.green, title: widget.translate('Treatment & management', 'العلاج والتعامل', 'Behandeling & management'), items: _strings(_result['treatment_and_management'])),
-        _ListSection(icon: Icons.shield_outlined, color: VetColors.history, title: widget.translate('Prevention', 'الوقاية', 'Preventie'), items: _strings(_result['prevention'])),
-        _ListSection(icon: Icons.directions_run_rounded, color: VetColors.orange, title: widget.translate('What you should do now', 'ماذا يجب أن تفعل الآن', 'Wat je nu moet doen'), items: _strings(_result['what_to_do_now'])),
-        _ListSection(icon: Icons.local_hospital_outlined, color: VetColors.blue, title: widget.translate('Veterinary next steps', 'الخطوات البيطرية التالية', 'Volgende veterinaire stappen'), items: _strings(_result['veterinary_next_steps'])),
+        _KeyValueSection(
+          icon: Icons.coronavirus_outlined,
+          color: VetColors.blue,
+          title: widget.translate('Disease / most likely condition', 'المرض / الحالة الأكثر احتمالًا', 'Ziekte / meest waarschijnlijke aandoening'),
+          text: '${primary['name'] ?? ''}\n${primary['why'] ?? ''}',
+        ),
+        _KeyValueSection(
+          icon: Icons.science_outlined,
+          color: VetColors.purple,
+          title: widget.translate('Cause', 'السبب', 'Oorzaak'),
+          text: (_result['cause'] ?? '').toString(),
+        ),
+        _KeyValueSection(
+          icon: Icons.local_hospital_rounded,
+          color: VetColors.orange,
+          title: widget.translate('Does this need a veterinarian?', 'هل الحالة محتاجة طبيب بيطري؟', 'Is een dierenarts nodig?'),
+          text: '${_vetRequirementLabel((_result['vet_required'] ?? '').toString())}\n${_result['vet_required_reason'] ?? ''}',
+        ),
+        if (_strings(_result['topical_or_external_care']).isNotEmpty)
+          _ListSection(
+            icon: Icons.healing_rounded,
+            color: VetColors.green,
+            title: widget.translate('External / topical care', 'العناية أو العلاج الخارجي الموضعي', 'Uitwendige / lokale verzorging'),
+            items: _strings(_result['topical_or_external_care']),
+          ),
+        _ListSection(
+          icon: Icons.medical_services_outlined,
+          color: VetColors.green,
+          title: widget.translate('Treatment & management', 'العلاج والتعامل', 'Behandeling & management'),
+          items: _strings(_result['treatment_and_management']),
+        ),
+        _ListSection(
+          icon: Icons.directions_run_rounded,
+          color: VetColors.orange,
+          title: widget.translate('What you should do now', 'تعمل إيه دلوقتي؟', 'Wat je nu moet doen'),
+          items: _strings(_result['what_to_do_now']),
+        ),
+        _ListSection(
+          icon: Icons.shield_outlined,
+          color: VetColors.history,
+          title: widget.translate('Prevention', 'الوقاية', 'Preventie'),
+          items: _strings(_result['prevention']),
+        ),
+        _ListSection(
+          icon: Icons.local_hospital_outlined,
+          color: VetColors.blue,
+          title: widget.translate('Veterinary next steps', 'الخطوات البيطرية التالية', 'Volgende veterinaire stappen'),
+          items: _strings(_result['veterinary_next_steps']),
+        ),
         if (_strings(_result['red_flags']).isNotEmpty)
-          _ListSection(icon: Icons.warning_rounded, color: VetColors.red, title: widget.translate('Danger signs', 'علامات الخطر', 'Alarmsignalen'), items: _strings(_result['red_flags'])),
-        _ListSection(icon: Icons.biotech_outlined, color: VetColors.purple, title: widget.translate('How to confirm', 'كيفية التأكيد', 'Hoe te bevestigen'), items: _strings(_result['confirmation_plan'])),
-        if (sources.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Row(children: [
-            const Icon(Icons.verified_outlined, color: VetColors.green, size: 28),
-            const SizedBox(width: 8),
-            Text(widget.translate('Trusted sources used', 'المصادر الموثوقة المستخدمة', 'Gebruikte betrouwbare bronnen'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+          _ListSection(
+            icon: Icons.warning_rounded,
+            color: VetColors.red,
+            title: widget.translate('Danger signs', 'علامات الخطر', 'Alarmsignalen'),
+            items: _strings(_result['red_flags']),
+          ),
+        _ListSection(
+          icon: Icons.biotech_outlined,
+          color: VetColors.purple,
+          title: widget.translate('How to confirm', 'إزاي نتأكد؟', 'Hoe te bevestigen'),
+          items: _strings(_result['confirmation_plan']),
+        ),
+        if ((_result['food_animal_medicine_note'] ?? '').toString().trim().isNotEmpty)
+          _KeyValueSection(
+            icon: Icons.gpp_maybe_outlined,
+            color: VetColors.history,
+            title: widget.translate('Medicine safety note', 'تنبيه مهم بخصوص الأدوية', 'Veiligheidsnotitie medicijnen'),
+            text: _result['food_animal_medicine_note'].toString(),
+          ),
+        const SizedBox(height: 18),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            color: verified ? VetColors.softGreen : VetColors.surface2,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: verified ? VetColors.green : VetColors.border),
+          ),
+          child: Row(children: [
+            Icon(verified ? Icons.verified_rounded : Icons.fact_check_outlined, color: verified ? VetColors.green : VetColors.muted, size: 27),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                verified
+                    ? widget.translate(
+                        'Evidence cross-check completed using authoritative veterinary and regulatory sources. Website links are intentionally hidden from the customer report.',
+                        'تمت مراجعة الحالة على مصادر بيطرية ورقابية موثوقة. روابط المواقع مش بتظهر في تقرير العميل عمدًا.',
+                        'De casus is gecontroleerd aan de hand van gezaghebbende veterinaire en regelgevende bronnen. Websitelinks worden bewust verborgen in het klantverslag.')
+                    : widget.translate(
+                        'No external evidence verification flag was returned. Treat the report as provisional.',
+                        'ماوصلش تأكيد مراجعة المصادر الخارجية، فاعتبر التقرير مبدئي لحد مراجعة طبيب.',
+                        'Er is geen externe verificatie teruggekomen. Behandel het rapport als voorlopig.'),
+                style: const TextStyle(fontWeight: FontWeight.w700, height: 1.4),
+              ),
+            ),
           ]),
-          const SizedBox(height: 8),
-          for (final source in sources) _SourceTile(source: source),
-        ],
+        ),
         const SizedBox(height: 14),
-        Text((_result['confidence_statement'] ?? '').toString(), style: const TextStyle(color: VetColors.muted, fontStyle: FontStyle.italic, height: 1.4)),
+        FilledButton.icon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => VetPdfReportScreen(
+                report: _result,
+                languageCode: widget.languageCode,
+                translate: widget.translate,
+              ),
+            ),
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: VetColors.purple,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(56),
+          ),
+          icon: const Icon(Icons.picture_as_pdf_rounded, size: 28),
+          label: Text(widget.translate('Open / share PDF report', 'فتح أو مشاركة تقرير PDF', 'PDF-rapport openen / delen')),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          (_result['confidence_statement'] ?? '').toString(),
+          style: const TextStyle(color: VetColors.muted, fontStyle: FontStyle.italic, height: 1.4),
+        ),
       ],
     );
   }
@@ -406,9 +561,10 @@ class _QuestionEditor extends StatelessWidget {
 }
 
 class _RiskLight extends StatelessWidget {
-  const _RiskLight({required this.risk, required this.glow});
+  const _RiskLight({required this.risk, required this.glow, required this.translate});
   final String risk;
   final double glow;
+  final VetUiTranslate translate;
 
   @override
   Widget build(BuildContext context) {
@@ -429,7 +585,16 @@ class _RiskLight extends StatelessWidget {
         border: Border.all(color: color, width: 1.6),
         boxShadow: [if (risk == 'red' || risk == 'orange') BoxShadow(color: color.withValues(alpha: glow), blurRadius: 18, spreadRadius: 2)],
       ),
-      child: Text(risk.replaceAll('_', ' ').toUpperCase(), style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 11)),
+      child: Text(
+        switch (risk) {
+          'red' => translate('RED', 'أحمر', 'ROOD'),
+          'orange' => translate('ORANGE', 'برتقالي', 'ORANJE'),
+          'yellow' => translate('YELLOW', 'أصفر', 'GEEL'),
+          'none' => translate('GREEN', 'أخضر', 'GROEN'),
+          _ => translate('MORE DATA', 'بيانات ناقصة', 'MEER DATA'),
+        },
+        style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 10.5),
+      ),
     );
   }
 }
