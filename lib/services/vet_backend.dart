@@ -136,6 +136,17 @@ class VetBackend {
 
   Future<AuthResponse> refreshAuthSession() => client.auth.refreshSession();
 
+  Future<void> sendPasswordReset(String email) {
+    return client.auth.resetPasswordForEmail(
+      email.trim(),
+      redirectTo: authCallbackUrl,
+    );
+  }
+
+  Future<UserResponse> updatePassword(String password) {
+    return client.auth.updateUser(UserAttributes(password: password));
+  }
+
   Future<Map<String, dynamic>?> myProfile() async {
     final user = currentUser;
     if (user == null) return null;
