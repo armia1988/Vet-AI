@@ -25,4 +25,11 @@ s = ops.read_text()
 s = s.replace("import 'package:supabase_flutter/supabase_flutter.dart';\n\n", '', 1)
 ops.write_text(s)
 
+# 4) flutter/services already exports Uint8List for the uses in V5, so the
+# direct dart:typed_data import is redundant under Flutter 3.47.
+app = Path('lib/v5_app.dart')
+s = app.read_text()
+s = s.replace("import 'dart:typed_data';\n\n", '', 1)
+app.write_text(s)
+
 print('V17 static-analysis cleanup applied')
