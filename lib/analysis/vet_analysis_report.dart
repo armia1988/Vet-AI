@@ -1,0 +1,495 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../services/vet_backend.dart';
+import '../services/vet_case_workflow.dart';
+import '../theme/app_theme.dart';
+
+typedef VetUiTranslate = String Function(String en, String ar, String nl);
+
+class VetAnalysisReportCard extends StatefulWidget {
+  const VetAnalysisReportCard({
+    super.key,
+    required this.initialResult,
+    required this.assessmentId,
+    required this.languageCode,
+    required this.translate,
+    this.onFinalized,
+  });
+
+  final Map<String, dynamic> initialResult;
+  final String assessmentId;
+  final String languageCode;
+  final VetUiTranslate translate;
+  final ValueChanged<Map<String, dynamic>>? onFinalized;
+
+  @override
+  State<VetAnalysisReportCard> createState() => _VetAnalysisReportCardState();
+}
+
+class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
+    with SingleTickerProviderStateMixin {
+  final FlutterTts _tts = FlutterTts();
+  final Map<String, TextEditingController> _answerControllers = {};
+  late Map<String, dynamic> _result;
+  late final AnimationController _pulse;
+  bool _muted = false;
+  bool _finalizing = false;
+  String? _finalError;
+
+  bool get _isFinal => _result['code'] == 'FINAL_REPORT_COMPLETE';
+
+  @override
+  void initState() {
+    super.initState();
+    _result = Map<String, dynamic>.from(widget.initialResult);
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+      lowerBound: .18,
+      upperBound: .48,
+    )..repeat(reverse: true);
+    _syncQuestions();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _speakCurrent());
+  }
+
+  @override
+  void didUpdateWidget(covariant VetAnalysisReportCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialResult != widget.initialResult) {
+      _result = Map<String, dynamic>.from(widget.initialResult);
+      _syncQuestions();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _speakCurrent());
+    }
+  }
+
+  void _syncQuestions() {
+    final current = _strings(_result['follow_up_questions']).toSet();
+    for (final question in current) {
+      _answerControllers.putIfAbsent(question, TextEditingController.new);
+    }
+    final removed = _answerControllers.keys.where((q) => !current.contains(q)).toList();
+    for (final q in removed) {
+      _answerControllers.remove(q)?.dispose();
+    }
+  }
+
+  String _speechLanguage(String code) {
+    final normalized = code.toLowerCase();
+    if (normalized == 'ar') return 'ar-SA';
+    if (normalized == 'nl') return 'nl-NL';
+    if (normalized == 'de') return 'de-DE';
+    if (normalized == 'fr') return 'fr-FR';
+    if (normalized == 'es') return 'es-ES';
+    if (normalized == 'it') return 'it-IT';
+    if (normalized == 'pt') return 'pt-PT';
+    if (normalized == 'zh') return 'zh-CN';
+    if (normalized == 'ja') return 'ja-JP';
+    if (normalized == 'ko') return 'ko-KR';
+    if (normalized == 'hi') return 'hi-IN';
+    if (normalized == 'tr') return 'tr-TR';
+    if (normalized == 'ru') return 'ru-RU';
+    return normalized;
+  }
+
+  Future<void> _speakCurrent() async {
+    if (_muted || !mounted) return;
+    final text = (_result['voice_summary'] ?? _result['summary'] ?? '').toString().trim();
+    if (text.isEmpty) return;
+    try {
+      await _tts.stop();
+      await _tts.setLanguage(_speechLanguage(widget.languageCode));
+      await _tts.setSpeechRate(.47);
+      await _tts.setPitch(1.0);
+      await _tts.awaitSpeakCompletion(false);
+      await _tts.speak(text);
+    } catch (_) {
+      // Text remains visible if a device has no matching system voice installed.
+    }
+  }
+
+  Future<void> _toggleMute() async {
+    setState(() => _muted = !_muted);
+    if (_muted) {
+      await _tts.stop();
+    } else {
+      await _speakCurrent();
+    }
+  }
+
+  void _quickAnswer(String question, String value) {
+    final controller = _answerControllers[question];
+    if (controller == null) return;
+    controller.text = value;
+    setState(() {});
+  }
+
+  Future<void> _finalize() async {
+    if (_finalizing) return;
+    final answers = <Map<String, String>>[];
+    for (final entry in _answerControllers.entries) {
+      final answer = entry.value.text.trim();
+      if (answer.isNotEmpty) answers.add({'question': entry.key, 'answer': answer});
+    }
+    setState(() {
+      _finalizing = true;
+      _finalError = null;
+    });
+    try {
+      final response = await VetBackend.instance.finalizeAssessment(
+        widget.assessmentId,
+        language: widget.languageCode,
+        answers: answers,
+      );
+      if (!mounted) return;
+      if (response['code'] == 'FINAL_REPORT_COMPLETE') {
+        setState(() {
+          _result = response;
+          _finalizing = false;
+          _finalError = null;
+        });
+        widget.onFinalized?.call(response);
+        await _speakCurrent();
+      } else {
+        setState(() {
+          _finalizing = false;
+          _finalError = (response['message'] ?? widget.translate(
+            'The verified final report could not be completed.',
+            'تعذر إكمال التقرير النهائي الموثق.',
+            'Het geverifieerde eindrapport kon niet worden voltooid.',
+          )).toString();
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _finalizing = false;
+        _finalError = widget.translate(
+          'The final evidence review could not be reached. Try again.',
+          'تعذر الوصول إلى مراجعة الأدلة النهائية. حاول مرة أخرى.',
+          'De definitieve bronnencontrole kon niet worden bereikt. Probeer opnieuw.',
+        );
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    unawaited(_tts.stop());
+    for (final c in _answerControllers.values) c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final risk = (_result['risk'] ?? 'insufficient_data').toString();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                AnimatedBuilder(
+                  animation: _pulse,
+                  builder: (context, _) => _RiskLight(risk: risk, glow: _pulse.value),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _isFinal
+                        ? widget.translate('Final verified report', 'التقرير النهائي الموثق', 'Definitief geverifieerd rapport')
+                        : widget.translate('Fast preliminary assessment', 'التقييم الأولي السريع', 'Snelle voorlopige beoordeling'),
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                IconButton.filledTonal(
+                  tooltip: _muted
+                      ? widget.translate('Turn sound on', 'تشغيل الصوت', 'Geluid aan')
+                      : widget.translate('Mute result', 'كتم النتيجة', 'Resultaat dempen'),
+                  onPressed: _toggleMute,
+                  icon: Icon(_muted ? Icons.volume_off_rounded : Icons.volume_up_rounded, size: 29),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (_isFinal) _finalReport(context) else _triageReport(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _triageReport(BuildContext context) {
+    final differentials = _maps(_result['differential_diagnoses']);
+    final top = differentials.isEmpty ? null : differentials.first;
+    final questions = _strings(_result['follow_up_questions']);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SummaryBox(text: (_result['summary'] ?? '').toString()),
+        if (top != null) ...[
+          const SizedBox(height: 16),
+          _KeyValueSection(
+            icon: Icons.coronavirus_outlined,
+            color: VetColors.blue,
+            title: widget.translate('Most likely at this stage', 'الأكثر احتمالًا في هذه المرحلة', 'Meest waarschijnlijk in deze fase'),
+            text: '${top['name'] ?? top['catalog_slug']} • ${top['suspicion'] ?? ''}',
+          ),
+          if ((top['cause'] ?? '').toString().trim().isNotEmpty)
+            _KeyValueSection(icon: Icons.science_outlined, color: VetColors.purple, title: widget.translate('Cause', 'السبب', 'Oorzaak'), text: top['cause'].toString()),
+          if ((top['treatment_summary'] ?? '').toString().trim().isNotEmpty)
+            _KeyValueSection(icon: Icons.medical_services_outlined, color: VetColors.green, title: widget.translate('Treatment / management', 'العلاج / التعامل', 'Behandeling / management'), text: top['treatment_summary'].toString()),
+          if ((top['prevention_summary'] ?? '').toString().trim().isNotEmpty)
+            _KeyValueSection(icon: Icons.shield_outlined, color: VetColors.history, title: widget.translate('Prevention', 'الوقاية', 'Preventie'), text: top['prevention_summary'].toString()),
+        ],
+        if (_strings(_result['immediate_actions']).isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _ListSection(
+            icon: Icons.first_page_rounded,
+            color: VetColors.orange,
+            title: widget.translate('What to do now', 'ماذا تفعل الآن', 'Wat nu te doen'),
+            items: _strings(_result['immediate_actions']),
+          ),
+        ],
+        if (questions.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          Row(children: [
+            const Icon(Icons.question_answer_outlined, size: 28, color: VetColors.blue),
+            const SizedBox(width: 9),
+            Expanded(child: Text(widget.translate('Answer these to improve the report', 'أجب عن هذه الأسئلة لتحسين التقرير', 'Beantwoord dit om het rapport te verbeteren'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
+          ]),
+          const SizedBox(height: 10),
+          for (final question in questions) _QuestionEditor(
+            question: question,
+            controller: _answerControllers[question]!,
+            translate: widget.translate,
+            onQuickAnswer: (value) => _quickAnswer(question, value),
+          ),
+          const SizedBox(height: 10),
+          FilledButton.icon(
+            onPressed: _finalizing ? null : _finalize,
+            style: FilledButton.styleFrom(backgroundColor: VetColors.blue, foregroundColor: Colors.white, minimumSize: const Size.fromHeight(58)),
+            icon: _finalizing
+                ? const SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.fact_check_outlined, size: 28),
+            label: Text(_finalizing
+                ? widget.translate('Checking trusted sources…', 'جاري مراجعة المصادر الموثوقة…', 'Betrouwbare bronnen controleren…')
+                : widget.translate('Send answers & create final report', 'إرسال الإجابات وإنشاء التقرير النهائي', 'Antwoorden verzenden & eindrapport maken')),
+          ),
+          if (_finalError != null) ...[
+            const SizedBox(height: 10),
+            _ErrorBox(text: _finalError!),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _finalReport(BuildContext context) {
+    final primary = _result['primary_condition'] is Map ? Map<String, dynamic>.from(_result['primary_condition'] as Map) : <String, dynamic>{};
+    final sources = _maps(_result['sources']);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SummaryBox(text: (_result['summary'] ?? '').toString()),
+        const SizedBox(height: 14),
+        _KeyValueSection(icon: Icons.coronavirus_outlined, color: VetColors.blue, title: widget.translate('Disease / most likely condition', 'المرض / الحالة الأكثر احتمالًا', 'Ziekte / meest waarschijnlijke aandoening'), text: '${primary['name'] ?? ''}\n${primary['why'] ?? ''}'),
+        _KeyValueSection(icon: Icons.science_outlined, color: VetColors.purple, title: widget.translate('Cause', 'السبب', 'Oorzaak'), text: (_result['cause'] ?? '').toString()),
+        _ListSection(icon: Icons.medical_services_outlined, color: VetColors.green, title: widget.translate('Treatment & management', 'العلاج والتعامل', 'Behandeling & management'), items: _strings(_result['treatment_and_management'])),
+        _ListSection(icon: Icons.shield_outlined, color: VetColors.history, title: widget.translate('Prevention', 'الوقاية', 'Preventie'), items: _strings(_result['prevention'])),
+        _ListSection(icon: Icons.directions_run_rounded, color: VetColors.orange, title: widget.translate('What you should do now', 'ماذا يجب أن تفعل الآن', 'Wat je nu moet doen'), items: _strings(_result['what_to_do_now'])),
+        _ListSection(icon: Icons.local_hospital_outlined, color: VetColors.blue, title: widget.translate('Veterinary next steps', 'الخطوات البيطرية التالية', 'Volgende veterinaire stappen'), items: _strings(_result['veterinary_next_steps'])),
+        if (_strings(_result['red_flags']).isNotEmpty)
+          _ListSection(icon: Icons.warning_rounded, color: VetColors.red, title: widget.translate('Danger signs', 'علامات الخطر', 'Alarmsignalen'), items: _strings(_result['red_flags'])),
+        _ListSection(icon: Icons.biotech_outlined, color: VetColors.purple, title: widget.translate('How to confirm', 'كيفية التأكيد', 'Hoe te bevestigen'), items: _strings(_result['confirmation_plan'])),
+        if (sources.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Row(children: [
+            const Icon(Icons.verified_outlined, color: VetColors.green, size: 28),
+            const SizedBox(width: 8),
+            Text(widget.translate('Trusted sources used', 'المصادر الموثوقة المستخدمة', 'Gebruikte betrouwbare bronnen'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+          ]),
+          const SizedBox(height: 8),
+          for (final source in sources) _SourceTile(source: source),
+        ],
+        const SizedBox(height: 14),
+        Text((_result['confidence_statement'] ?? '').toString(), style: const TextStyle(color: VetColors.muted, fontStyle: FontStyle.italic, height: 1.4)),
+      ],
+    );
+  }
+
+  static List<String> _strings(dynamic value) => value is List
+      ? value.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList()
+      : <String>[];
+
+  static List<Map<String, dynamic>> _maps(dynamic value) => value is List
+      ? value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+      : <Map<String, dynamic>>[];
+}
+
+class _QuestionEditor extends StatelessWidget {
+  const _QuestionEditor({required this.question, required this.controller, required this.translate, required this.onQuickAnswer});
+  final String question;
+  final TextEditingController controller;
+  final VetUiTranslate translate;
+  final ValueChanged<String> onQuickAnswer;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: VetColors.surface2, borderRadius: BorderRadius.circular(16), border: Border.all(color: VetColors.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(question, style: const TextStyle(fontWeight: FontWeight.w800, height: 1.35)),
+          const SizedBox(height: 10),
+          Wrap(spacing: 7, runSpacing: 7, children: [
+            ActionChip(label: Text(translate('Yes', 'نعم', 'Ja')), onPressed: () => onQuickAnswer(translate('Yes', 'نعم', 'Ja'))),
+            ActionChip(label: Text(translate('No', 'لا', 'Nee')), onPressed: () => onQuickAnswer(translate('No', 'لا', 'Nee'))),
+            ActionChip(label: Text(translate('Unknown', 'غير معروف', 'Onbekend')), onPressed: () => onQuickAnswer(translate('Unknown', 'غير معروف', 'Onbekend'))),
+          ]),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            minLines: 1,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: translate('Type the answer, duration, date or extra detail…', 'اكتب الإجابة أو المدة أو التاريخ أو تفاصيل إضافية…', 'Typ het antwoord, de duur, datum of extra details…'),
+              prefixIcon: const Icon(Icons.edit_note_rounded),
+            ),
+          ),
+        ]),
+      );
+}
+
+class _RiskLight extends StatelessWidget {
+  const _RiskLight({required this.risk, required this.glow});
+  final String risk;
+  final double glow;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (risk) {
+      'red' => VetColors.red,
+      'orange' => VetColors.orange,
+      'yellow' => VetColors.yellow,
+      'none' => VetColors.green,
+      _ => VetColors.muted,
+    };
+    return Container(
+      width: 62,
+      height: 42,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: glow),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color, width: 1.6),
+        boxShadow: [if (risk == 'red' || risk == 'orange') BoxShadow(color: color.withValues(alpha: glow), blurRadius: 18, spreadRadius: 2)],
+      ),
+      child: Text(risk.replaceAll('_', ' ').toUpperCase(), style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 11)),
+    );
+  }
+}
+
+class _SummaryBox extends StatelessWidget {
+  const _SummaryBox({required this.text});
+  final String text;
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(color: VetColors.surface3, borderRadius: BorderRadius.circular(17)),
+        child: Text(text, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, height: 1.45)),
+      );
+}
+
+class _KeyValueSection extends StatelessWidget {
+  const _KeyValueSection({required this.icon, required this.color, required this.title, required this.text});
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String text;
+  @override
+  Widget build(BuildContext context) {
+    if (text.trim().isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(width: 40, height: 40, decoration: BoxDecoration(color: color.withValues(alpha: .14), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: color, size: 25)),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+          const SizedBox(height: 4),
+          Text(text, style: const TextStyle(height: 1.45)),
+        ])),
+      ]),
+    );
+  }
+}
+
+class _ListSection extends StatelessWidget {
+  const _ListSection({required this.icon, required this.color, required this.title, required this.items});
+  final IconData icon;
+  final Color color;
+  final String title;
+  final List<String> items;
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Icon(icon, color: color, size: 27), const SizedBox(width: 8), Expanded(child: Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)))]),
+        const SizedBox(height: 7),
+        for (final item in items)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Padding(padding: const EdgeInsets.only(top: 7), child: Icon(Icons.circle, size: 7, color: color)),
+              const SizedBox(width: 9),
+              Expanded(child: Text(item, style: const TextStyle(height: 1.42))),
+            ]),
+          ),
+      ]),
+    );
+  }
+}
+
+class _SourceTile extends StatelessWidget {
+  const _SourceTile({required this.source});
+  final Map<String, dynamic> source;
+  @override
+  Widget build(BuildContext context) {
+    final title = (source['title'] ?? source['url'] ?? '').toString();
+    final url = (source['url'] ?? '').toString();
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      leading: const Icon(Icons.open_in_new_rounded, color: VetColors.blue),
+      title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
+      subtitle: Text(url, maxLines: 1, overflow: TextOverflow.ellipsis),
+      onTap: url.isEmpty ? null : () async {
+        final uri = Uri.tryParse(url);
+        if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
+      },
+    );
+  }
+}
+
+class _ErrorBox extends StatelessWidget {
+  const _ErrorBox({required this.text});
+  final String text;
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(color: VetColors.red.withValues(alpha: .11), borderRadius: BorderRadius.circular(14), border: Border.all(color: VetColors.red)),
+        child: Text(text, style: const TextStyle(height: 1.4)),
+      );
+}
