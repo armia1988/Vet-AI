@@ -1,0 +1,26 @@
+name: One-time V12 app shell patch
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-time-v12-app.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply V12 app shell patch
+        run: python3 tools/patch_v12_app.py
+      - name: Commit app shell integration
+        run: |
+          git config user.name 'Vet AI Build Bot'
+          git config user.email 'actions@github.com'
+          git add lib/v5_app.dart
+          if ! git diff --cached --quiet; then
+            git commit -m 'Add branded startup permissions and smart home indicators'
+            git push
+          fi
