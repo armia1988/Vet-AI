@@ -26,16 +26,28 @@ jobs:
       - name: Apply V18 code fixes
         run: python3 tools/apply_v18_reliability.py
 
-      - name: Restore approved animal icons
+      - name: Restore and verify approved animal icons
         shell: bash
         run: |
-          cat tools/icon_payloads_v18/dog_*.b64 | base64 -d > assets/icons/dog_final.png
-          cat tools/icon_payloads_v18/livestock_*.b64 | base64 -d > assets/icons/livestock_final.png
-          cat tools/icon_payloads_v18/poultry_*.b64 | base64 -d > assets/icons/poultry_final.png
-          test $(stat -c%s assets/icons/dog_final.png) -gt 15000
-          test $(stat -c%s assets/icons/livestock_final.png) -gt 10000
-          test $(stat -c%s assets/icons/poultry_final.png) -gt 10000
-          file assets/icons/dog_final.png assets/icons/livestock_final.png assets/icons/poultry_final.png
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, hashlib
+
+          expected = {
+              'dog': ('6db36fed470651eb79909d7c6a1f0773f31e4d5336f169c6b7b83e492e81f4ba', 18713),
+              'livestock': ('8270d73a215eb8d49fa26966625f34952b3821b148dc5c9f14355c9d78e95477', 12602),
+              'poultry': ('4799ecc30a57ca874c0a4277b602f665da748e4cd918ff158d1ae182cd594be4', 11141),
+          }
+          for name, (wanted_sha, wanted_size) in expected.items():
+              parts = sorted(Path('tools/icon_payloads_v18').glob(f'{name}_*.b64'))
+              encoded = ''.join(p.read_text().split() for p in parts)
+              raw = base64.b64decode(encoded, validate=True)
+              actual_sha = hashlib.sha256(raw).hexdigest()
+              print(name, len(raw), actual_sha)
+              if len(raw) != wanted_size or actual_sha != wanted_sha:
+                  raise SystemExit(f'{name} icon payload does not match the approved asset')
+              Path(f'assets/icons/{name}_final.png').write_bytes(raw)
+          PY
 
       - name: Flutter dependencies
         run: flutter pub get
