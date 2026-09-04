@@ -114,6 +114,45 @@ class VetBackend {
 
   Future<void> signOut() => client.auth.signOut();
 
+  Future<Map<String, dynamic>?> myProfile() async {
+    final user = currentUser;
+    if (user == null) return null;
+    final rows = await client.from('profiles').select().eq('id', user.id).limit(1);
+    if (rows.isEmpty) {
+      return {
+        'id': user.id,
+        'full_name': user.userMetadata?['full_name'] ?? '',
+        'phone': user.userMetadata?['phone'] ?? '',
+        'preferred_language': user.userMetadata?['preferred_language'] ?? 'en',
+      };
+    }
+    return Map<String, dynamic>.from(rows.first);
+  }
+
+  Future<void> updateProfile({
+    required String fullName,
+    required String phone,
+    required String preferredLanguage,
+    String jobTitle = '',
+  }) async {
+    final user = currentUser;
+    if (user == null) throw StateError('You must be signed in.');
+    await client.from('profiles').upsert({
+      'id': user.id,
+      'full_name': fullName.trim(),
+      'phone': phone.trim(),
+      'preferred_language': preferredLanguage,
+      'job_title': jobTitle.trim(),
+    });
+    await client.auth.updateUser(
+      UserAttributes(data: {
+        'full_name': fullName.trim(),
+        'phone': phone.trim(),
+        'preferred_language': preferredLanguage,
+      }),
+    );
+  }
+
   Future<Map<String, dynamic>?> myFarm() async {
     final user = currentUser;
     if (user == null || !emailConfirmed) return null;
@@ -139,6 +178,72 @@ class VetBackend {
     throw StateError('The farm could not be created. Please try again.');
   }
 
+  Future<Map<String, dynamic>> updateFarm(
+    String farmId, {
+    required String companyName,
+    required String farmName,
+    required String country,
+    required String region,
+    required int workerCount,
+    required int veterinarianCount,
+    required int barnCount,
+    required double totalIndoorAreaM2,
+    required int livestockCount,
+    required int poultryCount,
+    required int dogCount,
+    required String breeds,
+    required String ageRange,
+    required String productionPurpose,
+    required String ventilationSystem,
+    required String vaccinationNotes,
+    required String diseaseHistory,
+  }) async {
+    final row = await client
+        .from('farms')
+        .update({
+          'company_name': companyName.trim(),
+          'farm_name': farmName.trim(),
+          'country': country.trim(),
+          'region': region.trim(),
+          'worker_count': workerCount,
+          'veterinarian_count': veterinarianCount,
+          'barn_count': barnCount,
+          'total_indoor_area_m2': totalIndoorAreaM2,
+          'livestock_count': livestockCount,
+          'poultry_count': poultryCount,
+          'dog_count': dogCount,
+          'breeds': breeds.trim(),
+          'age_range': ageRange.trim(),
+          'production_purpose': productionPurpose.trim(),
+          'ventilation_system': ventilationSystem.trim(),
+          'vaccination_notes': vaccinationNotes.trim(),
+          'disease_history': diseaseHistory.trim(),
+        })
+        .eq('id', farmId)
+        .select()
+        .single();
+    return Map<String, dynamic>.from(row);
+  }
+
+  Future<Map<String, dynamic>> updateSubscription(
+    String farmId, {
+    required String subscriptionTier,
+    required String billingCycle,
+  }) async {
+    final row = await client
+        .from('farms')
+        .update({
+          'subscription_tier': subscriptionTier,
+          'billing_cycle': billingCycle,
+          'subscription_status': 'selected',
+          'subscription_updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', farmId)
+        .select()
+        .single();
+    return Map<String, dynamic>.from(row);
+  }
+
   Future<List<Map<String, dynamic>>> recentAlerts(String farmId) async {
     final rows = await client
         .from('alerts')
@@ -157,6 +262,70 @@ class VetBackend {
         .order('created_at', ascending: false)
         .limit(30);
     return rows.map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> sensorDevices(String farmId) async {
+    final rows = await client
+        .from('sensor_devices')
+        .select()
+        .eq('farm_id', farmId)
+        .eq('active', true)
+        .order('created_at');
+    return rows.map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> latestSensorReadings(String farmId) async {
+    final rows = await client
+        .from('sensor_readings')
+        .select()
+        .eq('farm_id', farmId)
+        .order('recorded_at', ascending: false)
+        .limit(50);
+    return rows.map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  Future<String> getOrCreateSupportThread(String farmId) async {
+    final user = currentUser;
+    if (user == null) throw StateError('You must be signed in.');
+    final rows = await client
+        .from('support_threads')
+        .select('id')
+        .eq('farm_id', farmId)
+        .eq('status', 'open')
+        .order('created_at', ascending: false)
+        .limit(1);
+    if (rows.isNotEmpty) return rows.first['id'] as String;
+    final row = await client
+        .from('support_threads')
+        .insert({
+          'farm_id': farmId,
+          'created_by': user.id,
+          'subject': 'Vet AI support',
+        })
+        .select('id')
+        .single();
+    return row['id'] as String;
+  }
+
+  Stream<List<Map<String, dynamic>>> supportMessagesStream(String threadId) {
+    return client
+        .from('support_messages')
+        .stream(primaryKey: ['id'])
+        .eq('thread_id', threadId)
+        .order('created_at');
+  }
+
+  Future<void> sendSupportMessage(String threadId, String message) async {
+    final user = currentUser;
+    if (user == null) throw StateError('You must be signed in.');
+    final clean = message.trim();
+    if (clean.isEmpty) return;
+    await client.from('support_messages').insert({
+      'thread_id': threadId,
+      'sender_id': user.id,
+      'sender_role': 'user',
+      'message': clean,
+    });
   }
 
   Future<String> uploadDiagnosticMedia({
@@ -209,16 +378,27 @@ class VetBackend {
     String assessmentId, {
     String language = 'en',
   }) async {
-    final response = await client.functions.invoke(
-      'analyze-case',
-      body: {
-        'assessment_id': assessmentId,
-        'language': language,
-      },
-    );
-    final data = response.data;
-    if (data is Map<String, dynamic>) return data;
-    if (data is Map) return Map<String, dynamic>.from(data);
+    try {
+      final response = await client.functions.invoke(
+        'analyze-case',
+        body: {
+          'assessment_id': assessmentId,
+          'language': language,
+        },
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return Map<String, dynamic>.from(data);
+    } on FunctionException catch (error) {
+      final details = error.details;
+      if (details is Map<String, dynamic>) return details;
+      if (details is Map) return Map<String, dynamic>.from(details);
+      return {
+        'code': 'AI_FUNCTION_ERROR',
+        'risk': 'insufficient_data',
+        'message': error.reasonPhrase ?? 'The protected AI service could not complete the case.',
+      };
+    }
     return {
       'code': 'INVALID_AI_RESPONSE',
       'risk': 'insufficient_data',
