@@ -27,7 +27,7 @@ class _SmartHomeVitalsState extends State<SmartHomeVitals> {
     final results = await Future.wait([
       VetBackend.instance.sensorDevices(widget.farmId),
       VetBackend.instance.latestSensorReadings(widget.farmId),
-    ]);
+    ]).timeout(const Duration(seconds: 12));
     return _MonitoringSnapshot(
       devices: results[0],
       readings: results[1],
@@ -81,19 +81,25 @@ class _SmartHomeVitalsState extends State<SmartHomeVitals> {
                 const SizedBox(height: 16),
                 if (snapshot.connectionState != ConnectionState.done)
                   const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())),
-                if (snapshot.connectionState == ConnectionState.done && data != null && data.devices.isEmpty)
+                if (snapshot.connectionState == ConnectionState.done && snapshot.hasError)
+                  _EmptyState(
+                    icon: Icons.cloud_off_rounded,
+                    title: widget.translate('Monitoring data could not be loaded', 'تعذر تحميل بيانات المراقبة', 'Monitoringgegevens konden niet worden geladen'),
+                    text: widget.translate('Vet AI stopped waiting after the request timeout. Use the refresh button to try again.', 'Vet AI وقف الانتظار بعد مهلة الطلب. استخدم زر التحديث وجرّب تاني.', 'Vet AI is na de aanvraagtime-out gestopt met wachten. Gebruik vernieuwen om opnieuw te proberen.'),
+                  ),
+                if (snapshot.connectionState == ConnectionState.done && !snapshot.hasError && data != null && data.devices.isEmpty)
                   _EmptyState(
                     icon: Icons.sensors_off_rounded,
                     title: widget.translate('No monitoring device connected yet', 'لسه مفيش جهاز مراقبة متوصل', 'Nog geen monitoringapparaat gekoppeld'),
                     text: widget.translate('This section will stay empty until a real Vet AI sensor device is provisioned.', 'القسم ده هيفضل فاضي لحد ما يتربط حساس Vet AI حقيقي. مش هنحط أرقام تجريبية.', 'Dit gedeelte blijft leeg totdat een echt Vet AI-sensorapparaat is ingericht.'),
                   ),
-                if (snapshot.connectionState == ConnectionState.done && data != null && data.devices.isNotEmpty && data.readings.isEmpty)
+                if (snapshot.connectionState == ConnectionState.done && !snapshot.hasError && data != null && data.devices.isNotEmpty && data.readings.isEmpty)
                   _EmptyState(
                     icon: Icons.schedule_rounded,
                     title: widget.translate('Sensor connected — waiting for first reading', 'الحساس متوصل — مستنيين أول قراءة', 'Sensor gekoppeld — wachten op eerste meting'),
                     text: widget.translate('No fake values are shown while the device has not reported data.', 'مش هنعرض أي قيم وهمية قبل ما الجهاز يبعت بيانات فعلية.', 'Er worden geen nepwaarden getoond zolang het apparaat nog geen gegevens heeft gestuurd.'),
                   ),
-                if (snapshot.connectionState == ConnectionState.done && data != null && data.readings.isNotEmpty)
+                if (snapshot.connectionState == ConnectionState.done && !snapshot.hasError && data != null && data.readings.isNotEmpty)
                   _LiveContent(reading: data.readings.first, translate: widget.translate),
               ],
             ),

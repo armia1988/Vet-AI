@@ -26,12 +26,20 @@ class _SensorAlertRulesScreenState extends State<SensorAlertRulesScreen> {
   @override
   void initState() {
     super.initState();
-    future = VetBackend.instance.sensorAlertRules(widget.farmId);
+    future = _load();
+  }
+
+  Future<List<Map<String, dynamic>>> _load() {
+    return VetBackend.instance.sensorAlertRules(widget.farmId).timeout(const Duration(seconds: 12));
   }
 
   Future<void> refresh() async {
-    setState(() => future = VetBackend.instance.sensorAlertRules(widget.farmId));
-    await future;
+    setState(() => future = _load());
+    try {
+      await future;
+    } catch (_) {
+      // FutureBuilder presents the recoverable error state.
+    }
   }
 
   @override
@@ -43,8 +51,29 @@ class _SensorAlertRulesScreenState extends State<SensorAlertRulesScreen> {
         body: FutureBuilder<List<Map<String, dynamic>>>(
           future: future,
           builder: (context, snapshot) {
-            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-            final rows = snapshot.data!;
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.cloud_off_rounded, size: 54, color: VetColors.red),
+                      const SizedBox(height: 12),
+                      Text(_rt(context, 'Could not load sensor alert rules', 'تعذر تحميل قواعد إنذارات الحساسات', 'Sensorwaarschuwingsregels konden niet worden geladen'), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+                      const SizedBox(height: 8),
+                      Text(_rt(context, 'Vet AI stopped the request instead of leaving an endless loader. Try again.', 'Vet AI أوقف الطلب بدل ما يفضل التحميل شغال للأبد. جرّب تاني.', 'Vet AI heeft het verzoek gestopt in plaats van eindeloos te laden. Probeer opnieuw.'), textAlign: TextAlign.center, style: const TextStyle(color: VetColors.muted, height: 1.4)),
+                      const SizedBox(height: 14),
+                      OutlinedButton.icon(onPressed: refresh, icon: const Icon(Icons.refresh_rounded), label: Text(_rt(context, 'Retry', 'إعادة المحاولة', 'Opnieuw proberen'))),
+                    ],
+                  ),
+                ),
+              );
+            }
+            final rows = snapshot.data ?? const <Map<String, dynamic>>[];
             return RefreshIndicator(
               onRefresh: refresh,
               child: ListView(
