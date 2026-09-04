@@ -508,11 +508,11 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
         children: [
           _StepTitle(icon: Icons.pets_rounded, title: tr(context, 'Choose animal groups', 'اختر أنواع الحيوانات', 'Kies diergroepen'), subtitle: tr(context, 'Only selected groups will appear in AI Scan and plan features.', 'فقط الأنواع المختارة ستظهر في فحص AI ومزايا الخطة.', 'Alleen gekozen groepen verschijnen in AI-scan en planfuncties.')),
           const SizedBox(height: 18),
-          _AnimalChoice(group: 'livestock', label: tr(context, 'Livestock', 'المواشي', 'Vee'), asset: 'assets/icons/livestock.svg', selected: selectedGroups.contains('livestock'), onTap: () => _toggleGroup('livestock')),
+          _AnimalChoice(group: 'livestock', label: tr(context, 'Livestock', 'المواشي', 'Vee'), asset: 'assets/icons/livestock_final.png', selected: selectedGroups.contains('livestock'), onTap: () => _toggleGroup('livestock')),
           const SizedBox(height: 10),
-          _AnimalChoice(group: 'poultry', label: tr(context, 'Poultry', 'الدواجن', 'Pluimvee'), asset: 'assets/icons/poultry.svg', selected: selectedGroups.contains('poultry'), onTap: () => _toggleGroup('poultry')),
+          _AnimalChoice(group: 'poultry', label: tr(context, 'Poultry', 'الدواجن', 'Pluimvee'), asset: 'assets/icons/poultry_final.png', selected: selectedGroups.contains('poultry'), onTap: () => _toggleGroup('poultry')),
           const SizedBox(height: 10),
-          _AnimalChoice(group: 'dogs', label: tr(context, 'Dogs', 'الكلاب', 'Honden'), asset: 'assets/icons/dog.svg', selected: selectedGroups.contains('dogs'), onTap: () => _toggleGroup('dogs')),
+          _AnimalChoice(group: 'dogs', label: tr(context, 'Dogs', 'الكلاب', 'Honden'), asset: 'assets/icons/dog_final.png', selected: selectedGroups.contains('dogs'), onTap: () => _toggleGroup('dogs')),
           const SizedBox(height: 18),
           if (selectedGroups.contains('livestock')) _Field(controller: livestock, label: tr(context, 'Livestock count', 'عدد المواشي', 'Aantal vee'), icon: Icons.tag_rounded, keyboard: TextInputType.number),
           if (selectedGroups.contains('livestock')) const SizedBox(height: 10),
@@ -709,13 +709,13 @@ class V5Home extends StatelessWidget {
         const SizedBox(height: 18),
         Row(children: [
           if ((farm['livestock_count'] as num?)?.toInt() != null && (farm['livestock_count'] as num).toInt() > 0)
-            Expanded(child: _AnimalCount(asset: 'assets/icons/livestock.svg', label: tr(context, 'Livestock', 'المواشي', 'Vee'), value: farm['livestock_count'])),
+            Expanded(child: _AnimalCount(asset: 'assets/icons/livestock_final.png', label: tr(context, 'Livestock', 'المواشي', 'Vee'), value: farm['livestock_count'])),
           if ((farm['livestock_count'] as num?)?.toInt() != null && (farm['livestock_count'] as num).toInt() > 0 && (((farm['poultry_count'] as num?)?.toInt() ?? 0) > 0 || ((farm['dog_count'] as num?)?.toInt() ?? 0) > 0)) const SizedBox(width: 10),
           if (((farm['poultry_count'] as num?)?.toInt() ?? 0) > 0)
-            Expanded(child: _AnimalCount(asset: 'assets/icons/poultry.svg', label: tr(context, 'Poultry', 'الدواجن', 'Pluimvee'), value: farm['poultry_count'])),
+            Expanded(child: _AnimalCount(asset: 'assets/icons/poultry_final.png', label: tr(context, 'Poultry', 'الدواجن', 'Pluimvee'), value: farm['poultry_count'])),
           if (((farm['poultry_count'] as num?)?.toInt() ?? 0) > 0 && ((farm['dog_count'] as num?)?.toInt() ?? 0) > 0) const SizedBox(width: 10),
           if (((farm['dog_count'] as num?)?.toInt() ?? 0) > 0)
-            Expanded(child: _AnimalCount(asset: 'assets/icons/dog.svg', label: tr(context, 'Dogs', 'الكلاب', 'Honden'), value: farm['dog_count'])),
+            Expanded(child: _AnimalCount(asset: 'assets/icons/dog_final.png', label: tr(context, 'Dogs', 'الكلاب', 'Honden'), value: farm['dog_count'])),
         ]),
         const SizedBox(height: 18),
         if (smart) ...[
@@ -854,7 +854,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
     return tr(context, 'Livestock', 'المواشي', 'Vee');
   }
 
-  String asset(String g) => g == 'poultry' ? 'assets/icons/poultry.svg' : g == 'dogs' ? 'assets/icons/dog.svg' : 'assets/icons/livestock.svg';
+  String asset(String g) => g == 'poultry' ? 'assets/icons/poultry_final.png' : g == 'dogs' ? 'assets/icons/dog_final.png' : 'assets/icons/livestock_final.png';
 
   @override
   Widget build(BuildContext context) {
@@ -1224,7 +1224,7 @@ class _Notice extends StatelessWidget {
 
 class _AnimalChoice extends StatelessWidget {
   const _AnimalChoice({required this.group,required this.label,required this.asset,required this.selected,required this.onTap}); final String group; final String label; final String asset; final bool selected; final VoidCallback onTap;
-  @override Widget build(BuildContext context)=>InkWell(onTap:onTap,borderRadius:BorderRadius.circular(18),child:Container(padding:const EdgeInsets.symmetric(horizontal:16,vertical:15),decoration:BoxDecoration(color:selected?VetColors.surface3:VetColors.surface,borderRadius:BorderRadius.circular(18),border:Border.all(color:selected?VetColors.primary:VetColors.border,width:selected?1.5:1)),child:Row(children:[SvgPicture.asset(asset,width:42,height:42),const SizedBox(width:14),Expanded(child:Text(label,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w800))),Icon(selected?Icons.check_circle_rounded:Icons.radio_button_unchecked_rounded,size:29,color:selected?VetColors.primary:VetColors.muted)])));
+  @override Widget build(BuildContext context)=>InkWell(onTap:onTap,borderRadius:BorderRadius.circular(18),child:Container(padding:const EdgeInsets.symmetric(horizontal:16,vertical:15),decoration:BoxDecoration(color:selected?VetColors.surface3:VetColors.surface,borderRadius:BorderRadius.circular(18),border:Border.all(color:selected?VetColors.primary:VetColors.border,width:selected?1.5:1)),child:Row(children:[Image.asset(asset,width:54,height:54,fit:BoxFit.contain,filterQuality:FilterQuality.high),const SizedBox(width:14),Expanded(child:Text(label,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w800))),Icon(selected?Icons.check_circle_rounded:Icons.radio_button_unchecked_rounded,size:29,color:selected?VetColors.primary:VetColors.muted)])));
 }
 
 class _PlanCard extends StatelessWidget {
@@ -1234,7 +1234,7 @@ class _PlanCard extends StatelessWidget {
 
 class _AnimalCount extends StatelessWidget {
   const _AnimalCount({required this.asset,required this.label,required this.value}); final String asset; final String label; final dynamic value;
-  @override Widget build(BuildContext context)=>Card(child:Padding(padding:const EdgeInsets.symmetric(vertical:18,horizontal:8),child:Column(children:[SvgPicture.asset(asset,width:47,height:47),const SizedBox(height:9),Text('$value',style:const TextStyle(fontSize:25,fontWeight:FontWeight.w900)),const SizedBox(height:4),Text(label,textAlign:TextAlign.center,style:const TextStyle(color:VetColors.muted,fontSize:12))])));
+  @override Widget build(BuildContext context)=>Card(child:Padding(padding:const EdgeInsets.symmetric(vertical:18,horizontal:8),child:Column(children:[Image.asset(asset,width:62,height:62,fit:BoxFit.contain,filterQuality:FilterQuality.high),const SizedBox(height:9),Text('$value',style:const TextStyle(fontSize:25,fontWeight:FontWeight.w900)),const SizedBox(height:4),Text(label,textAlign:TextAlign.center,style:const TextStyle(color:VetColors.muted,fontSize:12))])));
 }
 
 class _MenuTile extends StatelessWidget {
