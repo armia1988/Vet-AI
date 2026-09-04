@@ -18,12 +18,6 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" ios/Runner/Info.plist
       - name: Install Flutter dependencies
         script: flutter pub get
-      - name: Verify backend configuration
-        script: |
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
-            echo "Missing SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY in Codemagic environment variables."
-            exit 1
-          fi
       - name: Static analysis
         script: flutter analyze
       - name: Set up code signing
@@ -32,8 +26,6 @@ workflows:
         script: |
           flutter build ipa --release \
             -t lib/main_v2.dart \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
             --export-options-plist=$HOME/export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa
