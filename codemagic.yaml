@@ -13,7 +13,7 @@ workflows:
     scripts:
       - name: Generate native iOS and Android projects
         script: |
-          flutter create . --platforms=ios,android --project-name vet_ai --org com.vetai
+          flutter create . --platforms=ios,android --project-name app --org com.vetai
           rm -f test/widget_test.dart
           /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Vet AI" ios/Runner/Info.plist || true
