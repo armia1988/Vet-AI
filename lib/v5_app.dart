@@ -222,7 +222,24 @@ class _V5AuthScreenState extends State<V5AuthScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 26, 24, 34),
           children: [
-            const Center(child: _BrandLockup(markWidth: 154)),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Spacer(),
+                const _BrandLockup(markWidth: 154),
+                Expanded(
+                  child: Align(
+                    alignment: AlignmentDirectional.topEnd,
+                    child: IconButton.filledTonal(
+                      tooltip: tr(context, 'Language', 'اللغة', 'Taal'),
+                      style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
+                      icon: const Icon(Icons.language_rounded, size: 31, color: VetColors.blue),
+                      onPressed: () => showVetLanguagePicker(context),
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 14),
             Text(
               tr(context, 'Veterinary intelligence & smart animal monitoring', 'ذكاء بيطري ومراقبة ذكية لصحة الحيوان', 'Veterinaire intelligentie & slimme diermonitoring'),
@@ -285,6 +302,7 @@ class V5VerifyScreen extends StatelessWidget {
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 28), onPressed: VetBackend.instance.signOut),
         title: Text(tr(context, 'Verify account', 'تفعيل الحساب', 'Account bevestigen')),
+        actions: [IconButton(onPressed: () => showVetLanguagePicker(context), icon: const Icon(Icons.language_rounded, color: VetColors.blue))],
       ),
       body: Center(
         child: Padding(
