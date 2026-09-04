@@ -21,6 +21,19 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Vet AI uses selected photos to create veterinary assessment cases.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'Vet AI uses selected photos to create veterinary assessment cases.'" ios/Runner/Info.plist
       - name: Install Flutter dependencies
         script: flutter pub get
+      - name: Generate Vet AI launcher icons
+        script: |
+          python3 -m pip install --quiet cairosvg
+          python3 - <<'PY'
+          import cairosvg
+          cairosvg.svg2png(
+              url='assets/vet_ai_app_icon.svg',
+              write_to='assets/vet_ai_app_icon.png',
+              output_width=1024,
+              output_height=1024,
+          )
+          PY
+          dart run flutter_launcher_icons
       - name: Static analysis
         script: flutter analyze
       - name: Set up code signing
