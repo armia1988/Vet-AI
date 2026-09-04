@@ -87,11 +87,11 @@ class VetBackend {
     required String fullName,
     required String phone,
     required String preferredLanguage,
-    required String emailSubject,
-    required String emailHeading,
-    required String emailBody,
-    required String emailButton,
-    required String emailFooter,
+    String emailSubject = 'Vet AI — Confirm your account',
+    String emailHeading = 'Welcome to Vet AI',
+    String emailBody = 'Confirm your email address to finish creating your Vet AI account and securely access your farm data.',
+    String emailButton = 'Confirm Vet AI account',
+    String emailFooter = 'If you did not create this Vet AI account, you can ignore this email.',
   }) {
     return client.auth.signUp(
       email: email.trim(),

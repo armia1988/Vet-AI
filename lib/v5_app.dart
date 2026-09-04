@@ -1285,8 +1285,8 @@ class _HeaderBrand extends StatelessWidget {
 }
 
 class _BrandLockup extends StatelessWidget {
-  const _BrandLockup({required this.markWidth,this.compact=false}); final double markWidth; final bool compact;
-  @override Widget build(BuildContext context)=>Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:compact?CrossAxisAlignment.start:CrossAxisAlignment.center,children:[SvgPicture.asset('assets/vet_ai_logo.svg',width:markWidth,height:markWidth*.66,colorFilter:const ColorFilter.mode(VetColors.primary,BlendMode.srcIn)),SizedBox(height:compact?2:7),Text.rich(TextSpan(children:[const TextSpan(text:'Vet ',style:TextStyle(color:VetColors.text)),TextSpan(text:'AI',style:TextStyle(color:VetColors.primary))]),style:TextStyle(fontSize:compact?25:31,fontWeight:FontWeight.w900,letterSpacing:.2))]);
+  const _BrandLockup({required this.markWidth}); final double markWidth;
+  @override Widget build(BuildContext context)=>Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.center,children:[SvgPicture.asset('assets/vet_ai_logo.svg',width:markWidth,height:markWidth*.66,colorFilter:const ColorFilter.mode(VetColors.primary,BlendMode.srcIn)),const SizedBox(height:7),Text.rich(TextSpan(children:[const TextSpan(text:'Vet ',style:TextStyle(color:VetColors.text)),TextSpan(text:'AI',style:TextStyle(color:VetColors.primary))]),style:const TextStyle(fontSize:31,fontWeight:FontWeight.w900,letterSpacing:.2))]);
 }
 
 class _FatalState extends StatelessWidget {
