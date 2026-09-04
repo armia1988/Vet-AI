@@ -1,0 +1,27 @@
+name: Verify final approved animal icons
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-time-final-icons-check.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Static analysis
+        run: flutter analyze
+      - name: Verify icon assets
+        run: |
+          test -f assets/icons/livestock_final.png
+          test -f assets/icons/dog_final.png
+          test -f assets/icons/poultry_final.png
+          grep -q "assets/icons/livestock_final.png" lib/v5_app.dart
+          grep -q "assets/icons/dog_final.png" lib/v5_app.dart
+          grep -q "assets/icons/poultry_final.png" lib/v5_app.dart
