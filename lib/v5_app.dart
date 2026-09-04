@@ -11,6 +11,8 @@ import 'analysis/vet_analysis_report.dart';
 import 'support/support_chat_v6.dart';
 import 'theme/app_theme.dart';
 import 'i18n/vet_locale.dart';
+import 'startup/vet_startup_experience.dart';
+import 'monitoring/smart_home_vitals.dart';
 
 class VetAIAppV5 extends StatefulWidget {
   const VetAIAppV5({super.key});
@@ -22,24 +24,14 @@ class VetAIAppV5 extends StatefulWidget {
 class _VetAIAppV5State extends State<VetAIAppV5> {
   final localeController = VetLocaleController.instance;
   final translator = VetTranslator.instance;
-  bool ready = false;
 
   @override
   void initState() {
     super.initState();
     localeController.addListener(_refresh);
     translator.addListener(_refresh);
-    _bootstrap();
-  }
-
-  Future<void> _bootstrap() async {
-    await localeController.load();
-    await translator.load();
-    final requested = localeController.manualCode ?? WidgetsBinding.instance.platformDispatcher.locale.languageCode;
-    if (vetLanguages.any((l) => l.code == requested)) {
-      await translator.prepareLanguage(requested, vetCoreUiStrings);
-    }
-    if (mounted) setState(() => ready = true);
+    localeController.load();
+    translator.load();
   }
 
   void _refresh() { if (mounted) setState(() {}); }
@@ -53,8 +45,7 @@ class _VetAIAppV5State extends State<VetAIAppV5> {
 
   @override
   Widget build(BuildContext context) {
-    if (!ready) {
-      return MaterialApp(
+    return MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: buildVetTheme(),
         home: const Scaffold(
@@ -72,6 +63,11 @@ class _VetAIAppV5State extends State<VetAIAppV5> {
       debugShowCheckedModeBanner: false,
       title: 'Vet AI',
       theme: buildVetTheme(),
+      builder: (context, child) => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: child ?? const SizedBox.shrink(),
+      ),
       locale: localeController.locale,
       supportedLocales: vetSupportedLocales,
       localizationsDelegates: const [
@@ -86,7 +82,7 @@ class _VetAIAppV5State extends State<VetAIAppV5> {
         }
         return const Locale('en');
       },
-      home: const V5AuthGate(),
+      home: const VetStartupExperience(child: V5AuthGate()),
     );
   }
 }
@@ -639,7 +635,7 @@ class _V5DashboardState extends State<V5Dashboard> {
     final farmId = farm['id'] as String;
     final smart = farm['subscription_tier'] == 'smart_monitoring';
     final pages = <Widget>[
-      V5Home(farm: farm, onAccount: openAccount),
+      V5Home(farm: farm, onAccount: openAccount, smart: smart),
       V5ScanPanel(farm: farm),
       V5SensorsPanel(farm: farm, unlocked: smart),
       V5AlertsPanel(farmId: farmId),
@@ -675,36 +671,53 @@ class _V5DashboardState extends State<V5Dashboard> {
 }
 
 class V5Home extends StatelessWidget {
-  const V5Home({super.key, required this.farm, required this.onAccount});
+  const V5Home({super.key, required this.farm, required this.onAccount, required this.smart});
   final Map<String, dynamic> farm;
   final VoidCallback onAccount;
+  final bool smart;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
       children: [
-        Row(children: [
-          const _BrandLockup(markWidth: 132, compact: true),
-          const Spacer(),
-          IconButton.filledTonal(
-            tooltip: tr(context, 'Language', 'اللغة', 'Taal'),
-            style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
-            icon: const Icon(Icons.language_rounded, size: 33, color: VetColors.blue),
-            onPressed: () => showVetLanguagePicker(context),
+        SizedBox(
+          height: 108,
+          child: Stack(
+            children: [
+              const Align(
+                alignment: Alignment.topCenter,
+                child: _BrandLockup(markWidth: 118, compact: true),
+              ),
+              PositionedDirectional(
+                top: 0,
+                end: 0,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton.filledTonal(
+                      tooltip: tr(context, 'Language', 'اللغة', 'Taal'),
+                      style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
+                      icon: const Icon(Icons.language_rounded, size: 30, color: VetColors.blue),
+                      onPressed: () => showVetLanguagePicker(context),
+                    ),
+                    const SizedBox(width: 5),
+                    IconButton.filledTonal(
+                      tooltip: tr(context, 'Account & settings', 'الحساب والإعدادات', 'Account & instellingen'),
+                      style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
+                      icon: const Icon(Icons.account_circle_outlined, size: 31, color: VetColors.primary),
+                      onPressed: onAccount,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          IconButton.filledTonal(
-            tooltip: tr(context, 'Account & settings', 'الحساب والإعدادات', 'Account & instellingen'),
-            style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
-            icon: const Icon(Icons.account_circle_outlined, size: 34, color: VetColors.primary),
-            onPressed: onAccount,
-          ),
-        ]),
-        const SizedBox(height: 22),
-        Text(farm['farm_name']?.toString() ?? 'Vet AI', style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900)),
+        ),
+        const SizedBox(height: 2),
+        Text(farm['farm_name']?.toString() ?? 'Vet AI', textAlign: TextAlign.center, style: const TextStyle(fontSize: 29, fontWeight: FontWeight.w900)),
         if ((farm['company_name']?.toString() ?? '').isNotEmpty)
-          Padding(padding: const EdgeInsets.only(top: 4), child: Text(farm['company_name'].toString(), style: const TextStyle(color: VetColors.muted, fontSize: 16))),
+          Padding(padding: const EdgeInsets.only(top: 4), child: Text(farm['company_name'].toString(), textAlign: TextAlign.center, style: const TextStyle(color: VetColors.muted, fontSize: 16, fontWeight: FontWeight.w600))),
         const SizedBox(height: 18),
         _Notice(icon: Icons.shield_outlined, title: tr(context, 'Real data policy', 'سياسة البيانات الحقيقية', 'Echte-data beleid'), text: tr(context, 'No demo sensor readings and no definitive diagnosis from one image.', 'لا توجد قراءات حساسات وهمية ولا تشخيص نهائي من صورة واحدة.', 'Geen demo-sensormetingen en geen definitieve diagnose op basis van één beeld.')),
         const SizedBox(height: 18),
@@ -719,6 +732,13 @@ class V5Home extends StatelessWidget {
             Expanded(child: _AnimalCount(asset: 'assets/icons/dog.svg', label: tr(context, 'Dogs', 'الكلاب', 'Honden'), value: farm['dog_count'])),
         ]),
         const SizedBox(height: 18),
+        if (smart) ...[
+          SmartHomeVitals(
+            farmId: farm['id'] as String,
+            translate: (en, ar, nl) => tr(context, en, ar, nl),
+          ),
+          const SizedBox(height: 18),
+        ],
         Card(
           child: Padding(
             padding: const EdgeInsets.all(18),
@@ -778,7 +798,34 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
     super.dispose();
   }
 
+  Future<bool> _confirmAccess({required String title, required String message, required IconData icon}) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(icon, size: 38, color: VetColors.primary),
+        title: Text(title, textAlign: TextAlign.center),
+        content: Text(message, textAlign: TextAlign.center, style: const TextStyle(height: 1.45)),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(tr(context, 'Cancel', 'إلغاء', 'Annuleren'))),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(tr(context, 'Allow', 'سماح', 'Toestaan'))),
+        ],
+      ),
+    );
+    return approved == true;
+  }
+
+  Future<bool> _confirmMedia(ImageSource source) => _confirmAccess(
+        title: source == ImageSource.camera ? tr(context, 'Open camera?', 'فتح الكاميرا؟', 'Camera openen?') : tr(context, 'Open photos?', 'فتح الصور؟', 'Foto’s openen?'),
+        message: source == ImageSource.camera
+            ? tr(context, 'Vet AI will open the camera only after your approval. The photo is not uploaded until you explicitly start the health analysis.', 'Vet AI هيفتح الكاميرا بعد موافقتك بس. الصورة مش هتترفع إلا لما تضغط بنفسك على تحليل الحالة.', 'Vet AI opent de camera pas na jouw toestemming. De foto wordt pas geüpload wanneer je zelf de gezondheidsanalyse start.')
+            : tr(context, 'Vet AI will let you choose a photo only after your approval. It will not upload the selected image until you explicitly start the health analysis.', 'Vet AI هيسمحلك تختار صورة بعد موافقتك بس، ومش هيرفع الصورة المختارة إلا لما تضغط بنفسك على تحليل الحالة.', 'Vet AI laat je pas na toestemming een foto kiezen. De gekozen foto wordt pas geüpload wanneer je zelf de gezondheidsanalyse start.'),
+        icon: source == ImageSource.camera ? Icons.photo_camera_rounded : Icons.photo_library_rounded,
+      );
+
   Future<void> pick(ImageSource source) async {
+    if (!await _confirmMedia(source)) return;
     final chosen = await picker.pickImage(source: source, imageQuality: 88, maxWidth: 2200);
     if (chosen == null) return;
     final data = await chosen.readAsBytes();
@@ -787,6 +834,12 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
 
   Future<void> analyze() async {
     if (file == null || bytes == null) return;
+    final approved = await _confirmAccess(
+      title: tr(context, 'Upload for secure analysis?', 'رفع الصورة للتحليل الآمن؟', 'Uploaden voor beveiligde analyse?'),
+      message: tr(context, 'The selected animal image and symptom notes will be uploaded to your protected Vet AI account for analysis. Continue?', 'الصورة اللي اخترتها وملاحظات الأعراض هيتـرفعوا لحساب Vet AI المحمي بتاعك علشان نحلل الحالة. تكمل؟', 'De gekozen dierfoto en symptoomnotities worden naar je beveiligde Vet AI-account geüpload voor analyse. Doorgaan?'),
+      icon: Icons.cloud_upload_outlined,
+    );
+    if (!approved || !mounted) return;
     setState(() { busy = true; result = null; });
     try {
       final extension = file!.name.contains('.') ? file!.name.split('.').last : 'jpg';
@@ -822,6 +875,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
     final code = result?['code']?.toString();
     final complete = code == 'AI_ANALYSIS_COMPLETE' || code == 'FINAL_REPORT_COMPLETE';
     return ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.all(20),
       children: [
         _StepTitle(icon: Icons.document_scanner_rounded, title: tr(context, 'AI health scan', 'الفحص الصحي بالذكاء الاصطناعي', 'AI-gezondheidsscan'), subtitle: tr(context, 'Image + symptoms + reviewed veterinary knowledge. Not a definitive diagnosis.', 'صورة + أعراض + معرفة بيطرية مراجعة. ليست تشخيصًا نهائيًا.', 'Beeld + symptomen + beoordeelde veterinaire kennis. Geen definitieve diagnose.')),
@@ -861,6 +915,10 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
               languageCode: Localizations.localeOf(context).languageCode,
               translate: (en, ar, nl) => tr(context, en, ar, nl),
               onFinalized: (finalReport) { if (mounted) setState(() => result = finalReport); },
+              onBack: () {
+                FocusManager.instance.primaryFocus?.unfocus();
+                if (mounted) setState(() => result = null);
+              },
             )
           else
             _Notice(
