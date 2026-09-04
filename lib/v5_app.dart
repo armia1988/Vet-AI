@@ -1181,7 +1181,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
             _Notice(
               icon: code == 'AI_PROVIDER_NOT_CONFIGURED' ? Icons.key_off_outlined : Icons.info_outline_rounded,
               title: tr(context, 'Analysis not completed', 'لم يكتمل التحليل', 'Analyse niet voltooid'),
-              text: (result!['message'] ?? _errorMessage(code)).toString(),
+              text: code == 'AI_PROVIDER_RATE_LIMIT' ? _errorMessage(code) : (result!['message'] ?? _errorMessage(code)).toString(),
               danger: true,
             ),
         ],
