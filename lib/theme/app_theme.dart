@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 
 class VetColors {
-  static const background = Color(0xFF181D21);
-  static const surface = Color(0xFF21282D);
-  static const surface2 = Color(0xFF2A3338);
-  static const border = Color(0xFF3C484E);
-  static const primary = Color(0xFF8EB9AF);
-  static const primaryDark = Color(0xFF698E86);
-  static const text = Color(0xFFE3E8E6);
-  static const muted = Color(0xFFACB6B3);
-  static const red = Color(0xFFE17C82);
-  static const orange = Color(0xFFD6A16F);
-  static const yellow = Color(0xFFD4C27B);
-  static const green = Color(0xFF8AB79D);
+  static const background = Color(0xFF20282D);
+  static const surface = Color(0xFF2B353B);
+  static const surface2 = Color(0xFF354249);
+  static const surface3 = Color(0xFF3E4C53);
+  static const border = Color(0xFF526168);
+  static const primary = Color(0xFF9BC9BD);
+  static const primaryDark = Color(0xFF78A79B);
+  static const text = Color(0xFFF2F5F4);
+  static const muted = Color(0xFFC4CECB);
+  static const red = Color(0xFFF08A91);
+  static const orange = Color(0xFFF0B275);
+  static const yellow = Color(0xFFE4CF7F);
+  static const green = Color(0xFF9AC6A9);
+  static const blue = Color(0xFF83B7E8);
+  static const purple = Color(0xFFB7A2E8);
+  static const history = Color(0xFFD9C58A);
 }
 
 ThemeData buildVetTheme() {
@@ -28,19 +32,20 @@ ThemeData buildVetTheme() {
     scaffoldBackgroundColor: VetColors.background,
     colorScheme: scheme.copyWith(
       primary: VetColors.primary,
-      onPrimary: const Color(0xFF18221F),
-      secondary: VetColors.primaryDark,
+      onPrimary: const Color(0xFF16211E),
+      secondary: VetColors.blue,
       surface: VetColors.surface,
       onSurface: VetColors.text,
       error: VetColors.red,
     ),
-    iconTheme: const IconThemeData(size: 28, color: VetColors.text),
+    dividerColor: VetColors.border,
+    iconTheme: const IconThemeData(size: 29, color: VetColors.text),
     appBarTheme: const AppBarTheme(
       backgroundColor: VetColors.background,
       foregroundColor: VetColors.text,
-      iconTheme: IconThemeData(size: 29, color: VetColors.text),
-      actionsIconTheme: IconThemeData(size: 30, color: VetColors.text),
-      titleTextStyle: TextStyle(color: VetColors.text, fontSize: 22, fontWeight: FontWeight.w800),
+      iconTheme: IconThemeData(size: 30, color: VetColors.text),
+      actionsIconTheme: IconThemeData(size: 31, color: VetColors.text),
+      titleTextStyle: TextStyle(color: VetColors.text, fontSize: 22, fontWeight: FontWeight.w850),
       elevation: 0,
       surfaceTintColor: Colors.transparent,
     ),
@@ -56,12 +61,13 @@ ThemeData buildVetTheme() {
     listTileTheme: const ListTileThemeData(
       iconColor: VetColors.primary,
       textColor: VetColors.text,
-      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: VetColors.surface,
-      prefixIconColor: VetColors.muted,
+      fillColor: VetColors.surface2,
+      prefixIconColor: VetColors.primary,
+      hintStyle: const TextStyle(color: VetColors.muted),
       labelStyle: const TextStyle(color: VetColors.muted),
       floatingLabelStyle: const TextStyle(color: VetColors.primary),
       border: OutlineInputBorder(
@@ -74,49 +80,49 @@ ThemeData buildVetTheme() {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(15),
-        borderSide: const BorderSide(color: VetColors.primary, width: 1.25),
+        borderSide: const BorderSide(color: VetColors.primary, width: 1.4),
       ),
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: ButtonStyle(
-        iconSize: const WidgetStatePropertyAll(27),
+        iconSize: const WidgetStatePropertyAll(28),
         foregroundColor: const WidgetStatePropertyAll(VetColors.text),
         side: const WidgetStatePropertyAll(BorderSide(color: VetColors.border)),
         backgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return const Color(0xFF394A45);
+          if (states.contains(WidgetState.selected)) return VetColors.surface3;
           return VetColors.surface;
         }),
       ),
     ),
     navigationBarTheme: const NavigationBarThemeData(
-      height: 78,
-      backgroundColor: Color(0xFF1D2327),
-      indicatorColor: Color(0xFF394A45),
-      iconTheme: WidgetStatePropertyAll(IconThemeData(size: 29)),
-      labelTextStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+      height: 80,
+      backgroundColor: Color(0xFF273137),
+      indicatorColor: Color(0xFF405057),
+      iconTheme: WidgetStatePropertyAll(IconThemeData(size: 30)),
+      labelTextStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12.5, fontWeight: FontWeight.w650)),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: VetColors.primary,
         foregroundColor: const Color(0xFF16201D),
-        minimumSize: const Size.fromHeight(56),
-        iconSize: 29,
+        minimumSize: const Size.fromHeight(58),
+        iconSize: 30,
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w850, fontSize: 16.5),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: VetColors.text,
-        minimumSize: const Size.fromHeight(52),
-        iconSize: 28,
+        minimumSize: const Size.fromHeight(54),
+        iconSize: 29,
         side: const BorderSide(color: VetColors.border),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     ),
     snackBarTheme: const SnackBarThemeData(
-      backgroundColor: VetColors.surface2,
+      backgroundColor: VetColors.surface3,
       contentTextStyle: TextStyle(color: VetColors.text),
       behavior: SnackBarBehavior.floating,
     ),
