@@ -19,6 +19,19 @@ workflows:
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Vet AI" ios/Runner/Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Vet AI uses the camera to capture animal health images for veterinary assessment.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Vet AI uses the camera to capture animal health images for veterinary assessment.'" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Vet AI uses selected photos to create veterinary assessment cases.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'Vet AI uses selected photos to create veterinary assessment cases.'" ios/Runner/Info.plist
+          python3 - <<'PY'
+          import plistlib
+          path = 'ios/Runner/Info.plist'
+          with open(path, 'rb') as f:
+              data = plistlib.load(f)
+          data['CFBundleURLTypes'] = [{
+              'CFBundleTypeRole': 'Editor',
+              'CFBundleURLName': 'com.vetai.app.auth',
+              'CFBundleURLSchemes': ['vetai'],
+          }]
+          with open(path, 'wb') as f:
+              plistlib.dump(data, f)
+          PY
       - name: Install Flutter dependencies
         script: flutter pub get
       - name: Generate Vet AI launcher icons
