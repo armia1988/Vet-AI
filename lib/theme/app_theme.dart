@@ -1,38 +1,43 @@
 import 'package:flutter/material.dart';
 
 class VetColors {
-  static const background = Color(0xFF20282D);
-  static const surface = Color(0xFF2B353B);
-  static const surface2 = Color(0xFF354249);
-  static const surface3 = Color(0xFF3E4C53);
-  static const border = Color(0xFF526168);
-  static const primary = Color(0xFF9BC9BD);
-  static const primaryDark = Color(0xFF78A79B);
-  static const text = Color(0xFFF2F5F4);
-  static const muted = Color(0xFFC4CECB);
-  static const red = Color(0xFFF08A91);
-  static const orange = Color(0xFFF0B275);
-  static const yellow = Color(0xFFE4CF7F);
-  static const green = Color(0xFF9AC6A9);
-  static const blue = Color(0xFF83B7E8);
-  static const purple = Color(0xFFB7A2E8);
-  static const history = Color(0xFFD9C58A);
+  static const background = Color(0xFFF3F7F8);
+  static const surface = Color(0xFFFFFFFF);
+  static const surface2 = Color(0xFFF0F5F5);
+  static const surface3 = Color(0xFFE5F0EE);
+  static const border = Color(0xFFD5E1E2);
+  static const primary = Color(0xFF3C9787);
+  static const primaryDark = Color(0xFF2E756A);
+  static const text = Color(0xFF17242A);
+  static const muted = Color(0xFF637178);
+  static const red = Color(0xFFD94E5A);
+  static const orange = Color(0xFFE58B3D);
+  static const yellow = Color(0xFFC49A28);
+  static const green = Color(0xFF48A56D);
+  static const blue = Color(0xFF397FC3);
+  static const purple = Color(0xFF8461C5);
+  static const history = Color(0xFFB1842D);
+  static const softRed = Color(0xFFFFEAEC);
+  static const softOrange = Color(0xFFFFF0E3);
+  static const softBlue = Color(0xFFEAF3FC);
+  static const softPurple = Color(0xFFF0EBFA);
+  static const softGreen = Color(0xFFE9F6EE);
 }
 
 ThemeData buildVetTheme() {
   final scheme = ColorScheme.fromSeed(
     seedColor: VetColors.primary,
-    brightness: Brightness.dark,
+    brightness: Brightness.light,
     surface: VetColors.surface,
   );
 
   return ThemeData(
     useMaterial3: true,
-    brightness: Brightness.dark,
+    brightness: Brightness.light,
     scaffoldBackgroundColor: VetColors.background,
     colorScheme: scheme.copyWith(
       primary: VetColors.primary,
-      onPrimary: const Color(0xFF16211E),
+      onPrimary: Colors.white,
       secondary: VetColors.blue,
       surface: VetColors.surface,
       onSurface: VetColors.text,
@@ -40,6 +45,10 @@ ThemeData buildVetTheme() {
     ),
     dividerColor: VetColors.border,
     iconTheme: const IconThemeData(size: 29, color: VetColors.text),
+    textTheme: ThemeData.light().textTheme.apply(
+      bodyColor: VetColors.text,
+      displayColor: VetColors.text,
+    ),
     appBarTheme: const AppBarTheme(
       backgroundColor: VetColors.background,
       foregroundColor: VetColors.text,
@@ -65,7 +74,7 @@ ThemeData buildVetTheme() {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: VetColors.surface2,
+      fillColor: VetColors.surface,
       prefixIconColor: VetColors.primary,
       hintStyle: const TextStyle(color: VetColors.muted),
       labelStyle: const TextStyle(color: VetColors.muted),
@@ -80,7 +89,7 @@ ThemeData buildVetTheme() {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(15),
-        borderSide: const BorderSide(color: VetColors.primary, width: 1.4),
+        borderSide: const BorderSide(color: VetColors.primary, width: 1.6),
       ),
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
@@ -96,15 +105,17 @@ ThemeData buildVetTheme() {
     ),
     navigationBarTheme: const NavigationBarThemeData(
       height: 80,
-      backgroundColor: Color(0xFF273137),
-      indicatorColor: Color(0xFF405057),
+      backgroundColor: Color(0xFFFFFFFF),
+      indicatorColor: Color(0xFFE6EFEE),
       iconTheme: WidgetStatePropertyAll(IconThemeData(size: 30)),
-      labelTextStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+      labelTextStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: VetColors.text)),
+      elevation: 2,
+      shadowColor: Color(0x18000000),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: VetColors.primary,
-        foregroundColor: const Color(0xFF16201D),
+        foregroundColor: Colors.white,
         minimumSize: const Size.fromHeight(58),
         iconSize: 30,
         elevation: 0,
@@ -115,15 +126,23 @@ ThemeData buildVetTheme() {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: VetColors.text,
+        backgroundColor: VetColors.surface,
         minimumSize: const Size.fromHeight(54),
         iconSize: 29,
         side: const BorderSide(color: VetColors.border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     ),
+    chipTheme: ChipThemeData(
+      backgroundColor: VetColors.surface,
+      selectedColor: VetColors.surface3,
+      side: const BorderSide(color: VetColors.border),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      labelStyle: const TextStyle(color: VetColors.text, fontWeight: FontWeight.w700),
+    ),
     snackBarTheme: const SnackBarThemeData(
-      backgroundColor: VetColors.surface3,
-      contentTextStyle: TextStyle(color: VetColors.text),
+      backgroundColor: VetColors.text,
+      contentTextStyle: TextStyle(color: Colors.white),
       behavior: SnackBarBehavior.floating,
     ),
   );
