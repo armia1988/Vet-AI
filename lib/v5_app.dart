@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'services/vet_backend.dart';
+import 'support/support_chat_v6.dart';
 import 'theme/app_theme.dart';
 import 'i18n/vet_locale.dart';
 import 'v3_app.dart' show V3AnalysisCard;
@@ -926,7 +927,8 @@ class V5AccountHub extends StatelessWidget {
       body: ListView(padding: const EdgeInsets.all(20), children: [
         _MenuTile(icon: Icons.account_circle_outlined, title: tr(context, 'Profile & farm data', 'الملف الشخصي وبيانات المزرعة', 'Profiel & boerderijgegevens'), subtitle: tr(context, 'View and edit the information you entered.', 'عرض وتعديل كل البيانات التي أدخلتها.', 'Bekijk en wijzig de ingevoerde gegevens.'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => V5ProfileScreen(farm: farm)))),
         _MenuTile(icon: Icons.workspace_premium_outlined, title: tr(context, 'Subscription', 'الاشتراك', 'Abonnement'), subtitle: tr(context, 'Animal groups, monthly/annual and sensor access.', 'أنواع الحيوانات والشهري/السنوي وصلاحية الحساسات.', 'Diergroepen, maandelijks/jaarlijks en sensortoegang.'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => V5SubscriptionScreen(farm: farm)))),
-        _MenuTile(icon: Icons.support_agent_rounded, title: tr(context, 'Support chat', 'شات الدعم', 'Supportchat'), subtitle: tr(context, 'Messages are stored and update live. Human replies require the support console.', 'الرسائل محفوظة وتتحدث مباشرة. الرد البشري يحتاج تشغيل لوحة الدعم.', 'Berichten worden opgeslagen en live bijgewerkt. Menselijke antwoorden vereisen de supportconsole.'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => V5SupportScreen(farmId: farm['id'] as String)))),
+        _MenuTile(icon: Icons.language_rounded, title: tr(context, 'Language', 'اللغة', 'Taal'), subtitle: tr(context, 'Automatic device language or choose manually.', 'تلقائي حسب لغة الهاتف أو اختر اللغة يدويًا.', 'Automatisch volgens het toestel of handmatig kiezen.'), onTap: () => showVetLanguagePicker(context)),
+        _MenuTile(icon: Icons.support_agent_rounded, title: tr(context, 'Support chat', 'شات الدعم', 'Supportchat'), subtitle: tr(context, 'Realtime private chat with photos, marked images and files.', 'شات خاص مباشر مع الصور والتعديل عليها والملفات.', 'Privé realtime chat met foto’s, gemarkeerde beelden en bestanden.'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => V6SupportScreen(farmId: farm['id'] as String)))),
         _MenuTile(icon: Icons.info_outline_rounded, title: tr(context, 'About Vet AI', 'عن Vet AI', 'Over Vet AI'), subtitle: tr(context, 'Safety scope, data policy and product purpose.', 'نطاق الأمان وسياسة البيانات وهدف المنتج.', 'Veiligheidsbereik, databeleid en productdoel.'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const V5AboutScreen()))),
         const SizedBox(height: 16),
         OutlinedButton.icon(onPressed: () async { await VetBackend.instance.signOut(); if (context.mounted) Navigator.of(context).popUntil((r) => r.isFirst); }, icon: const Icon(Icons.logout_rounded, size: 29), label: Text(tr(context, 'Sign out', 'تسجيل الخروج', 'Uitloggen'))),
