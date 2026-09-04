@@ -218,11 +218,13 @@ class VetTranslator extends ChangeNotifier {
         .toSet()
         .toList();
     if (missing.isEmpty) return true;
-    if (Supabase.instance.client.auth.currentSession == null) return false;
+    final hasSession = Supabase.instance.client.auth.currentSession != null;
+    final permitted = hasSession ? missing : missing.where(vetCoreUiStrings.contains).toList();
+    if (permitted.isEmpty) return false;
 
     var changed = false;
-    for (var i = 0; i < missing.length; i += 70) {
-      final batch = missing.sublist(i, i + 70 > missing.length ? missing.length : i + 70);
+    for (var i = 0; i < permitted.length; i += 70) {
+      final batch = permitted.sublist(i, i + 70 > permitted.length ? permitted.length : i + 70);
       final translated = await _translateBatch(language, batch);
       if (translated == null) return false;
       for (var n = 0; n < batch.length; n++) {
@@ -238,7 +240,9 @@ class VetTranslator extends ChangeNotifier {
   }
 
   void _queue(String language, String source) {
-    if (!_loaded || source.trim().isEmpty || Supabase.instance.client.auth.currentSession == null) return;
+    if (!_loaded || source.trim().isEmpty) return;
+    final signedIn = Supabase.instance.client.auth.currentSession != null;
+    if (!signedIn && !vetCoreUiStrings.contains(source.trim())) return;
     final set = _queued.putIfAbsent(language, () => <String>{});
     set.add(source.trim());
     _timers[language]?.cancel();

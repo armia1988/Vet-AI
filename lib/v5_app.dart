@@ -22,14 +22,24 @@ class VetAIAppV5 extends StatefulWidget {
 class _VetAIAppV5State extends State<VetAIAppV5> {
   final localeController = VetLocaleController.instance;
   final translator = VetTranslator.instance;
+  bool ready = false;
 
   @override
   void initState() {
     super.initState();
     localeController.addListener(_refresh);
     translator.addListener(_refresh);
-    localeController.load();
-    translator.load();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    await localeController.load();
+    await translator.load();
+    final requested = localeController.manualCode ?? WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+    if (vetLanguages.any((l) => l.code == requested)) {
+      await translator.prepareLanguage(requested, vetCoreUiStrings);
+    }
+    if (mounted) setState(() => ready = true);
   }
 
   void _refresh() { if (mounted) setState(() {}); }
@@ -43,6 +53,21 @@ class _VetAIAppV5State extends State<VetAIAppV5> {
 
   @override
   Widget build(BuildContext context) {
+    if (!ready) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildVetTheme(),
+        home: const Scaffold(
+          body: Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              _BrandLockup(markWidth: 150),
+              SizedBox(height: 22),
+              SizedBox.square(dimension: 30, child: CircularProgressIndicator(strokeWidth: 3)),
+            ]),
+          ),
+        ),
+      );
+    }
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Vet AI',
