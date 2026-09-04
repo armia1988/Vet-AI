@@ -676,56 +676,54 @@ class V5Home extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
       children: [
-        SizedBox(
-          height: 116,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: Directionality.of(context) == TextDirection.rtl ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const _HeaderBrand(),
+                const Spacer(),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const _HeaderBrand(),
-                    const SizedBox(height: 3),
-                    Text(
-                      farm['farm_name']?.toString() ?? 'Vet AI',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                    IconButton.filledTonal(
+                      tooltip: tr(context, 'Language', 'اللغة', 'Taal'),
+                      style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
+                      icon: const Icon(Icons.language_rounded, size: 30, color: VetColors.blue),
+                      onPressed: () => showVetLanguagePicker(context),
                     ),
-                    if ((farm['company_name']?.toString() ?? '').isNotEmpty)
-                      Text(
-                        farm['company_name'].toString(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: VetColors.muted, fontSize: 14, fontWeight: FontWeight.w700),
-                      ),
+                    const SizedBox(width: 6),
+                    IconButton.filledTonal(
+                      tooltip: tr(context, 'Account & settings', 'الحساب والإعدادات', 'Account & instellingen'),
+                      style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
+                      icon: const Icon(Icons.account_circle_outlined, size: 31, color: VetColors.primary),
+                      onPressed: onAccount,
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 10),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton.filledTonal(
-                    tooltip: tr(context, 'Language', 'اللغة', 'Taal'),
-                    style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
-                    icon: const Icon(Icons.language_rounded, size: 30, color: VetColors.blue),
-                    onPressed: () => showVetLanguagePicker(context),
-                  ),
-                  const SizedBox(width: 6),
-                  IconButton.filledTonal(
-                    tooltip: tr(context, 'Account & settings', 'الحساب والإعدادات', 'Account & instellingen'),
-                    style: IconButton.styleFrom(backgroundColor: VetColors.surface3),
-                    icon: const Icon(Icons.account_circle_outlined, size: 31, color: VetColors.primary),
-                    onPressed: onAccount,
-                  ),
-                ],
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              farm['farm_name']?.toString() ?? 'Vet AI',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+            ),
+            if ((farm['company_name']?.toString() ?? '').isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                farm['company_name'].toString(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: VetColors.muted, fontSize: 15, fontWeight: FontWeight.w700),
               ),
             ],
-          ),
+          ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 14),
         _Notice(icon: Icons.shield_outlined, title: tr(context, 'Real data policy', 'سياسة البيانات الحقيقية', 'Echte-data beleid'), text: tr(context, 'No demo sensor readings and no definitive diagnosis from one image.', 'لا توجد قراءات حساسات وهمية ولا تشخيص نهائي من صورة واحدة.', 'Geen demo-sensormetingen en geen definitieve diagnose op basis van één beeld.')),
         const SizedBox(height: 18),
         Row(children: [
@@ -867,7 +865,21 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
       final path = await VetBackend.instance.uploadDiagnosticMedia(farmId: farmId, bytes: bytes!, extension: extension);
       final newAssessmentId = await VetBackend.instance.createDraftAssessment(farmId: farmId, mediaPath: path, symptomNotes: notes.text, animalGroup: group);
       assessmentId = newAssessmentId;
-      final response = await VetBackend.instance.analyzeAssessment(newAssessmentId, language: Localizations.localeOf(context).languageCode);
+      Map<String, dynamic> response = <String, dynamic>{};
+      for (var attempt = 0; attempt < 3; attempt++) {
+        response = await VetBackend.instance.analyzeAssessment(
+          newAssessmentId,
+          language: Localizations.localeOf(context).languageCode,
+        );
+        final code = response['code']?.toString();
+        final transient = const <String>{
+          'AI_PROVIDER_RATE_LIMIT',
+          'AI_TIMEOUT',
+          'AI_PROVIDER_ERROR',
+        }.contains(code);
+        if (!transient || attempt == 2) break;
+        await Future<void>.delayed(Duration(milliseconds: attempt == 0 ? 1200 : 2500));
+      }
       if (mounted) setState(() => result = response);
     } catch (_) {
       if (mounted) {
@@ -901,7 +913,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
         _StepTitle(icon: Icons.document_scanner_rounded, title: tr(context, 'AI health scan', 'الفحص الصحي بالذكاء الاصطناعي', 'AI-gezondheidsscan'), subtitle: tr(context, 'Image + symptoms + reviewed veterinary knowledge. Not a definitive diagnosis.', 'صورة + أعراض + معرفة بيطرية مراجعة. ليست تشخيصًا نهائيًا.', 'Beeld + symptomen + beoordeelde veterinaire kennis. Geen definitieve diagnose.')),
         const SizedBox(height: 16),
         if (groups.length > 1)
-          Wrap(spacing: 8, runSpacing: 8, children: groups.map((g) => ChoiceChip(avatar: Image.asset(asset(g), width: 34, height: 34, fit: BoxFit.contain, filterQuality: FilterQuality.high), label: Text(label(g)), selected: group == g, onSelected: busy ? null : (_) => setState(() => group = g))).toList()),
+          Wrap(spacing: 8, runSpacing: 8, children: groups.map((g) => ChoiceChip(avatar: Image.asset(asset(g), width: 44, height: 44, fit: BoxFit.contain, filterQuality: FilterQuality.high), label: Text(label(g)), selected: group == g, onSelected: busy ? null : (_) => setState(() => group = g))).toList()),
         if (groups.length == 1)
           _AnimalGroupBanner(asset: asset(groups.first), title: label(groups.first), text: tr(context, 'This is the animal group enabled for this farm.', 'ده نوع الحيوان المفعّل للمزرعة دي.', 'Dit is de diergroep die voor deze boerderij is ingeschakeld.')),
         const SizedBox(height: 16),
@@ -1352,7 +1364,7 @@ class _AnimalGroupBanner extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(color: VetColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: VetColors.border)),
         child: Row(children: [
-          Image.asset(asset, width: 64, height: 64, fit: BoxFit.contain, filterQuality: FilterQuality.high),
+          Image.asset(asset, width: 90, height: 90, fit: BoxFit.contain, filterQuality: FilterQuality.high),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
@@ -1365,7 +1377,7 @@ class _AnimalGroupBanner extends StatelessWidget {
 
 class _AnimalChoice extends StatelessWidget {
   const _AnimalChoice({required this.group,required this.label,required this.asset,required this.selected,required this.onTap}); final String group; final String label; final String asset; final bool selected; final VoidCallback onTap;
-  @override Widget build(BuildContext context)=>InkWell(onTap:onTap,borderRadius:BorderRadius.circular(18),child:Container(padding:const EdgeInsets.symmetric(horizontal:16,vertical:15),decoration:BoxDecoration(color:selected?VetColors.surface3:VetColors.surface,borderRadius:BorderRadius.circular(18),border:Border.all(color:selected?VetColors.primary:VetColors.border,width:selected?1.5:1)),child:Row(children:[Image.asset(asset,width:54,height:54,fit:BoxFit.contain,filterQuality:FilterQuality.high),const SizedBox(width:14),Expanded(child:Text(label,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w800))),Icon(selected?Icons.check_circle_rounded:Icons.radio_button_unchecked_rounded,size:29,color:selected?VetColors.primary:VetColors.muted)])));
+  @override Widget build(BuildContext context)=>InkWell(onTap:onTap,borderRadius:BorderRadius.circular(18),child:Container(padding:const EdgeInsets.symmetric(horizontal:16,vertical:15),decoration:BoxDecoration(color:selected?VetColors.surface3:VetColors.surface,borderRadius:BorderRadius.circular(18),border:Border.all(color:selected?VetColors.primary:VetColors.border,width:selected?1.5:1)),child:Row(children:[Image.asset(asset,width:78,height:78,fit:BoxFit.contain,filterQuality:FilterQuality.high),const SizedBox(width:14),Expanded(child:Text(label,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w800))),Icon(selected?Icons.check_circle_rounded:Icons.radio_button_unchecked_rounded,size:29,color:selected?VetColors.primary:VetColors.muted)])));
 }
 
 class _PlanCard extends StatelessWidget {
@@ -1375,7 +1387,7 @@ class _PlanCard extends StatelessWidget {
 
 class _AnimalCount extends StatelessWidget {
   const _AnimalCount({required this.asset,required this.label,required this.value}); final String asset; final String label; final dynamic value;
-  @override Widget build(BuildContext context)=>Card(child:Padding(padding:const EdgeInsets.symmetric(vertical:18,horizontal:8),child:Column(children:[Image.asset(asset,width:62,height:62,fit:BoxFit.contain,filterQuality:FilterQuality.high),const SizedBox(height:9),Text('$value',style:const TextStyle(fontSize:25,fontWeight:FontWeight.w900)),const SizedBox(height:4),Text(label,textAlign:TextAlign.center,style:const TextStyle(color:VetColors.muted,fontSize:12))])));
+  @override Widget build(BuildContext context)=>Card(child:Padding(padding:const EdgeInsets.symmetric(vertical:18,horizontal:8),child:Column(children:[Image.asset(asset,width:94,height:94,fit:BoxFit.contain,filterQuality:FilterQuality.high),const SizedBox(height:9),Text('$value',style:const TextStyle(fontSize:25,fontWeight:FontWeight.w900)),const SizedBox(height:4),Text(label,textAlign:TextAlign.center,style:const TextStyle(color:VetColors.muted,fontSize:12))])));
 }
 
 class _MenuTile extends StatelessWidget {
