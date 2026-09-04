@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply V12 app shell patch
-        run: python3 tools/patch_v12_app.py
+      - name: Apply corrected V12 app shell patch
+        run: python3 tools/patch_v12b_app.py
       - name: Commit app shell integration
         run: |
           git config user.name 'Vet AI Build Bot'
