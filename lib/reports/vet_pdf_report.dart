@@ -5,8 +5,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
-import '../theme/app_theme.dart';
-
 typedef VetPdfTranslate = String Function(String en, String ar, String nl);
 
 class VetPdfReportScreen extends StatelessWidget {
@@ -109,20 +107,22 @@ Future<Uint8List> buildVetReportPdf({
   pw.Widget bullets(dynamic value) {
     final items = value is List ? value.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList() : <String>[];
     if (items.isEmpty) return pw.SizedBox();
-    return pw.Column(
-      crossAxisAlignment: isArabic ? pw.CrossAxisAlignment.end : pw.CrossAxisAlignment.start,
-      children: items.map((item) => pw.Padding(
-        padding: const pw.EdgeInsets.only(bottom: 5),
-        child: pw.Row(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          textDirection: direction,
-          children: [
-            pw.Container(width: 5, height: 5, margin: const pw.EdgeInsets.only(top: 5), decoration: const pw.BoxDecoration(color: PdfColors.teal600, shape: pw.BoxShape.circle)),
-            pw.SizedBox(width: 7),
-            pw.Expanded(child: text(item)),
-          ],
-        ),
-      )).toList(),
+    return pw.Directionality(
+      textDirection: direction,
+      child: pw.Column(
+        crossAxisAlignment: isArabic ? pw.CrossAxisAlignment.end : pw.CrossAxisAlignment.start,
+        children: items.map((item) => pw.Padding(
+          padding: const pw.EdgeInsets.only(bottom: 5),
+          child: pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Container(width: 5, height: 5, margin: const pw.EdgeInsets.only(top: 5), decoration: const pw.BoxDecoration(color: PdfColors.teal600, shape: pw.BoxShape.circle)),
+              pw.SizedBox(width: 7),
+              pw.Expanded(child: text(item)),
+            ],
+          ),
+        )).toList(),
+      ),
     );
   }
 
@@ -132,28 +132,32 @@ Future<Uint8List> buildVetReportPdf({
       textDirection: direction,
       margin: const pw.EdgeInsets.fromLTRB(34, 34, 34, 42),
       theme: pw.ThemeData.withFont(base: regular, bold: bold),
-      header: (context) => pw.Container(
-        padding: const pw.EdgeInsets.only(bottom: 10),
-        decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.teal300, width: 1))),
-        child: pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          textDirection: direction,
-          children: [
-            text('Vet AI', size: 18, strong: true, color: PdfColors.teal700),
-            text(translate('Veterinary decision-support report', 'تقرير دعم القرار البيطري', 'Veterinair beslissingsondersteunend rapport'), size: 9, color: PdfColors.blueGrey500),
-          ],
+      header: (context) => pw.Directionality(
+        textDirection: direction,
+        child: pw.Container(
+          padding: const pw.EdgeInsets.only(bottom: 10),
+          decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.teal300, width: 1))),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              text('Vet AI', size: 18, strong: true, color: PdfColors.teal700),
+              text(translate('Veterinary decision-support report', 'تقرير دعم القرار البيطري', 'Veterinair beslissingsondersteunend rapport'), size: 9, color: PdfColors.blueGrey500),
+            ],
+          ),
         ),
       ),
-      footer: (context) => pw.Container(
-        padding: const pw.EdgeInsets.only(top: 8),
-        decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: PdfColors.blueGrey100))),
-        child: pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          textDirection: direction,
-          children: [
-            text(translate('Vet AI • decision support, not a laboratory confirmation', 'Vet AI • دعم قرار بيطري، مش بديل عن التأكيد المعملي', 'Vet AI • beslissingsondersteuning, geen laboratoriumbevestiging'), size: 7.5, color: PdfColors.blueGrey500),
-            text('${context.pageNumber}/${context.pagesCount}', size: 7.5, color: PdfColors.blueGrey500),
-          ],
+      footer: (context) => pw.Directionality(
+        textDirection: direction,
+        child: pw.Container(
+          padding: const pw.EdgeInsets.only(top: 8),
+          decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: PdfColors.blueGrey100))),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              text(translate('Vet AI • decision support, not a laboratory confirmation', 'Vet AI • دعم قرار بيطري، مش بديل عن التأكيد المعملي', 'Vet AI • beslissingsondersteuning, geen laboratoriumbevestiging'), size: 7.5, color: PdfColors.blueGrey500),
+              text('${context.pageNumber}/${context.pagesCount}', size: 7.5, color: PdfColors.blueGrey500),
+            ],
+          ),
         ),
       ),
       build: (context) => [
