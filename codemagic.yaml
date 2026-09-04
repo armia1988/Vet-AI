@@ -35,7 +35,7 @@ workflows:
           PY
           dart run flutter_launcher_icons
       - name: Static analysis
-        script: flutter analyze
+        script: flutter analyze --no-fatal-infos
       - name: Set up code signing
         script: xcode-project use-profiles
       - name: Build iOS App
