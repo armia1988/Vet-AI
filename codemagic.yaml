@@ -19,6 +19,10 @@ workflows:
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Vet AI" ios/Runner/Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Vet AI uses the camera to capture animal health images for veterinary assessment.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Vet AI uses the camera to capture animal health images for veterinary assessment.'" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Vet AI uses selected photos to create veterinary assessment cases.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'Vet AI uses selected photos to create veterinary assessment cases.'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Vet AI uses your location, after your approval, to apply the correct local veterinary guidance and animal-health rules.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Vet AI uses your location, after your approval, to apply the correct local veterinary guidance and animal-health rules.'" ios/Runner/Info.plist
+          sed -i '' "/target 'Runner' do/a\
+            use_frameworks!
+          " ios/Podfile
           python3 - <<'PY'
           import plistlib
           path = 'ios/Runner/Info.plist'

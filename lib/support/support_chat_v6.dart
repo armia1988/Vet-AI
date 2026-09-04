@@ -31,6 +31,8 @@ class _V6SupportScreenState extends State<V6SupportScreen> {
   final picker = ImagePicker();
   String? threadId;
   bool sending = false;
+  String? lastSentText;
+  DateTime? lastSentAt;
 
   @override
   void initState() {
@@ -48,17 +50,47 @@ class _V6SupportScreenState extends State<V6SupportScreen> {
   }
 
   Future<void> _sendText() async {
-    if (threadId == null || message.text.trim().isEmpty || sending) return;
-    final text = message.text;
+    final text = message.text.trim();
+    if (threadId == null || text.isEmpty || sending) return;
+    final now = DateTime.now();
+    if (lastSentText == text && lastSentAt != null && now.difference(lastSentAt!) < const Duration(seconds: 2)) {
+      return;
+    }
+    lastSentText = text;
+    lastSentAt = now;
     message.clear();
     setState(() => sending = true);
     try {
       await VetBackend.instance.sendSupportMessage(threadId!, text);
     } catch (_) {
-      if (mounted) _error(_t(context, 'Message could not be sent.', 'تعذر إرسال الرسالة.', 'Bericht kon niet worden verzonden.'));
+      lastSentText = null;
+      lastSentAt = null;
+      if (mounted) {
+        message.text = text;
+        message.selection = TextSelection.collapsed(offset: message.text.length);
+        _error(_t(context, 'Message could not be sent.', 'الرسالة مااتبعتتش. جرّب تاني.', 'Bericht kon niet worden verzonden.'));
+      }
     } finally {
       if (mounted) setState(() => sending = false);
     }
+  }
+
+  Future<bool> _confirmAccess({required String title, required String message, required IconData icon}) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(icon, size: 38, color: VetColors.primary),
+        title: Text(title, textAlign: TextAlign.center),
+        content: Text(message, textAlign: TextAlign.center, style: const TextStyle(height: 1.45)),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(_t(context, 'Cancel', 'إلغاء', 'Annuleren'))),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(_t(context, 'Allow', 'سماح', 'Toestaan'))),
+        ],
+      ),
+    );
+    return ok == true;
   }
 
   Future<void> _chooseAttachment() async {
@@ -95,6 +127,14 @@ class _V6SupportScreenState extends State<V6SupportScreen> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
+    final access = await _confirmAccess(
+      title: source == ImageSource.camera ? _t(context, 'Open camera?', 'فتح الكاميرا؟', 'Camera openen?') : _t(context, 'Open photos?', 'فتح الصور؟', 'Foto’s openen?'),
+      message: source == ImageSource.camera
+          ? _t(context, 'Vet AI Support will open the camera only after your approval. Nothing is sent until you approve the upload after editing.', 'دعم Vet AI هيفتح الكاميرا بعد موافقتك بس. مش هيتبعت أي حاجة إلا بعد ما توافق كمان على الرفع بعد التعديل.', 'Vet AI Support opent de camera pas na jouw toestemming. Er wordt niets verstuurd totdat je na het bewerken ook de upload bevestigt.')
+          : _t(context, 'Vet AI Support will open your photo picker only after your approval. Nothing is sent until you approve the upload.', 'دعم Vet AI هيفتح اختيار الصور بعد موافقتك بس. مش هيتبعت أي ملف إلا لما توافق على الرفع.', 'Vet AI Support opent de fotokiezer pas na jouw toestemming. Er wordt niets verstuurd totdat je de upload bevestigt.'),
+      icon: source == ImageSource.camera ? Icons.photo_camera_rounded : Icons.photo_library_rounded,
+    );
+    if (!access || !mounted) return;
     final selected = await picker.pickImage(source: source, imageQuality: 94, maxWidth: 2600);
     if (selected == null || !mounted) return;
     final original = await selected.readAsBytes();
@@ -109,6 +149,12 @@ class _V6SupportScreenState extends State<V6SupportScreen> {
   }
 
   Future<void> _pickFile() async {
+    final access = await _confirmAccess(
+      title: _t(context, 'Open files?', 'فتح الملفات؟', 'Bestanden openen?'),
+      message: _t(context, 'Vet AI Support will open the system file picker after your approval. The chosen file is not uploaded until you confirm the upload.', 'دعم Vet AI هيفتح ملفات الجهاز بعد موافقتك. الملف اللي تختاره مش هيرتفع إلا لما تأكد الرفع.', 'Vet AI Support opent de systeembestandskiezer na jouw toestemming. Het gekozen bestand wordt pas geüpload nadat je de upload bevestigt.'),
+      icon: Icons.folder_open_rounded,
+    );
+    if (!access || !mounted) return;
     final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv'],
@@ -129,6 +175,12 @@ class _V6SupportScreenState extends State<V6SupportScreen> {
     String? annotatedFromMessageId,
   }) async {
     if (threadId == null || sending) return;
+    final upload = await _confirmAccess(
+      title: _t(context, 'Upload this attachment?', 'رفع المرفق ده؟', 'Deze bijlage uploaden?'),
+      message: _t(context, 'This attachment will be uploaded to your private Vet AI Support thread and shared with the support team. Continue?', 'المرفق ده هيتـرفع في شات دعم Vet AI الخاص بحسابك وهيبقى ظاهر لفريق الدعم. تكمل؟', 'Deze bijlage wordt naar je privé Vet AI Support-chat geüpload en met het supportteam gedeeld. Doorgaan?'),
+      icon: Icons.cloud_upload_outlined,
+    );
+    if (!upload || !mounted) return;
     setState(() => sending = true);
     try {
       final attachment = await VetBackend.instance.uploadSupportAttachment(
@@ -210,6 +262,7 @@ class _V6SupportScreenState extends State<V6SupportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: Row(children: [
           const Icon(Icons.support_agent_rounded, size: 32, color: VetColors.primary),
@@ -238,8 +291,12 @@ class _V6SupportScreenState extends State<V6SupportScreen> {
                   stream: VetBackend.instance.supportMessagesStream(threadId!),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                    final rows = snapshot.data!;
+                    final seen = <String>{};
+                    final rows = snapshot.data!
+                        .where((row) => seen.add(row['id']?.toString() ?? ''))
+                        .toList(growable: false);
                     return ListView.builder(
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                       itemCount: rows.length,
                       itemBuilder: (context, i) => SupportMessageBubble(
@@ -265,6 +322,7 @@ class _V6SupportScreenState extends State<V6SupportScreen> {
                     Expanded(
                       child: TextField(
                         controller: message,
+                        scrollPadding: const EdgeInsets.only(bottom: 140),
                         minLines: 1,
                         maxLines: 4,
                         decoration: InputDecoration(

@@ -325,104 +325,144 @@ class _VetLanguagePickerSheet extends StatefulWidget {
 }
 
 class _VetLanguagePickerSheetState extends State<_VetLanguagePickerSheet> {
-  String? preparing;
+  bool _bundled(String code) => code == 'en' || code == 'ar' || code == 'nl';
 
   Future<void> _choose(String code) async {
-    if (preparing != null) return;
-    setState(() => preparing = code);
-    await VetTranslator.instance.prepareLanguage(code, vetCoreUiStrings);
-    await VetLocaleController.instance.choose(code);
-    if (mounted) Navigator.pop(context);
+    final controller = VetLocaleController.instance;
+    final translator = VetTranslator.instance;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    Navigator.pop(context);
+
+    if (_bundled(code)) {
+      await controller.choose(code);
+      return;
+    }
+
+    bool prepared = false;
+    try {
+      prepared = await translator
+          .prepareLanguage(code, vetCoreUiStrings)
+          .timeout(const Duration(seconds: 12), onTimeout: () => false);
+    } catch (_) {
+      prepared = false;
+    }
+    if (prepared) {
+      await controller.choose(code);
+    } else {
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            _pickerText(
+              messenger.context,
+              'This language could not be prepared right now. Your current language was kept.',
+              'اللغة دي ماقدرتش تجهز دلوقتي، فسيبنا اللغة الحالية زي ما هي بدل ما نعرض كلام ناقص أو مختلط.',
+              'Deze taal kon nu niet worden voorbereid. De huidige taal is behouden.',
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _automatic() async {
-    if (preparing != null) return;
-    setState(() => preparing = 'auto');
+    final controller = VetLocaleController.instance;
+    final translator = VetTranslator.instance;
+    final messenger = ScaffoldMessenger.maybeOf(context);
     final device = WidgetsBinding.instance.platformDispatcher.locale.languageCode;
-    if (vetLanguages.any((l) => l.code == device)) {
-      await VetTranslator.instance.prepareLanguage(device, vetCoreUiStrings);
+    Navigator.pop(context);
+
+    if (!vetLanguages.any((l) => l.code == device)) {
+      await controller.automatic();
+      return;
     }
-    await VetLocaleController.instance.automatic();
-    if (mounted) Navigator.pop(context);
+    if (_bundled(device)) {
+      await controller.automatic();
+      return;
+    }
+
+    bool prepared = false;
+    try {
+      prepared = await translator
+          .prepareLanguage(device, vetCoreUiStrings)
+          .timeout(const Duration(seconds: 12), onTimeout: () => false);
+    } catch (_) {
+      prepared = false;
+    }
+    if (prepared) {
+      await controller.automatic();
+    } else {
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            _pickerText(
+              messenger.context,
+              'The device language could not be prepared right now. Your current language was kept.',
+              'لغة الهاتف ماقدرتش تجهز دلوقتي، فسيبنا اللغة الحالية بدل ما نعرض ترجمة ناقصة.',
+              'De apparaattaal kon nu niet worden voorbereid. De huidige taal is behouden.',
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final controller = VetLocaleController.instance;
-    final busy = preparing != null;
     return SafeArea(
       child: FractionallySizedBox(
         heightFactor: .84,
-        child: Stack(
+        child: Column(
           children: [
-            Column(
-              children: [
-                const SizedBox(height: 10),
-                Container(width: 44, height: 4, decoration: BoxDecoration(color: VetColors.border, borderRadius: BorderRadius.circular(4))),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                  child: Row(children: [
-                    const Icon(Icons.language_rounded, color: VetColors.blue, size: 31),
-                    const SizedBox(width: 12),
-                    Text(_pickerText(context, 'Language', 'اللغة', 'Taal'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-                  ]),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.phone_iphone_rounded, size: 30, color: VetColors.primary),
-                  title: Text(_pickerText(context, 'Automatic', 'تلقائي', 'Automatisch'), style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text(_pickerText(context, 'Device language', 'حسب لغة الهاتف', 'Taal van apparaat')),
-                  trailing: controller.isAutomatic ? const Icon(Icons.check_circle_rounded, color: VetColors.primary) : null,
-                  onTap: busy ? null : _automatic,
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: vetLanguages.length,
-                    itemBuilder: (context, i) {
-                      final language = vetLanguages[i];
-                      final selected = controller.manualCode == language.code;
-                      return ListTile(
-                        leading: CircleAvatar(backgroundColor: VetColors.surface3, child: Text(language.code.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: VetColors.primaryDark))),
-                        title: Text(language.nativeName, style: const TextStyle(fontWeight: FontWeight.w800)),
-                        subtitle: language.nativeName == language.englishName ? null : Text(language.englishName),
-                        trailing: selected ? const Icon(Icons.check_circle_rounded, color: VetColors.primary) : null,
-                        onTap: busy ? null : () => _choose(language.code),
-                      );
-                    },
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 14),
-                  child: Text(
-                    _pickerText(
-                      context,
-                      'English, Arabic and Dutch are bundled. Other languages are prepared as one batch and cached so the screen changes together instead of line by line.',
-                      'الإنجليزية والعربية والهولندية مدمجة. اللغات الأخرى تُجهز دفعة واحدة وتُحفظ حتى تتغير الشاشة معًا بدلًا من سطر وراء سطر.',
-                      'Engels, Arabisch en Nederlands zijn ingebouwd. Andere talen worden als één pakket voorbereid en gecachet, zodat het scherm in één keer omschakelt.',
-                    ),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: VetColors.muted, fontSize: 12, height: 1.35),
-                  ),
-                ),
-              ],
+            const SizedBox(height: 10),
+            Container(width: 44, height: 4, decoration: BoxDecoration(color: VetColors.border, borderRadius: BorderRadius.circular(4))),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Row(children: [
+                const Icon(Icons.language_rounded, color: VetColors.blue, size: 31),
+                const SizedBox(width: 12),
+                Text(_pickerText(context, 'Language', 'اللغة', 'Taal'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              ]),
             ),
-            if (busy)
-              Positioned.fill(
-                child: ColoredBox(
-                  color: Colors.white.withValues(alpha: .78),
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
-                      decoration: BoxDecoration(color: VetColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: VetColors.border)),
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 12),
-                        Text(_pickerText(context, 'Preparing language…', 'جاري تجهيز اللغة…', 'Taal voorbereiden…'), style: const TextStyle(fontWeight: FontWeight.w800)),
-                      ]),
+            ListTile(
+              leading: const Icon(Icons.phone_iphone_rounded, size: 30, color: VetColors.primary),
+              title: Text(_pickerText(context, 'Automatic', 'تلقائي', 'Automatisch'), style: const TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: Text(_pickerText(context, 'Device language', 'حسب لغة الموبايل', 'Taal van apparaat')),
+              trailing: controller.isAutomatic ? const Icon(Icons.check_circle_rounded, color: VetColors.primary) : null,
+              onTap: _automatic,
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                itemCount: vetLanguages.length,
+                itemBuilder: (context, i) {
+                  final language = vetLanguages[i];
+                  final selected = controller.manualCode == language.code;
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: VetColors.surface3,
+                      child: Text(language.code.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: VetColors.primaryDark)),
                     ),
-                  ),
-                ),
+                    title: Text(language.nativeName, style: const TextStyle(fontWeight: FontWeight.w800)),
+                    trailing: selected ? const Icon(Icons.check_circle_rounded, color: VetColors.primary) : null,
+                    onTap: () => _choose(language.code),
+                  );
+                },
               ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 8, 18, 14),
+              child: Text(
+                _pickerText(
+                  context,
+                  'English, Arabic and Dutch are built in. Other languages are prepared in one batch and the app switches only when the complete pack is ready.',
+                  'العربي والإنجليزي والهولندي موجودين جوه التطبيق. باقي اللغات بتتجهز دفعة واحدة، والبرنامج بيحوّل عليها بس لما الحزمة تكون كاملة علشان مايبقاش فيه نص عربي ونص إنجليزي.',
+                  'Engels, Arabisch en Nederlands zijn ingebouwd. Andere talen worden als één pakket voorbereid; de app schakelt pas om wanneer het volledige pakket klaar is.',
+                ),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: VetColors.muted, fontSize: 12, height: 1.35),
+              ),
+            ),
           ],
         ),
       ),
