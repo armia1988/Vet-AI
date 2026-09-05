@@ -52,19 +52,34 @@ workflows:
         script: |
           python3 - <<'PY'
           from pathlib import Path
+          import struct
 
-          for raw in [
-              'assets/icons/livestock_final.png',
-              'assets/icons/poultry_final.png',
-              'assets/icons/dog_final.png',
-          ]:
+          expected = {
+              'assets/icons/livestock_final.png': (640, 464),
+              'assets/icons/poultry_final.png': (560, 537),
+              'assets/icons/dog_final.png': (560, 364),
+          }
+
+          for raw, expected_size in expected.items():
               path = Path(raw)
+              if not path.is_file():
+                  raise SystemExit(f'Animal artwork is missing: {path}')
               data = path.read_bytes()
-              if len(data) < 10000:
+              if len(data) < 4096:
                   raise SystemExit(f'Animal artwork is unexpectedly small: {path} ({len(data)} bytes)')
               if not data.startswith(b'\x89PNG\r\n\x1a\n'):
                   raise SystemExit(f'Animal artwork is not a valid PNG: {path}')
-              print(f'Using approved artwork unchanged: {path} ({len(data)} bytes)')
+              if len(data) < 24 or data[12:16] != b'IHDR':
+                  raise SystemExit(f'Animal artwork has an invalid PNG header: {path}')
+              width, height = struct.unpack('>II', data[16:24])
+              if (width, height) != expected_size:
+                  raise SystemExit(
+                      f'Animal artwork dimensions changed: {path} '
+                      f'({width}x{height}, expected {expected_size[0]}x{expected_size[1]})'
+                  )
+              if b'IEND' not in data[-32:]:
+                  raise SystemExit(f'Animal artwork is truncated: {path}')
+              print(f'Validated artwork: {path} ({width}x{height}, {len(data)} bytes)')
           PY
       - name: Generate Vet AI launcher icons
         script: |
