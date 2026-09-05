@@ -1,0 +1,54 @@
+name: One-time V24 final polish
+
+on:
+  push:
+    branches:
+      - v24-final-polish
+    paths:
+      - '.github/workflows/one-time-v24-final-polish.yml'
+      - 'tools/patch_v24_final_polish.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v24-final-polish
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Apply V24 final polish
+        run: python3 tools/patch_v24_final_polish.py
+
+      - name: Format Dart files
+        run: dart format lib/v5_app.dart lib/services/vet_backend.dart
+
+      - name: Flutter dependencies
+        run: flutter pub get
+
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Verify release markers
+        run: |
+          grep -q 'version: 0.6.10+22' pubspec.yaml
+          grep -q 'scanPrivacyAcknowledged' lib/services/vet_backend.dart
+          grep -q 'Enhance approved Vet AI animal icons' codemagic.yaml
+          grep -q 'gemini-3.5-flash-lite' supabase/functions/analyze-case/index.ts
+
+      - name: Commit V24
+        run: |
+          git config user.name "vet-ai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add lib/v5_app.dart lib/services/vet_backend.dart pubspec.yaml pubspec.lock codemagic.yaml supabase/functions/analyze-case/index.ts supabase/functions/finalize-case-report/index.ts supabase/functions/case-voice/index.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "V24 finalize scan permissions reliability voice and icon clarity"
+          git push origin HEAD:v24-final-polish
