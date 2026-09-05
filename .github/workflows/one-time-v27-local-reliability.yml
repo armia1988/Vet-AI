@@ -1,0 +1,53 @@
+name: One-time V27 local reliability
+
+on:
+  push:
+    branches:
+      - v27-local-reliability
+    paths:
+      - '.github/workflows/one-time-v27-local-reliability.yml'
+      - 'tools/patch_v27_local_reliability.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v27-local-reliability
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Apply V27 patch
+        run: python3 tools/patch_v27_local_reliability.py
+
+      - name: Format Dart
+        run: dart format lib/v5_app.dart lib/analysis/vet_analysis_report.dart
+
+      - name: Flutter dependencies
+        run: flutter pub get
+
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Verify V27 markers
+        run: |
+          grep -q 'version: 0.6.13+25' pubspec.yaml
+          grep -q 'vet_ai_exact_scan_v2_' lib/v5_app.dart
+          grep -q 'getVoices' lib/analysis/vet_analysis_report.dart
+
+      - name: Commit V27
+        run: |
+          git config user.name "vet-ai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add lib/v5_app.dart lib/analysis/vet_analysis_report.dart pubspec.yaml pubspec.lock
+          git diff --cached --quiet && exit 0
+          git commit -m "V27 cache exact scans and improve Arabic fallback voice"
+          git push origin HEAD:v27-local-reliability
