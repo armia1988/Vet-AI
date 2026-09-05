@@ -1,0 +1,39 @@
+name: V30 edge and knowledge verification
+
+on:
+  push:
+    branches:
+      - fix/v30-global-knowledge-voice-guard
+    paths:
+      - 'supabase/functions/analyze-case/index.ts'
+      - 'supabase/functions/finalize-case-report/index.ts'
+      - 'supabase/functions/case-voice/index.ts'
+      - 'supabase/migrations/0030_global_veterinary_knowledge_and_guardrails.sql'
+      - 'supabase/migrations/0031_global_official_disease_index.sql'
+      - '.github/workflows/v30-edge-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/v30-global-knowledge-voice-guard
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Deno check Edge Functions
+        run: |
+          deno check supabase/functions/analyze-case/index.ts
+          deno check supabase/functions/finalize-case-report/index.ts
+          deno check supabase/functions/case-voice/index.ts
+      - name: Verify V30 safety markers
+        run: |
+          grep -q 'FMD SAFETY RULE' supabase/functions/analyze-case/index.ts
+          grep -q 'REPORT_FORMAT_VERSION=4' supabase/functions/finalize-case-report/index.ts
+          grep -q 'voice_provider_events' supabase/functions/case-voice/index.ts
+          grep -q "curation_status.*indexed" supabase/migrations/0031_global_official_disease_index.sql
+          grep -q 'trg_vet_ai_guard_assessment_output' supabase/migrations/0030_global_veterinary_knowledge_and_guardrails.sql
