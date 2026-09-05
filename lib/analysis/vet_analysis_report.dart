@@ -102,6 +102,22 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
     return normalized;
   }
 
+  String _speechSafeText(String input) {
+    var value = input
+        .replaceAll(RegExp(r'https?://\S+', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'www\.\S+', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'[`*_#]+'), ' ')
+        .replaceAll(RegExp(r'[•●▪◦‣⁃]+'), '. ')
+        .replaceAll(RegExp(r'(^|\n)\s*[-–—]+\s*', multiLine: true), '. ')
+        .replaceAll(RegExp(r'(^|\n)\s*\d+[\.)]\s*', multiLine: true), '. ')
+        .replaceAll(RegExp(r'\s*\|\s*'), '. ')
+        .replaceAll(RegExp(r'\.{2,}'), '.')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    value = value.replaceAll(RegExp(r'(^[\s\.,;:]+|[\s,;:]+$)'), '');
+    return value;
+  }
+
   Future<void> _speakCurrent() async {
     if (_muted || !mounted) return;
     String text = (_result['voice_summary'] ?? '').toString().trim();
@@ -135,6 +151,7 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
       }
       text = parts.join(' ');
     }
+    text = _speechSafeText(text);
     if (text.isEmpty) return;
 
     try {

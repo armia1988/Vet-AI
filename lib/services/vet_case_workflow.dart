@@ -71,7 +71,7 @@ extension VetCaseWorkflow on VetBackend {
               'language': language,
             },
           )
-          .timeout(const Duration(seconds: 40));
+          .timeout(const Duration(seconds: 18));
       final data = response.data;
       final encoded = data is Map ? data['audio_base64']?.toString() : null;
       if (encoded == null || encoded.isEmpty) return null;
