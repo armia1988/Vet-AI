@@ -1,14 +1,18 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const MODEL = Deno.env.get("VET_AI_GEMINI_FINAL_MODEL") ?? "gemini-2.5-flash";
+const MODEL = Deno.env.get("VET_AI_GEMINI_FINAL_MODEL") ?? "gemini-3.6-flash";
+const REPORT_FORMAT_VERSION = 2;
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8" } });
 const geminiText = (payload: any): string | null => {
   for (const candidate of payload?.candidates ?? []) {
+    const chunks: string[] = [];
     for (const part of candidate?.content?.parts ?? []) {
-      if (typeof part?.text === "string" && part.text.trim()) return part.text.trim();
+      if (part?.thought === true) continue;
+      if (typeof part?.text === "string" && part.text.length) chunks.push(part.text);
     }
+    if (chunks.length) return chunks.join("").trim();
   }
   return null;
 };
@@ -151,7 +155,13 @@ Deno.serve(async (req: Request) => {
     if (question && answer) cleanAnswers.push({ question, answer });
   }
   const fingerprint = await sha(JSON.stringify(cleanAnswers));
-  if (assessment.status === "final_report" && assessment.ai_analysis?.code === "FINAL_REPORT_COMPLETE" && assessment.ai_usage?.follow_up_fingerprint === fingerprint) {
+  if (
+    assessment.status === "final_report" &&
+    assessment.ai_analysis?.code === "FINAL_REPORT_COMPLETE" &&
+    assessment.ai_usage?.follow_up_fingerprint === fingerprint &&
+    assessment.ai_usage?.report_language === language &&
+    assessment.ai_usage?.report_format_version === REPORT_FORMAT_VERSION
+  ) {
     return json(assessment.ai_analysis);
   }
 
@@ -172,17 +182,24 @@ Deno.serve(async (req: Request) => {
   const fallback = fallbackReport(language, assessmentId, initial, catalog, cleanAnswers);
   const geminiKey = Deno.env.get("GEMINI_API_KEY");
   let finalResult: any = fallback;
-  let usage: any = { follow_up_fingerprint: fingerprint, mode: "catalog_fallback", provider: "catalog" };
+  let generatedByGemini = false;
+  let usage: any = {
+    follow_up_fingerprint: fingerprint,
+    report_language: language,
+    report_format_version: REPORT_FORMAT_VERSION,
+    mode: "catalog_fallback",
+    provider: "catalog",
+  };
 
   if (geminiKey && catalog.length) {
     const localeRule = isArabic(language)
-      ? "Write every user-facing field in clear professional Egyptian Arabic. Do not mix English explanatory sentences into Arabic. Latin scientific organism names may appear only where medically useful."
-      : `Write all user-facing fields naturally in language code ${language}.`;
+      ? "Every user-facing string MUST be clear professional Egyptian Arabic. Translate all English catalog prose into Arabic. Do not copy English explanatory sentences. Latin scientific organism names may appear only when medically necessary."
+      : `Every user-facing string MUST be written naturally in language code ${language}. Translate catalog prose into that language; never mix explanatory English sentences into a non-English report. Latin scientific organism names may appear only when medically necessary.`;
     const systemPrompt = `You produce a fast FINAL veterinary decision-support report from an already-reviewed internal knowledge base. No web search is allowed. ${localeRule}\nRules: never claim one image proves a diagnosis; re-evaluate the top differential using the follow-up answers; keep medication guidance conservative; never invent prescription doses, injection schedules or withdrawal periods; state clearly whether a veterinarian is needed and when; preserve food-animal medicine safety; return only the requested JSON structure.`;
     const input = `Initial triage: ${JSON.stringify({summary: initial?.summary, risk: initial?.risk, observed_signs: initial?.observed_signs, differential_diagnoses: diffs})}\nFollow-up answers: ${JSON.stringify(cleanAnswers)}\nReviewed catalog: ${JSON.stringify(catalog)}\nBuild the final report now.`;
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
+    const timer = setTimeout(() => controller.abort(), 40000);
     try {
       const response = await fetch(`${BASE}/${encodeURIComponent(MODEL)}:generateContent`, {
         signal: controller.signal,
@@ -192,8 +209,9 @@ Deno.serve(async (req: Request) => {
           systemInstruction: { parts: [{ text: systemPrompt }] },
           contents: [{ role: "user", parts: [{ text: input }] }],
           generationConfig: {
-            temperature: 0.15,
-            maxOutputTokens: 2400,
+            temperature: 0.1,
+            maxOutputTokens: 7000,
+            thinkingConfig: { thinkingLevel: "low" },
             responseMimeType: "application/json",
             responseSchema: finalSchema,
           },
@@ -218,7 +236,15 @@ Deno.serve(async (req: Request) => {
           fast_fallback: false,
           generated_at: new Date().toISOString(),
         };
-        usage = { ...(payload?.usageMetadata ?? {}), follow_up_fingerprint: fingerprint, mode: "gemini_structured", provider: "gemini" };
+        generatedByGemini = true;
+        usage = {
+          ...(payload?.usageMetadata ?? {}),
+          follow_up_fingerprint: fingerprint,
+          report_language: language,
+          report_format_version: REPORT_FORMAT_VERSION,
+          mode: "gemini_structured",
+          provider: "gemini",
+        };
       }
     } catch (error) {
       console.error("finalize-case-report Gemini fallback", error);
@@ -226,6 +252,12 @@ Deno.serve(async (req: Request) => {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  // A non-English customer report must never silently fall back to raw English catalog prose.
+  // If Gemini cannot localize the final report, return a retryable error instead of saving a mixed-language document.
+  if (!generatedByGemini && !language.startsWith("en")) {
+    return json({ code: "FINAL_REPORT_LOCALIZATION_UNAVAILABLE", risk: "insufficient_data" }, 502);
   }
 
   await supabase.from("assessments").update({
