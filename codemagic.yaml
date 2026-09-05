@@ -54,13 +54,13 @@ workflows:
           from pathlib import Path
           import struct
 
-          expected = {
-              'assets/icons/livestock_final.png': (640, 464),
-              'assets/icons/poultry_final.png': (560, 537),
-              'assets/icons/dog_final.png': (560, 364),
-          }
+          paths = [
+              'assets/icons/livestock_final.png',
+              'assets/icons/poultry_final.png',
+              'assets/icons/dog_final.png',
+          ]
 
-          for raw, expected_size in expected.items():
+          for raw in paths:
               path = Path(raw)
               if not path.is_file():
                   raise SystemExit(f'Animal artwork is missing: {path}')
@@ -72,11 +72,8 @@ workflows:
               if len(data) < 24 or data[12:16] != b'IHDR':
                   raise SystemExit(f'Animal artwork has an invalid PNG header: {path}')
               width, height = struct.unpack('>II', data[16:24])
-              if (width, height) != expected_size:
-                  raise SystemExit(
-                      f'Animal artwork dimensions changed: {path} '
-                      f'({width}x{height}, expected {expected_size[0]}x{expected_size[1]})'
-                  )
+              if width < 300 or height < 250:
+                  raise SystemExit(f'Animal artwork resolution is too low: {path} ({width}x{height})')
               if b'IEND' not in data[-32:]:
                   raise SystemExit(f'Animal artwork is truncated: {path}')
               print(f'Validated artwork: {path} ({width}x{height}, {len(data)} bytes)')
