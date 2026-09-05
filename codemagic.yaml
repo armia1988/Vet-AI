@@ -46,8 +46,38 @@ workflows:
           with open(path, 'wb') as f:
               plistlib.dump(data, f)
           PY
-      - name: Apply Vet AI V29 artwork and cloud voice patch
-        script: python3 tools/patch_v29_images_voice.py
+      - name: Verify Vet AI V29 assets and cloud voice wiring
+        script: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          assets = [
+              'assets/icons/livestock_section.webp',
+              'assets/icons/poultry_section.webp',
+              'assets/icons/dog_section.webp',
+          ]
+          for raw in assets:
+              data = Path(raw).read_bytes()
+              if len(data) < 12 or data[:4] != b'RIFF' or data[8:12] != b'WEBP':
+                  raise SystemExit(f'Invalid WEBP asset: {raw}')
+
+          app = Path('lib/v5_app.dart').read_text(encoding='utf-8')
+          for raw in assets:
+              if raw not in app:
+                  raise SystemExit(f'App is not wired to asset: {raw}')
+          for old in (
+              'assets/icons/livestock_final.png',
+              'assets/icons/poultry_final.png',
+              'assets/icons/dog_final.png',
+          ):
+              if old in app:
+                  raise SystemExit(f'Old broken artwork reference still present: {old}')
+
+          report = Path('lib/analysis/vet_analysis_report.dart').read_text(encoding='utf-8')
+          if 'await _tts.speak(text)' in report:
+              raise SystemExit('Robotic device TTS fallback is still active')
+          print('V29 assets and cloud voice wiring verified')
+          PY
       - name: Install Flutter dependencies
         script: flutter pub get
       - name: Generate Vet AI launcher icons
