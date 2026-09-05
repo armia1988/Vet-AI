@@ -129,7 +129,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: allDiseases, error: diseaseError } = await supabase
       .from("disease_catalog")
-      .select("id,slug,display_name,animal_groups,cause,default_risk,treatment_summary,prevention_summary,owner_actions_summary,clinical_red_flags,isolation_guidance,lab_confirmation_required,zoonotic,reportable_or_listed,curation_status")
+      .select("id,slug,display_name,animal_groups,cause,default_risk,treatment_summary,prevention_summary,owner_actions_summary,clinical_red_flags,isolation_guidance,lab_confirmation_required,zoonotic,reportable_or_listed,curation_status,species_scope,source_org,source_url")
       .eq("curation_status", "reviewed")
       .order("display_name");
     if (diseaseError || !allDiseases) {
@@ -155,6 +155,9 @@ Deno.serve(async (req: Request) => {
       lab_confirmation_required: d.lab_confirmation_required,
       zoonotic: d.zoonotic,
       reportable_or_listed: d.reportable_or_listed,
+      species_scope: d.species_scope,
+      source_org: d.source_org,
+      source_url: d.source_url,
       visible_signs: (signs ?? [])
         .filter((s: any) => s.disease_id === d.id && s.visible_in_image === true)
         .map((s: any) => ({ phase: s.phase, sign: s.sign })),
@@ -227,7 +230,7 @@ Deno.serve(async (req: Request) => {
     const languageInstruction = ar
       ? "اكتب كل الحقول التي يراها المستخدم بالعربية المصرية الواضحة والمهنية فقط، من غير خلط جمل إنجليزية."
       : `Write every user-facing field naturally in language code ${language}.`;
-    const prompt = `You are Vet AI, a veterinary decision-support triage system. ${languageInstruction}\nSelected animal group: ${animalGroup}\nSymptoms/history: ${assessment.symptom_notes?.trim() || "None supplied"}\nReviewed disease catalog. ONLY these catalog_slug values may be returned:\n${JSON.stringify(modelCatalog)}\nAnalyze the image conservatively. Verify the animal group first. Never claim a definitive diagnosis from one image. Only report signs actually visible. Rank differentials ONLY by compatibility with visible signs plus supplied history. Do not choose a disease just because it is common. If evidence is weak or two conditions are similarly plausible, keep suspicion low/moderate and state uncertainty instead of arbitrarily switching the top disease. Return no more than four differentials. High-consequence diseases require compatible evidence and veterinary/laboratory confirmation. Never invent medication doses or withdrawal periods.`;
+    const prompt = `You are Vet AI, a veterinary decision-support triage system. ${languageInstruction}\nSelected animal group: ${animalGroup}\nSymptoms/history: ${assessment.symptom_notes?.trim() || "None supplied"}\nReviewed disease catalog. ONLY these catalog_slug values may be returned:\n${JSON.stringify(modelCatalog)}\nAnalyze the image conservatively. Verify the animal group first. Never claim a definitive diagnosis from one image. Only report signs actually visible. Rank differentials ONLY by compatibility with visible signs plus supplied history. Do not choose a disease just because it is common. For sheep/goats, distinguish lesion morphology carefully: thick proliferative scabs/crusts around the lips or muzzle favor Orf/contagious ecthyma; do NOT relabel thick scabs as FMD vesicles. FMD becomes materially more compatible when true vesicles/erosions are present together with signs such as hypersalivation and/or foot lesions or lameness. If evidence is weak or two conditions are similarly plausible, keep suspicion low/moderate and state uncertainty instead of arbitrarily switching the top disease. Return no more than four differentials. High-consequence diseases require compatible evidence and veterinary/laboratory confirmation. Never invent medication doses or withdrawal periods.`;
 
     const callGemini = async (model: string, timeoutMs: number) => {
       const controller = new AbortController();
