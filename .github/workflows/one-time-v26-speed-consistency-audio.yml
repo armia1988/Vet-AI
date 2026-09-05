@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/one-time-v26-speed-consistency-audio.yml'
       - 'tools/patch_v26_speed_consistency_audio.py'
+      - 'tools/patch_v26b_type_auth_fix.py'
 
 permissions:
   contents: write
@@ -31,7 +32,9 @@ jobs:
           deno-version: v2.x
 
       - name: Apply V26 patch
-        run: python3 tools/patch_v26_speed_consistency_audio.py
+        run: |
+          python3 tools/patch_v26_speed_consistency_audio.py
+          python3 tools/patch_v26b_type_auth_fix.py
 
       - name: Remove preparation markers
         run: rm -f tools/_v26_branch_marker.tmp tools/_note_v26.txt tools/_cleanup_note.txt
@@ -56,6 +59,7 @@ jobs:
           grep -q 'version: 0.6.12+24' pubspec.yaml
           grep -q 'input_fingerprint' supabase/functions/analyze-case/index.ts
           grep -q 'ar-XA-Chirp3-HD-Sulafat' supabase/functions/case-voice/index.ts
+          grep -q 'GOOGLE_CLOUD_TTS_SERVICE_ACCOUNT_JSON' supabase/functions/case-voice/index.ts
           grep -q '_speechSafeText' lib/analysis/vet_analysis_report.dart
 
       - name: Commit V26
