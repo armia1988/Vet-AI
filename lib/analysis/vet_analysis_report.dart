@@ -88,24 +88,6 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
     }
   }
 
-  String _speechLanguage(String code) {
-    final normalized = code.toLowerCase();
-    if (normalized == 'ar') return 'ar-EG';
-    if (normalized == 'nl') return 'nl-NL';
-    if (normalized == 'de') return 'de-DE';
-    if (normalized == 'fr') return 'fr-FR';
-    if (normalized == 'es') return 'es-ES';
-    if (normalized == 'it') return 'it-IT';
-    if (normalized == 'pt') return 'pt-PT';
-    if (normalized == 'zh') return 'zh-CN';
-    if (normalized == 'ja') return 'ja-JP';
-    if (normalized == 'ko') return 'ko-KR';
-    if (normalized == 'hi') return 'hi-IN';
-    if (normalized == 'tr') return 'tr-TR';
-    if (normalized == 'ru') return 'ru-RU';
-    return normalized;
-  }
-
   String _speechSafeText(String input) {
     var value = input
         .replaceAll(RegExp(r'https?://\S+', caseSensitive: false), ' ')
@@ -203,81 +185,20 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
         await Future<void>.delayed(const Duration(milliseconds: 350));
     }
 
-    try {
-      await _tts.stop();
-      final isArabic = widget.languageCode.toLowerCase().startsWith('ar');
-      if (isArabic) {
-        var configured = false;
-        try {
-          final rawVoices = await _tts.getVoices;
-          if (rawVoices is List) {
-            final candidates = rawVoices
-                .whereType<Map>()
-                .map(
-                  (voice) => {
-                    'name': (voice['name'] ?? '').toString(),
-                    'locale': (voice['locale'] ?? '').toString(),
-                  },
-                )
-                .where(
-                  (voice) =>
-                      voice['name']!.isNotEmpty &&
-                      voice['locale']!.toLowerCase().startsWith('ar'),
-                )
-                .toList();
-            int score(Map<String, String> voice) {
-              final locale = voice['locale']!.toLowerCase();
-              final name = voice['name']!.toLowerCase();
-              var value = 0;
-              if (locale.startsWith('ar-eg')) value += 100;
-              if (locale.startsWith('ar-xa') || locale.startsWith('ar-001'))
-                value += 80;
-              if (locale.startsWith('ar-sa')) value += 60;
-              if (name.contains('premium')) value += 35;
-              if (name.contains('enhanced')) value += 25;
-              if (name.contains('neural')) value += 20;
-              return value;
-            }
-
-            candidates.sort((a, b) => score(b).compareTo(score(a)));
-            if (candidates.isNotEmpty) {
-              final best = candidates.first;
-              final result = await _tts.setVoice({
-                'name': best['name']!,
-                'locale': best['locale']!,
-              });
-              configured = result != false;
-            }
-          }
-        } catch (_) {
-          // Fall through to locale selection below.
-        }
-        for (final locale in const ['ar-EG', 'ar-XA', 'ar-SA', 'ar']) {
-          if (configured) break;
-          try {
-            final result = await _tts.setLanguage(locale);
-            if (result != false) {
-              configured = true;
-              break;
-            }
-          } catch (_) {
-            // Try the next Arabic locale available on this device.
-          }
-        }
-        if (!configured) {
-          await _tts.setLanguage('ar-SA');
-        }
-      } else {
-        await _tts.setLanguage(_speechLanguage(widget.languageCode));
-      }
-      await _tts.setVolume(1.0);
-      await _tts.setSpeechRate(.47);
-      await _tts.setPitch(1.04);
-      await _tts.awaitSpeakCompletion(false);
-      await _tts.speak(text);
-    } catch (_) {
-      // The complete written result remains available if audio is unavailable.
+    if (mounted && !_muted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.translate(
+              'Natural cloud voice is temporarily unavailable. Please try the speaker again.',
+              'الصوت الطبيعي السحابي غير متاح مؤقتًا. جرّب زر السماعة مرة تانية.',
+              'De natuurlijke cloudstem is tijdelijk niet beschikbaar. Probeer de luidspreker opnieuw.',
+            ),
+          ),
+        ),
+      );
     }
+    return;
   }
 
   Future<void> _toggleMute() async {

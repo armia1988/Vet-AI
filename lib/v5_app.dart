@@ -1204,7 +1204,7 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
       _AnimalChoice(
         group: 'livestock',
         label: tr(context, 'Livestock', 'المواشي', 'Vee'),
-        asset: 'assets/icons/livestock_final.png',
+        asset: 'assets/icons/livestock_section.webp',
         selected: selectedGroups.contains('livestock'),
         onTap: () => _toggleGroup('livestock'),
       ),
@@ -1212,7 +1212,7 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
       _AnimalChoice(
         group: 'poultry',
         label: tr(context, 'Poultry', 'الدواجن', 'Pluimvee'),
-        asset: 'assets/icons/poultry_final.png',
+        asset: 'assets/icons/poultry_section.webp',
         selected: selectedGroups.contains('poultry'),
         onTap: () => _toggleGroup('poultry'),
       ),
@@ -1220,7 +1220,7 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
       _AnimalChoice(
         group: 'dogs',
         label: tr(context, 'Dogs', 'الكلاب', 'Honden'),
-        asset: 'assets/icons/dog_final.png',
+        asset: 'assets/icons/dog_section.webp',
         selected: selectedGroups.contains('dogs'),
         onTap: () => _toggleGroup('dogs'),
       ),
@@ -1645,7 +1645,7 @@ class V5Home extends StatelessWidget {
                 (farm['livestock_count'] as num).toInt() > 0)
               Expanded(
                 child: _AnimalCount(
-                  asset: 'assets/icons/livestock_final.png',
+                  asset: 'assets/icons/livestock_section.webp',
                   label: tr(context, 'Livestock', 'المواشي', 'Vee'),
                   value: farm['livestock_count'],
                 ),
@@ -1658,7 +1658,7 @@ class V5Home extends StatelessWidget {
             if (((farm['poultry_count'] as num?)?.toInt() ?? 0) > 0)
               Expanded(
                 child: _AnimalCount(
-                  asset: 'assets/icons/poultry_final.png',
+                  asset: 'assets/icons/poultry_section.webp',
                   label: tr(context, 'Poultry', 'الدواجن', 'Pluimvee'),
                   value: farm['poultry_count'],
                 ),
@@ -1669,7 +1669,7 @@ class V5Home extends StatelessWidget {
             if (((farm['dog_count'] as num?)?.toInt() ?? 0) > 0)
               Expanded(
                 child: _AnimalCount(
-                  asset: 'assets/icons/dog_final.png',
+                  asset: 'assets/icons/dog_section.webp',
                   label: tr(context, 'Dogs', 'الكلاب', 'Honden'),
                   value: farm['dog_count'],
                 ),
@@ -2040,10 +2040,10 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
   }
 
   String asset(String g) => g == 'poultry'
-      ? 'assets/icons/poultry_final.png'
+      ? 'assets/icons/poultry_section.webp'
       : g == 'dogs'
-      ? 'assets/icons/dog_final.png'
-      : 'assets/icons/livestock_final.png';
+      ? 'assets/icons/dog_section.webp'
+      : 'assets/icons/livestock_section.webp';
 
   @override
   Widget build(BuildContext context) {
