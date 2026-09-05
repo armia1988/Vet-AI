@@ -1845,34 +1845,29 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
   }
 
   Future<bool> _confirmMedia(ImageSource source) async {
-    if (source == ImageSource.camera) {
-      final userId = VetBackend.instance.currentUser?.id;
-      final prefs = await SharedPreferences.getInstance();
-      final key = 'vet_ai_camera_intro_seen_${userId ?? 'signed_out'}';
-      if (prefs.getBool(key) == true) return true;
-      final approved = await _confirmAccess(
-        title: tr(context, 'Open camera?', 'فتح الكاميرا؟', 'Camera openen?'),
-        message: tr(
-          context,
-          'This one-time Vet AI explanation appears for a new account before camera use. The photo is not uploaded until you explicitly start the health analysis.',
-          'الشرح ده بيظهر مرة واحدة بس للحساب الجديد قبل استخدام الكاميرا. الصورة مش هتترفع إلا لما تضغط بنفسك على تحليل الحالة.',
-          'Deze eenmalige Vet AI-uitleg verschijnt voor een nieuw account vóór cameragebruik. De foto wordt pas geüpload wanneer je zelf de gezondheidsanalyse start.',
-        ),
-        icon: Icons.photo_camera_rounded,
-      );
-      if (approved) await prefs.setBool(key, true);
-      return approved;
-    }
-    return _confirmAccess(
-      title: tr(context, 'Open photos?', 'فتح الصور؟', 'Foto’s openen?'),
+    final userId = VetBackend.instance.currentUser?.id;
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'vet_ai_scan_privacy_ack_${userId ?? 'signed_out'}';
+    if (prefs.getBool(key) == true) return true;
+
+    final isCamera = source == ImageSource.camera;
+    final approved = await _confirmAccess(
+      title: tr(
+        context,
+        'Before your first Vet AI scan',
+        'قبل أول فحص على Vet AI',
+        'Voor je eerste Vet AI-scan',
+      ),
       message: tr(
         context,
-        'Vet AI will let you choose a photo only after your approval. It will not upload the selected image until you explicitly start the health analysis.',
-        'Vet AI هيسمحلك تختار صورة بعد موافقتك بس، ومش هيرفع الصورة المختارة إلا لما تضغط بنفسك على تحليل الحالة.',
-        'Vet AI laat je pas na toestemming een foto kiezen. De gekozen foto wordt pas geüpload wanneer je zelf de gezondheidsanalyse start.',
+        'This one-time explanation is saved for this account. Vet AI only uploads an animal image after you choose it and start analysis. iOS or Android may still show their own camera or photo permission when required by the operating system.',
+        'الرسالة دي هتظهر مرة واحدة بس للحساب ده. Vet AI مش بيرفع صورة الحيوان إلا بعد ما تختارها وتبدأ التحليل بنفسك. iOS أو Android ممكن يعرضوا إذن النظام للكاميرا أو الصور وقت ما نظام التشغيل يحتاجه.',
+        'Deze uitleg verschijnt één keer voor dit account. Vet AI uploadt een dierenfoto pas nadat je die kiest en zelf de analyse start. iOS of Android kan nog een systeempop-up voor camera of foto’s tonen wanneer dat nodig is.',
       ),
-      icon: Icons.photo_library_rounded,
+      icon: isCamera ? Icons.photo_camera_rounded : Icons.photo_library_rounded,
     );
+    if (approved) await prefs.setBool(key, true);
+    return approved;
   }
 
   Future<void> pick(ImageSource source) async {
@@ -1894,22 +1889,6 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
 
   Future<void> analyze() async {
     if (file == null || bytes == null) return;
-    final approved = await _confirmAccess(
-      title: tr(
-        context,
-        'Upload for secure analysis?',
-        'رفع الصورة للتحليل الآمن؟',
-        'Uploaden voor beveiligde analyse?',
-      ),
-      message: tr(
-        context,
-        'The selected animal image and symptom notes will be uploaded to your protected Vet AI account for analysis. Continue?',
-        'الصورة اللي اخترتها وملاحظات الأعراض هيتـرفعوا لحساب Vet AI المحمي بتاعك علشان نحلل الحالة. تكمل؟',
-        'De gekozen dierfoto en symptoomnotities worden naar je beveiligde Vet AI-account geüpload voor analyse. Doorgaan?',
-      ),
-      icon: Icons.cloud_upload_outlined,
-    );
-    if (!approved || !mounted) return;
     setState(() {
       busy = true;
       result = null;
@@ -3948,11 +3927,11 @@ class _AnimalCount extends StatelessWidget {
             child: ClipRect(
               child: Center(
                 child: Transform.scale(
-                  scale: 1.9,
+                  scale: 1.0,
                   child: Image.asset(
                     asset,
-                    width: 220,
-                    height: 145,
+                    width: 300,
+                    height: 168,
                     fit: BoxFit.contain,
                     filterQuality: FilterQuality.high,
                     isAntiAlias: true,
