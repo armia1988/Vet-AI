@@ -1,8 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const PRIMARY_MODEL = Deno.env.get("VET_AI_GEMINI_FINAL_MODEL") ?? "gemini-3.6-flash";
-const FALLBACK_MODEL = Deno.env.get("VET_AI_GEMINI_FINAL_FALLBACK_MODEL") ?? "gemini-3.5-flash-lite";
+const PRIMARY_MODEL = Deno.env.get("VET_AI_GEMINI_FINAL_MODEL") ?? "gemini-3.5-flash-lite";
+const FALLBACK_MODEL = Deno.env.get("VET_AI_GEMINI_FINAL_FALLBACK_MODEL") ?? "gemini-3.6-flash";
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const REPORT_FORMAT_VERSION = 3;
 
@@ -292,8 +292,10 @@ Deno.serve(async (req: Request) => {
               systemInstruction: { parts: [{ text: systemPrompt }] },
               contents: [{ role: "user", parts: [{ text: input }] }],
               generationConfig: {
-                temperature: 0.1,
-                maxOutputTokens: 5200,
+                candidateCount: 1,
+                seed: parseInt(fingerprint.slice(0, 8), 16) & 0x7fffffff,
+                maxOutputTokens: 3200,
+                thinkingConfig: { thinkingLevel: "low" },
                 responseMimeType: "application/json",
                 responseJsonSchema: FINAL_SCHEMA,
               },
@@ -307,8 +309,8 @@ Deno.serve(async (req: Request) => {
       };
 
       const attempts = [
-        { model: PRIMARY_MODEL, timeoutMs: 22000 },
-        { model: FALLBACK_MODEL, timeoutMs: 16000 },
+        { model: PRIMARY_MODEL, timeoutMs: 11000 },
+        { model: FALLBACK_MODEL, timeoutMs: 12000 },
       ].filter((a, index, rows) => rows.findIndex((x) => x.model === a.model) === index);
       const failures: string[] = [];
 

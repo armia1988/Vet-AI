@@ -1890,8 +1890,9 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
     if (!await _confirmMedia(source)) return;
     final chosen = await picker.pickImage(
       source: source,
-      imageQuality: 84,
-      maxWidth: 1600,
+      imageQuality: 82,
+      maxWidth: 1400,
+      maxHeight: 1400,
     );
     if (chosen == null) return;
     final data = await chosen.readAsBytes();

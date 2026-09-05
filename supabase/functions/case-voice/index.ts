@@ -76,7 +76,16 @@ Deno.serve(async (req: Request) => {
 
   const body = await req.json().catch(() => ({}));
   const rawText = typeof body?.text === "string" ? body.text.trim() : "";
-  const text = rawText.slice(0, 1800);
+  const text = rawText
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/www\.\S+/gi, " ")
+    .replace(/[`*_#]+/g, " ")
+    .replace(/[•●▪◦‣⁃]+/g, ". ")
+    .replace(/(^|\n)\s*[-–—]+\s*/gm, ". ")
+    .replace(/(^|\n)\s*\d+[.)]\s*/gm, ". ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 1500);
   const language = typeof body?.language === "string" ? body.language.toLowerCase() : "en";
   if (!text) return json({ error: "Text is required" }, 400);
 
@@ -118,8 +127,8 @@ Deno.serve(async (req: Request) => {
   };
 
   const attempts = [
-    { model: PRIMARY_MODEL, timeoutMs: 18000 },
-    { model: FALLBACK_MODEL, timeoutMs: 18000 },
+    { model: PRIMARY_MODEL, timeoutMs: 8000 },
+    { model: FALLBACK_MODEL, timeoutMs: 7000 },
   ].filter((a, index, rows) => rows.findIndex((x) => x.model === a.model) === index);
 
   for (const attempt of attempts) {
@@ -152,5 +161,107 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return json({ code: "GEMINI_TTS_TEMPORARILY_UNAVAILABLE" }, 503);
+  // Optional production fallback through Google Cloud Text-to-Speech.
+  // Google Cloud TTS is OAuth-authenticated; do not send the Gemini API key to it.
+  const serviceAccountRaw = Deno.env.get("GOOGLE_CLOUD_TTS_SERVICE_ACCOUNT_JSON");
+  if (serviceAccountRaw) {
+    try {
+      const sa = JSON.parse(serviceAccountRaw);
+      const clientEmail = String(sa?.client_email ?? "");
+      const privateKeyPem = String(sa?.private_key ?? "");
+      const projectId = String(sa?.project_id ?? "");
+      if (clientEmail && privateKeyPem) {
+        const base64Url = (bytes: Uint8Array) => {
+          let raw = "";
+          for (let i = 0; i < bytes.length; i += 0x8000) {
+            raw += String.fromCharCode(...bytes.subarray(i, Math.min(i + 0x8000, bytes.length)));
+          }
+          return btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+        };
+        const utf8Base64Url = (value: string) => base64Url(new TextEncoder().encode(value));
+        const pemBody = privateKeyPem
+          .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+          .replace(/-----END PRIVATE KEY-----/g, "")
+          .replace(/\s+/g, "");
+        const pemBinary = atob(pemBody);
+        const pemBytes = new Uint8Array(pemBinary.length);
+        for (let i = 0; i < pemBinary.length; i++) pemBytes[i] = pemBinary.charCodeAt(i);
+        const signingKey = await crypto.subtle.importKey(
+          "pkcs8",
+          pemBytes.buffer,
+          { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+          false,
+          ["sign"],
+        );
+        const now = Math.floor(Date.now() / 1000);
+        const jwtHeader = utf8Base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+        const jwtPayload = utf8Base64Url(JSON.stringify({
+          iss: clientEmail,
+          scope: "https://www.googleapis.com/auth/cloud-platform",
+          aud: "https://oauth2.googleapis.com/token",
+          iat: now,
+          exp: now + 3300,
+        }));
+        const unsigned = `${jwtHeader}.${jwtPayload}`;
+        const signature = await crypto.subtle.sign(
+          "RSASSA-PKCS1-v1_5",
+          signingKey,
+          new TextEncoder().encode(unsigned),
+        );
+        const assertion = `${unsigned}.${base64Url(new Uint8Array(signature))}`;
+        const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            assertion,
+          }),
+        });
+        const tokenPayload = await tokenResponse.json().catch(() => null);
+        const accessToken = typeof tokenPayload?.access_token === "string" ? tokenPayload.access_token : "";
+        if (tokenResponse.ok && accessToken) {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 6500);
+          try {
+            const cloudResponse = await fetch("https://texttospeech.googleapis.com/v1/text:synthesize", {
+              method: "POST",
+              signal: controller.signal,
+              headers: {
+                authorization: `Bearer ${accessToken}`,
+                "content-type": "application/json",
+                ...(projectId ? { "x-goog-user-project": projectId } : {}),
+              },
+              body: JSON.stringify({
+                input: { text },
+                voice: isArabic
+                  ? { languageCode: "ar-XA", name: "ar-XA-Chirp3-HD-Sulafat", ssmlGender: "FEMALE" }
+                  : { languageCode: languageCode(language), ssmlGender: "FEMALE" },
+                audioConfig: { audioEncoding: "MP3", speakingRate: 1.0 },
+              }),
+            });
+            const cloudPayload = await cloudResponse.json().catch(() => null);
+            const audioContent = cloudPayload?.audioContent;
+            if (cloudResponse.ok && typeof audioContent === "string" && audioContent) {
+              return json({
+                audio_base64: audioContent,
+                mime_type: "audio/mpeg",
+                voice: isArabic ? "ar-XA-Chirp3-HD-Sulafat" : "google-cloud-auto",
+                provider: "google-cloud-tts",
+                egyptian_arabic_text: isArabic,
+              });
+            }
+            console.warn("case-voice Cloud TTS fallback failed", cloudResponse.status, String(cloudPayload?.error?.message ?? "").slice(0, 350));
+          } finally {
+            clearTimeout(timer);
+          }
+        } else {
+          console.warn("case-voice OAuth token exchange failed", tokenResponse.status, String(tokenPayload?.error_description ?? tokenPayload?.error ?? "").slice(0, 350));
+        }
+      }
+    } catch (error) {
+      console.warn("case-voice Cloud TTS service-account fallback exception", String(error));
+    }
+  }
+
+  return json({ code: "VOICE_TEMPORARILY_UNAVAILABLE" }, 503);
 });

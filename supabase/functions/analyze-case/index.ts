@@ -1,8 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const PRIMARY_MODEL = Deno.env.get("VET_AI_GEMINI_ANALYSIS_MODEL") ?? "gemini-3.6-flash";
-const FALLBACK_MODEL = Deno.env.get("VET_AI_GEMINI_ANALYSIS_FALLBACK_MODEL") ?? "gemini-3.5-flash-lite";
+const PRIMARY_MODEL = Deno.env.get("VET_AI_GEMINI_ANALYSIS_MODEL") ?? "gemini-3.5-flash-lite";
+const FALLBACK_MODEL = Deno.env.get("VET_AI_GEMINI_ANALYSIS_FALLBACK_MODEL") ?? "gemini-3.6-flash";
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
@@ -18,7 +18,7 @@ const ANALYSIS_SCHEMA = {
     observed_signs: { type: "array", maxItems: 12, items: { type: "string" } },
     differentials: {
       type: "array",
-      maxItems: 6,
+      maxItems: 4,
       items: {
         type: "object",
         additionalProperties: false,
@@ -35,8 +35,8 @@ const ANALYSIS_SCHEMA = {
     urgent_vet_review: { type: "boolean" },
     isolation_recommended: { type: "boolean" },
     lab_confirmation_required: { type: "boolean" },
-    immediate_actions: { type: "array", maxItems: 8, items: { type: "string" } },
-    follow_up_questions: { type: "array", maxItems: 6, items: { type: "string" } },
+    immediate_actions: { type: "array", maxItems: 5, items: { type: "string" } },
+    follow_up_questions: { type: "array", maxItems: 4, items: { type: "string" } },
     confidence_statement: { type: "string" },
   },
   required: [
@@ -68,6 +68,13 @@ const bytesToBase64 = (bytes: Uint8Array) => {
   }
   return btoa(s);
 };
+const sha256Hex = async (bytes: Uint8Array) => {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  const digest = await crypto.subtle.digest("SHA-256", copy.buffer);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+};
+const sha256Text = (value: string) => sha256Hex(new TextEncoder().encode(value));
 const modelText = (payload: any) => {
   for (const candidate of payload?.candidates ?? []) {
     const chunks: string[] = [];
@@ -113,7 +120,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: assessment, error: assessmentError } = await supabase
       .from("assessments")
-      .select("id,farm_id,media_path,symptom_notes,animal_group")
+      .select("id,farm_id,media_path,symptom_notes,animal_group,ai_analysis,ai_model,ai_provider_request_id,ai_usage,ai_generated_at,status")
       .eq("id", assessmentId)
       .single();
     if (assessmentError || !assessment) return json({ error: "Assessment not found or access denied" }, 404);
@@ -158,12 +165,69 @@ Deno.serve(async (req: Request) => {
     if (blob.size > MAX_IMAGE_BYTES) return fail("IMAGE_TOO_LARGE", ar ? "الصورة كبيرة جدًا للتحليل." : "Image is too large for analysis.");
     const mime = mimeFromPath(assessment.media_path);
     if (!mime) return fail("UNSUPPORTED_IMAGE_FORMAT", ar ? "استخدم صورة JPEG أو PNG أو WEBP." : "Use JPEG, PNG or WEBP.");
-    const image = bytesToBase64(new Uint8Array(await blob.arrayBuffer()));
+    const imageBytes = new Uint8Array(await blob.arrayBuffer());
+    const image = bytesToBase64(imageBytes);
+    const imageSha256 = await sha256Hex(imageBytes);
+    const catalogSha256 = await sha256Text(JSON.stringify(modelCatalog));
+    const normalizedNotes = clean(assessment.symptom_notes).toLowerCase();
+    const inputFingerprint = await sha256Text(`${imageSha256}|${animalGroup}|${language}|${normalizedNotes}|${catalogSha256}`);
+
+    // Exact same image + history + language + reviewed catalog should not jump
+    // between diseases on repeated tests or spend provider quota again.
+    if (assessment.ai_analysis?.input_fingerprint === inputFingerprint && assessment.ai_analysis?.code === "AI_ANALYSIS_COMPLETE") {
+      return json({ ...assessment.ai_analysis, cache_reused: true });
+    }
+    const { data: cachedRows } = await supabase
+      .from("assessments")
+      .select("id,ai_analysis,ai_model,ai_provider_request_id,ai_usage,ai_generated_at")
+      .eq("farm_id", assessment.farm_id)
+      .eq("animal_group", animalGroup)
+      .neq("id", assessmentId)
+      .eq("ai_analysis->>input_fingerprint", inputFingerprint)
+      .order("ai_generated_at", { ascending: false })
+      .limit(1);
+    const cachedRow = cachedRows?.[0];
+    if (cachedRow?.ai_analysis?.code === "AI_ANALYSIS_COMPLETE") {
+      const cached = {
+        ...cachedRow.ai_analysis,
+        assessment_id: assessmentId,
+        cache_reused: true,
+        cache_source_assessment_id: cachedRow.id,
+        generated_at: new Date().toISOString(),
+      };
+      await supabase.from("assessments").update({
+        observed_signs: cached.observed_signs ?? [],
+        differential_diagnoses: cached.differential_diagnoses ?? [],
+        risk: cached.risk ?? "insufficient_data",
+        isolation_recommended: cached.isolation_recommended === true,
+        urgent_vet_review: cached.urgent_vet_review === true,
+        lab_confirmation_required: cached.lab_confirmation_required === true,
+        status: "ai_review",
+        ai_analysis: cached,
+        ai_model: cachedRow.ai_model,
+        ai_provider_request_id: cachedRow.ai_provider_request_id,
+        ai_usage: { ...(cachedRow.ai_usage ?? {}), cache_reused: true, cache_source_assessment_id: cachedRow.id },
+        ai_generated_at: cached.generated_at,
+      }).eq("id", assessmentId);
+      await supabase.from("alerts").delete().eq("assessment_id", assessmentId);
+      if (cached.risk === "red" || cached.risk === "orange") {
+        await supabase.from("alerts").insert({
+          farm_id: assessment.farm_id,
+          assessment_id: assessmentId,
+          risk: cached.risk,
+          title: ar
+            ? (cached.risk === "red" ? "تنبيه صحي عاجل من Vet AI" : "حالة محتاجة مراجعة بيطرية")
+            : (cached.risk === "red" ? "Urgent Vet AI health alert" : "Vet AI veterinary review alert"),
+          details: cached.summary ?? "",
+        });
+      }
+      return json(cached);
+    }
 
     const languageInstruction = ar
       ? "اكتب كل الحقول التي يراها المستخدم بالعربية المصرية الواضحة والمهنية فقط، من غير خلط جمل إنجليزية."
       : `Write every user-facing field naturally in language code ${language}.`;
-    const prompt = `You are Vet AI, a veterinary decision-support triage system. ${languageInstruction}\nSelected animal group: ${animalGroup}\nSymptoms/history: ${assessment.symptom_notes?.trim() || "None supplied"}\nReviewed disease catalog. ONLY these catalog_slug values may be returned:\n${JSON.stringify(modelCatalog)}\nAnalyze the image conservatively. Verify the animal group first. Never claim a definitive diagnosis from one image. Only report signs actually visible. High-consequence diseases require compatible evidence and veterinary/laboratory confirmation. Never invent medication doses or withdrawal periods.`;
+    const prompt = `You are Vet AI, a veterinary decision-support triage system. ${languageInstruction}\nSelected animal group: ${animalGroup}\nSymptoms/history: ${assessment.symptom_notes?.trim() || "None supplied"}\nReviewed disease catalog. ONLY these catalog_slug values may be returned:\n${JSON.stringify(modelCatalog)}\nAnalyze the image conservatively. Verify the animal group first. Never claim a definitive diagnosis from one image. Only report signs actually visible. Rank differentials ONLY by compatibility with visible signs plus supplied history. Do not choose a disease just because it is common. If evidence is weak or two conditions are similarly plausible, keep suspicion low/moderate and state uncertainty instead of arbitrarily switching the top disease. Return no more than four differentials. High-consequence diseases require compatible evidence and veterinary/laboratory confirmation. Never invent medication doses or withdrawal periods.`;
 
     const callGemini = async (model: string, timeoutMs: number) => {
       const controller = new AbortController();
@@ -176,8 +240,10 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: image } }] }],
             generationConfig: {
-              temperature: 0.1,
-              maxOutputTokens: 5200,
+              candidateCount: 1,
+              seed: parseInt(inputFingerprint.slice(0, 8), 16) & 0x7fffffff,
+              maxOutputTokens: 2200,
+              thinkingConfig: { thinkingLevel: "low" },
               responseMimeType: "application/json",
               responseJsonSchema: ANALYSIS_SCHEMA,
             },
@@ -191,8 +257,8 @@ Deno.serve(async (req: Request) => {
     };
 
     const attempts = [
-      { model: PRIMARY_MODEL, timeoutMs: 22000 },
-      { model: FALLBACK_MODEL, timeoutMs: 18000 },
+      { model: PRIMARY_MODEL, timeoutMs: 9500 },
+      { model: FALLBACK_MODEL, timeoutMs: 10500 },
     ].filter((a, index, rows) => rows.findIndex((x) => x.model === a.model) === index);
 
     let parsed: any = null;
@@ -257,7 +323,7 @@ Deno.serve(async (req: Request) => {
     const allowed = new Map(diseases.map((d: any) => [d.slug, d]));
     const differentials = (Array.isArray(m.differentials) ? m.differentials : [])
       .filter((d: any) => allowed.has(String(d?.catalog_slug ?? "")))
-      .slice(0, 6)
+      .slice(0, 4)
       .map((d: any) => {
         const c: any = allowed.get(String(d.catalog_slug));
         return {
@@ -277,6 +343,11 @@ Deno.serve(async (req: Request) => {
           clinical_red_flags: cleanList(c.clinical_red_flags),
           isolation_guidance: clean(c.isolation_guidance),
         };
+      })
+      .sort((a: any, b: any) => {
+        const rank: Record<string, number> = { high: 3, moderate: 2, low: 1 };
+        const delta = (rank[b.suspicion] ?? 0) - (rank[a.suspicion] ?? 0);
+        return delta || String(a.catalog_slug).localeCompare(String(b.catalog_slug));
       });
 
     const groupMatch = ["match", "mismatch", "uncertain"].includes(m.group_match) ? m.group_match : "uncertain";
@@ -303,6 +374,8 @@ Deno.serve(async (req: Request) => {
       model: usedModel,
       provider_request_id: requestId || null,
       failover_used: usedModel !== PRIMARY_MODEL,
+      input_fingerprint: inputFingerprint,
+      image_sha256: imageSha256,
       generated_at: new Date().toISOString(),
     };
 
