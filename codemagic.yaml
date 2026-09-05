@@ -2,7 +2,7 @@ workflows:
   ios-release:
     name: Vet AI iOS TestFlight Build
     max_build_duration: 60
-    instance_type: mac_mini_m1
+    instance_type: mac_mini_m2
     triggering:
       events:
         - push
@@ -70,11 +70,19 @@ workflows:
         script: xcode-project use-profiles
       - name: Build iOS App with unique App Store build number
         script: |
+          APP_VERSION=$(python3 - <<'PY'
+          import re
+          text=open('pubspec.yaml', encoding='utf-8').read()
+          m=re.search(r'^version:\s*([^+\s]+)', text, re.M)
+          print(m.group(1) if m else '0.0.0')
+          PY
+          )
           CM_SEQUENCE="${PROJECT_BUILD_NUMBER:-${BUILD_NUMBER:-1}}"
           IOS_BUILD_NUMBER=$((1000 + CM_SEQUENCE))
-          echo "Vet AI App Store build number: ${IOS_BUILD_NUMBER}"
+          echo "Vet AI release: ${APP_VERSION} (${IOS_BUILD_NUMBER})"
           flutter build ipa --release \
             -t lib/main_v2.dart \
+            --build-name="${APP_VERSION}" \
             --build-number="${IOS_BUILD_NUMBER}" \
             --export-options-plist=$HOME/export_options.plist
     artifacts:

@@ -22,7 +22,7 @@ extension VetCaseWorkflow on VetBackend {
               'answers': answers,
             },
           )
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 60));
       final data = response.data;
       if (data is Map<String, dynamic>) return data;
       if (data is Map) return Map<String, dynamic>.from(data);
@@ -43,7 +43,8 @@ extension VetCaseWorkflow on VetBackend {
         'risk': 'insufficient_data',
         'message': language.toLowerCase().startsWith('ar')
             ? 'ماقدرناش نكمل التقرير النهائي دلوقتي. جرّب تاني.'
-            : (error.reasonPhrase ?? 'The final veterinary report could not be completed.'),
+            : (error.reasonPhrase ??
+                  'The final veterinary report could not be completed.'),
       };
     }
     return {
@@ -66,11 +67,11 @@ extension VetCaseWorkflow on VetBackend {
           .invoke(
             'case-voice',
             body: {
-              'text': clean.length > 3900 ? clean.substring(0, 3900) : clean,
+              'text': clean.length > 1800 ? clean.substring(0, 1800) : clean,
               'language': language,
             },
           )
-          .timeout(const Duration(seconds: 24));
+          .timeout(const Duration(seconds: 40));
       final data = response.data;
       final encoded = data is Map ? data['audio_base64']?.toString() : null;
       if (encoded == null || encoded.isEmpty) return null;

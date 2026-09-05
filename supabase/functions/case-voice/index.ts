@@ -1,8 +1,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const MODEL = Deno.env.get("VET_AI_GEMINI_TTS_MODEL") ?? "gemini-3.1-flash-tts-preview";
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8" } });
+const PRIMARY_MODEL = Deno.env.get("VET_AI_GEMINI_TTS_MODEL") ?? "gemini-2.5-flash-preview-tts";
+const FALLBACK_MODEL = Deno.env.get("VET_AI_GEMINI_TTS_FALLBACK_MODEL") ?? "gemini-3.1-flash-tts-preview";
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+});
 
 const base64ToBytes = (value: string) => {
   const binary = atob(value);
@@ -42,74 +46,109 @@ const pcmToWav = (pcm: Uint8Array, sampleRate = 24000, channels = 1, bitsPerSamp
   new Uint8Array(buffer, header).set(pcm);
   return new Uint8Array(buffer);
 };
+const languageCode = (language: string) => {
+  if (language.startsWith("ar")) return "ar-XA";
+  if (language.startsWith("nl")) return "nl-NL";
+  if (language.startsWith("de")) return "de-DE";
+  if (language.startsWith("fr")) return "fr-FR";
+  if (language.startsWith("es")) return "es-ES";
+  if (language.startsWith("it")) return "it-IT";
+  if (language.startsWith("tr")) return "tr-TR";
+  if (language.startsWith("pt")) return "pt-BR";
+  if (language.startsWith("ja")) return "ja-JP";
+  if (language.startsWith("ko")) return "ko-KR";
+  if (language.startsWith("ru")) return "ru-RU";
+  return "en-US";
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const auth = req.headers.get("Authorization");
   if (!auth) return json({ error: "Missing authorization" }, 401);
 
-  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: auth } }, auth: { persistSession: false, autoRefreshToken: false } });
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: auth } }, auth: { persistSession: false, autoRefreshToken: false } },
+  );
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) return json({ error: "Invalid session" }, 401);
 
   const body = await req.json().catch(() => ({}));
-  const text = typeof body?.text === "string" ? body.text.trim().slice(0, 4000) : "";
+  const rawText = typeof body?.text === "string" ? body.text.trim() : "";
+  const text = rawText.slice(0, 1800);
   const language = typeof body?.language === "string" ? body.language.toLowerCase() : "en";
   if (!text) return json({ error: "Text is required" }, 400);
 
   const key = Deno.env.get("GEMINI_API_KEY");
   if (!key) return json({ code: "GEMINI_TTS_NOT_CONFIGURED" }, 503);
 
-  const style = language.startsWith("ar")
-    ? "Read the following text exactly in natural Egyptian Arabic. Use a warm, calm, professional feminine veterinary-clinician voice. Sound natural and confident, not robotic. Do not add, remove or paraphrase anything. Pronounce Vet AI naturally."
-    : `Read the following text exactly in language code ${language}. Use a warm, calm, professional feminine veterinary-clinician voice. Sound natural and measured. Do not add, remove or paraphrase anything.`;
-  const prompt = `${style}\n\nTEXT TO READ:\n${text}`;
+  const isArabic = language.startsWith("ar");
+  const style = isArabic
+    ? "SYNTHESIZE SPEECH ONLY. Speak as a real Egyptian female veterinarian from Cairo. Use natural Egyptian Arabic pronunciation and rhythm, warm and reassuring but professional, with human pauses and normal conversational intonation. Avoid a formal newsreader or robotic delivery. Read the transcript exactly without adding, removing or paraphrasing words. Do not read these instructions aloud."
+    : `SYNTHESIZE SPEECH ONLY. Read the transcript exactly in language code ${language}, using a warm, natural, professional female veterinary-clinician delivery with realistic pauses and conversational intonation. Do not read these instructions aloud.`;
+  const prompt = `${style}\n\nVERBATIM TRANSCRIPT START\n${text}\nVERBATIM TRANSCRIPT END`;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20000);
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`, {
-      method: "POST",
-      signal: controller.signal,
-      headers: { "x-goog-api-key": key, "content-type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseModalities: ["AUDIO"],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
+  const callModel = async (model: string, timeoutMs: number) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "x-goog-api-key": key, "content-type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseModalities: ["AUDIO"],
+            speechConfig: {
+              languageCode: languageCode(language),
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: "Sulafat" } },
+            },
           },
-        },
-      }),
-    });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok || !payload) {
-      const statusName = String(payload?.error?.status ?? "");
-      console.error("case-voice Gemini error", response.status, statusName, payload?.error?.message ?? "");
-      if (response.status === 429 || statusName === "RESOURCE_EXHAUSTED") return json({ code: "GEMINI_TTS_RATE_LIMIT" }, 429);
-      if (response.status === 401 || response.status === 403 || statusName === "PERMISSION_DENIED" || statusName === "UNAUTHENTICATED") return json({ code: "GEMINI_TTS_AUTH_ERROR" }, 502);
-      return json({ code: "GEMINI_TTS_ERROR" }, 502);
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+      return { response, payload };
+    } finally {
+      clearTimeout(timer);
     }
+  };
 
-    const part = payload?.candidates?.[0]?.content?.parts?.find((p: any) => p?.inlineData?.data || p?.inline_data?.data);
-    const rawBase64 = part?.inlineData?.data ?? part?.inline_data?.data;
-    if (typeof rawBase64 !== "string" || !rawBase64) return json({ code: "GEMINI_TTS_EMPTY" }, 502);
+  const attempts = [
+    { model: PRIMARY_MODEL, timeoutMs: 18000 },
+    { model: FALLBACK_MODEL, timeoutMs: 18000 },
+  ].filter((a, index, rows) => rows.findIndex((x) => x.model === a.model) === index);
 
-    const pcm = base64ToBytes(rawBase64);
-    if (!pcm.length || pcm.length > 8 * 1024 * 1024) return json({ code: "GEMINI_TTS_OUTPUT_INVALID" }, 502);
-    const wav = pcmToWav(pcm, 24000, 1, 16);
-    return json({
-      audio_base64: bytesToBase64(wav),
-      mime_type: "audio/wav",
-      voice: "Kore",
-      provider: "gemini",
-      model: MODEL,
-    });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") return json({ code: "GEMINI_TTS_TIMEOUT" }, 504);
-    console.error("case-voice Gemini unhandled", error);
-    return json({ code: "GEMINI_TTS_ERROR" }, 502);
-  } finally {
-    clearTimeout(timer);
+  for (const attempt of attempts) {
+    try {
+      const { response, payload } = await callModel(attempt.model, attempt.timeoutMs);
+      if (!response.ok || !payload) {
+        console.warn("case-voice provider attempt failed", attempt.model, response.status, payload?.error?.status ?? "", String(payload?.error?.message ?? "").slice(0, 350));
+        continue;
+      }
+      const part = payload?.candidates?.[0]?.content?.parts?.find((p: any) => p?.inlineData?.data || p?.inline_data?.data);
+      const rawBase64 = part?.inlineData?.data ?? part?.inline_data?.data;
+      if (typeof rawBase64 !== "string" || !rawBase64) {
+        console.warn("case-voice empty audio", attempt.model, payload?.candidates?.[0]?.finishReason ?? "");
+        continue;
+      }
+      const pcm = base64ToBytes(rawBase64);
+      if (!pcm.length || pcm.length > 8 * 1024 * 1024) continue;
+      const wav = pcmToWav(pcm, 24000, 1, 16);
+      return json({
+        audio_base64: bytesToBase64(wav),
+        mime_type: "audio/wav",
+        voice: "Sulafat",
+        provider: "gemini",
+        model: attempt.model,
+        egyptian_arabic_style: isArabic,
+      });
+    } catch (error) {
+      const timeout = error instanceof DOMException && error.name === "AbortError";
+      console.warn("case-voice attempt exception", attempt.model, timeout ? "timeout" : String(error));
+    }
   }
+
+  return json({ code: "GEMINI_TTS_TEMPORARILY_UNAVAILABLE" }, 503);
 });

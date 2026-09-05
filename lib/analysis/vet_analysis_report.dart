@@ -150,8 +150,10 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
         return;
       }
     } catch (_) {
-      // Fall through to the local device voice.
+      // Natural network voice was unavailable.
     }
+
+    if (widget.languageCode.toLowerCase().startsWith('ar')) return;
 
     try {
       await _tts.stop();
