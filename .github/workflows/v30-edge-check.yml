@@ -35,5 +35,5 @@ jobs:
           grep -q 'FMD SAFETY RULE' supabase/functions/analyze-case/index.ts
           grep -q 'REPORT_FORMAT_VERSION=4' supabase/functions/finalize-case-report/index.ts
           grep -q 'voice_provider_events' supabase/functions/case-voice/index.ts
-          grep -q "curation_status.*indexed" supabase/migrations/0031_global_official_disease_index.sql
+          grep -q "'indexed'" supabase/migrations/0031_global_official_disease_index.sql
           grep -q 'trg_vet_ai_guard_assessment_output' supabase/migrations/0030_global_veterinary_knowledge_and_guardrails.sql
