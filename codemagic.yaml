@@ -46,6 +46,8 @@ workflows:
           with open(path, 'wb') as f:
               plistlib.dump(data, f)
           PY
+      - name: Apply Vet AI V29 artwork and cloud voice patch
+        script: python3 tools/patch_v29_images_voice.py
       - name: Install Flutter dependencies
         script: flutter pub get
       - name: Generate Vet AI launcher icons
