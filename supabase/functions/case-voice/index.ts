@@ -102,7 +102,9 @@ Deno.serve(async (req: Request) => {
           generationConfig: {
             responseModalities: ["AUDIO"],
             speechConfig: {
-              languageCode: languageCode(language),
+              // Gemini Developer API TTS auto-detects the input language.
+              // Its generateContent SpeechConfig accepts voiceConfig here; adding
+              // languageCode causes provider-side request rejection on this API.
               voiceConfig: { prebuiltVoiceConfig: { voiceName: "Sulafat" } },
             },
           },

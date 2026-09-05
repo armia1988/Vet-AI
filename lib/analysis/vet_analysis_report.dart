@@ -86,7 +86,7 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
 
   String _speechLanguage(String code) {
     final normalized = code.toLowerCase();
-    if (normalized == 'ar') return 'ar-SA';
+    if (normalized == 'ar') return 'ar-EG';
     if (normalized == 'nl') return 'nl-NL';
     if (normalized == 'de') return 'de-DE';
     if (normalized == 'fr') return 'fr-FR';
@@ -153,11 +153,29 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
       // Natural network voice was unavailable.
     }
 
-    if (widget.languageCode.toLowerCase().startsWith('ar')) return;
-
     try {
       await _tts.stop();
-      await _tts.setLanguage(_speechLanguage(widget.languageCode));
+      final isArabic = widget.languageCode.toLowerCase().startsWith('ar');
+      if (isArabic) {
+        var configured = false;
+        for (final locale in const ['ar-EG', 'ar-SA', 'ar']) {
+          try {
+            final result = await _tts.setLanguage(locale);
+            if (result != false) {
+              configured = true;
+              break;
+            }
+          } catch (_) {
+            // Try the next Arabic locale available on this device.
+          }
+        }
+        if (!configured) {
+          await _tts.setLanguage('ar-SA');
+        }
+      } else {
+        await _tts.setLanguage(_speechLanguage(widget.languageCode));
+      }
+      await _tts.setVolume(1.0);
       await _tts.setSpeechRate(.47);
       await _tts.setPitch(1.04);
       await _tts.awaitSpeakCompletion(false);
