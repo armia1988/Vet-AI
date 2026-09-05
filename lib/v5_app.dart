@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -1904,6 +1907,64 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
       });
   }
 
+  Future<String> _scanCacheKey() async {
+    final language = Localizations.localeOf(context).languageCode.toLowerCase();
+    final metadata = utf8.encode(
+      '|$group|$language|${notes.text.trim().toLowerCase()}',
+    );
+    final digest = sha256.convert(<int>[...bytes!, ...metadata]).toString();
+    return 'vet_ai_exact_scan_v2_$digest';
+  }
+
+  Future<Map<String, dynamic>?> _readExactScanCache(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(key);
+      if (raw == null || raw.isEmpty) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final savedAt = DateTime.tryParse((decoded['saved_at'] ?? '').toString());
+      if (savedAt == null || DateTime.now().difference(savedAt).inHours > 72) {
+        await prefs.remove(key);
+        return null;
+      }
+      final cachedResult = decoded['result'];
+      final cachedAssessmentId = (decoded['assessment_id'] ?? '').toString();
+      if (cachedResult is! Map ||
+          cachedResult['code']?.toString() != 'AI_ANALYSIS_COMPLETE' ||
+          cachedAssessmentId.isEmpty) {
+        return null;
+      }
+      return {
+        'assessment_id': cachedAssessmentId,
+        'result': Map<String, dynamic>.from(cachedResult),
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _writeExactScanCache(
+    String key,
+    String assessmentId,
+    Map<String, dynamic> response,
+  ) async {
+    if (response['code']?.toString() != 'AI_ANALYSIS_COMPLETE') return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        key,
+        jsonEncode({
+          'saved_at': DateTime.now().toIso8601String(),
+          'assessment_id': assessmentId,
+          'result': response,
+        }),
+      );
+    } catch (_) {
+      // Cache failure must never block a real veterinary assessment.
+    }
+  }
+
   Future<void> analyze() async {
     if (file == null || bytes == null) return;
     setState(() {
@@ -1911,6 +1972,23 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
       result = null;
     });
     try {
+      final cacheKey = await _scanCacheKey();
+      final cached = await _readExactScanCache(cacheKey);
+      if (cached != null) {
+        assessmentId = cached['assessment_id'] as String;
+        final cachedResult = Map<String, dynamic>.from(
+          cached['result'] as Map<String, dynamic>,
+        );
+        cachedResult['cache_reused_on_device'] = true;
+        if (mounted) {
+          setState(() {
+            result = cachedResult;
+            busy = false;
+          });
+        }
+        return;
+      }
+
       final extension = file!.name.contains('.')
           ? file!.name.split('.').last
           : 'jpg';
@@ -1933,6 +2011,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
       );
       // Do not automatically hammer the AI provider after a 429/timeout.
       // One explicit user action now produces one provider request.
+      await _writeExactScanCache(cacheKey, newAssessmentId, response);
       if (mounted) setState(() => result = response);
     } catch (_) {
       if (mounted) {

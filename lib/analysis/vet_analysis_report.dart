@@ -175,7 +175,52 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
       final isArabic = widget.languageCode.toLowerCase().startsWith('ar');
       if (isArabic) {
         var configured = false;
-        for (final locale in const ['ar-EG', 'ar-SA', 'ar']) {
+        try {
+          final rawVoices = await _tts.getVoices;
+          if (rawVoices is List) {
+            final candidates = rawVoices
+                .whereType<Map>()
+                .map(
+                  (voice) => {
+                    'name': (voice['name'] ?? '').toString(),
+                    'locale': (voice['locale'] ?? '').toString(),
+                  },
+                )
+                .where(
+                  (voice) =>
+                      voice['name']!.isNotEmpty &&
+                      voice['locale']!.toLowerCase().startsWith('ar'),
+                )
+                .toList();
+            int score(Map<String, String> voice) {
+              final locale = voice['locale']!.toLowerCase();
+              final name = voice['name']!.toLowerCase();
+              var value = 0;
+              if (locale.startsWith('ar-eg')) value += 100;
+              if (locale.startsWith('ar-xa') || locale.startsWith('ar-001'))
+                value += 80;
+              if (locale.startsWith('ar-sa')) value += 60;
+              if (name.contains('premium')) value += 35;
+              if (name.contains('enhanced')) value += 25;
+              if (name.contains('neural')) value += 20;
+              return value;
+            }
+
+            candidates.sort((a, b) => score(b).compareTo(score(a)));
+            if (candidates.isNotEmpty) {
+              final best = candidates.first;
+              final result = await _tts.setVoice({
+                'name': best['name']!,
+                'locale': best['locale']!,
+              });
+              configured = result != false;
+            }
+          }
+        } catch (_) {
+          // Fall through to locale selection below.
+        }
+        for (final locale in const ['ar-EG', 'ar-XA', 'ar-SA', 'ar']) {
+          if (configured) break;
           try {
             final result = await _tts.setLanguage(locale);
             if (result != false) {
