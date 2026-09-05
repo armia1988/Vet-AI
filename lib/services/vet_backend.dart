@@ -46,26 +46,26 @@ class FarmSetupPayload {
   final String billingCycle;
 
   Map<String, dynamic> toRpcJson() => {
-        'company_name': companyName.trim(),
-        'farm_name': farmName.trim(),
-        'country': country.trim(),
-        'region': region.trim(),
-        'worker_count': workerCount,
-        'veterinarian_count': veterinarianCount,
-        'barn_count': barnCount,
-        'total_indoor_area_m2': totalIndoorAreaM2,
-        'livestock_count': livestockCount,
-        'poultry_count': poultryCount,
-        'dog_count': dogCount,
-        'breeds': breeds.trim(),
-        'age_range': ageRange.trim(),
-        'production_purpose': productionPurpose.trim(),
-        'ventilation_system': ventilationSystem.trim(),
-        'vaccination_notes': vaccinationNotes.trim(),
-        'disease_history': diseaseHistory.trim(),
-        'subscription_tier': subscriptionTier,
-        'billing_cycle': billingCycle,
-      };
+    'company_name': companyName.trim(),
+    'farm_name': farmName.trim(),
+    'country': country.trim(),
+    'region': region.trim(),
+    'worker_count': workerCount,
+    'veterinarian_count': veterinarianCount,
+    'barn_count': barnCount,
+    'total_indoor_area_m2': totalIndoorAreaM2,
+    'livestock_count': livestockCount,
+    'poultry_count': poultryCount,
+    'dog_count': dogCount,
+    'breeds': breeds.trim(),
+    'age_range': ageRange.trim(),
+    'production_purpose': productionPurpose.trim(),
+    'ventilation_system': ventilationSystem.trim(),
+    'vaccination_notes': vaccinationNotes.trim(),
+    'disease_history': diseaseHistory.trim(),
+    'subscription_tier': subscriptionTier,
+    'billing_cycle': billingCycle,
+  };
 }
 
 class VetBackend {
@@ -89,9 +89,11 @@ class VetBackend {
     required String preferredLanguage,
     String emailSubject = 'Vet AI — Confirm your account',
     String emailHeading = 'Welcome to Vet AI',
-    String emailBody = 'Confirm your email address to finish creating your Vet AI account and securely access your farm data.',
+    String emailBody =
+        'Confirm your email address to finish creating your Vet AI account and securely access your farm data.',
     String emailButton = 'Confirm Vet AI account',
-    String emailFooter = 'If you did not create this Vet AI account, you can ignore this email.',
+    String emailFooter =
+        'If you did not create this Vet AI account, you can ignore this email.',
   }) {
     return client.auth.signUp(
       email: email.trim(),
@@ -112,14 +114,19 @@ class VetBackend {
     );
   }
 
-  Future<AuthResponse> signIn({required String email, required String password}) async {
+  Future<AuthResponse> signIn({
+    required String email,
+    required String password,
+  }) async {
     final response = await client.auth.signInWithPassword(
       email: email.trim(),
       password: password,
     );
     if (response.user?.emailConfirmedAt == null) {
       await client.auth.signOut();
-      throw const AuthException('Please confirm your email address before signing in.');
+      throw const AuthException(
+        'Please confirm your email address before signing in.',
+      );
     }
     return response;
   }
@@ -150,7 +157,11 @@ class VetBackend {
   Future<Map<String, dynamic>?> myProfile() async {
     final user = currentUser;
     if (user == null) return null;
-    final rows = await client.from('profiles').select().eq('id', user.id).limit(1);
+    final rows = await client
+        .from('profiles')
+        .select()
+        .eq('id', user.id)
+        .limit(1);
     if (rows.isEmpty) {
       return {
         'id': user.id,
@@ -160,6 +171,29 @@ class VetBackend {
       };
     }
     return Map<String, dynamic>.from(rows.first);
+  }
+
+  Future<bool> scanPrivacyAcknowledged() async {
+    final user = currentUser;
+    if (user == null) return false;
+    final rows = await client
+        .from('profiles')
+        .select('scan_privacy_acknowledged_at')
+        .eq('id', user.id)
+        .limit(1);
+    return rows.isNotEmpty &&
+        rows.first['scan_privacy_acknowledged_at'] != null;
+  }
+
+  Future<void> acknowledgeScanPrivacy() async {
+    final user = currentUser;
+    if (user == null) throw StateError('You must be signed in.');
+    await client
+        .from('profiles')
+        .update({
+          'scan_privacy_acknowledged_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', user.id);
   }
 
   Future<void> updateProfile({
@@ -178,11 +212,13 @@ class VetBackend {
       'job_title': jobTitle.trim(),
     });
     await client.auth.updateUser(
-      UserAttributes(data: {
-        'full_name': fullName.trim(),
-        'phone': phone.trim(),
-        'preferred_language': preferredLanguage,
-      }),
+      UserAttributes(
+        data: {
+          'full_name': fullName.trim(),
+          'phone': phone.trim(),
+          'preferred_language': preferredLanguage,
+        },
+      ),
     );
   }
 
@@ -360,17 +396,21 @@ class VetBackend {
     required String mimeType,
   }) async {
     final user = currentUser;
-    if (user == null || !emailConfirmed) throw StateError('A verified account is required.');
+    if (user == null || !emailConfirmed)
+      throw StateError('A verified account is required.');
     if (bytes.isEmpty || bytes.length > 25 * 1024 * 1024) {
       throw StateError('Support attachments must be between 1 byte and 25 MB.');
     }
     final safeName = _safeSupportFileName(fileName);
-    final path = '$threadId/${user.id}/${DateTime.now().millisecondsSinceEpoch}_$safeName';
-    await client.storage.from('support-attachments').uploadBinary(
-      path,
-      bytes,
-      fileOptions: FileOptions(upsert: false, contentType: mimeType),
-    );
+    final path =
+        '$threadId/${user.id}/${DateTime.now().millisecondsSinceEpoch}_$safeName';
+    await client.storage
+        .from('support-attachments')
+        .uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(upsert: false, contentType: mimeType),
+        );
     return {
       'path': path,
       'name': fileName,
@@ -384,7 +424,9 @@ class VetBackend {
   }
 
   Future<String> signedSupportAttachmentUrl(String path) async {
-    return client.storage.from('support-attachments').createSignedUrl(path, 3600);
+    return client.storage
+        .from('support-attachments')
+        .createSignedUrl(path, 3600);
   }
 
   Future<void> sendSupportMessage(
@@ -406,7 +448,8 @@ class VetBackend {
       if (attachment != null) 'attachment_name': attachment['name'],
       if (attachment != null) 'attachment_mime': attachment['mime'],
       if (attachment != null) 'attachment_size_bytes': attachment['size'],
-      if (annotatedFromMessageId != null) 'annotated_from_message_id': annotatedFromMessageId,
+      if (annotatedFromMessageId != null)
+        'annotated_from_message_id': annotatedFromMessageId,
     });
   }
 
@@ -421,8 +464,11 @@ class VetBackend {
     }
 
     final safeExtension = extension.replaceAll('.', '').toLowerCase();
-    final path = '${user.id}/$farmId/${DateTime.now().millisecondsSinceEpoch}.$safeExtension';
-    await client.storage.from('diagnostic-media').uploadBinary(
+    final path =
+        '${user.id}/$farmId/${DateTime.now().millisecondsSinceEpoch}.$safeExtension';
+    await client.storage
+        .from('diagnostic-media')
+        .uploadBinary(
           path,
           bytes,
           fileOptions: const FileOptions(upsert: false),
@@ -463,10 +509,7 @@ class VetBackend {
     try {
       final response = await client.functions.invoke(
         'analyze-case',
-        body: {
-          'assessment_id': assessmentId,
-          'language': language,
-        },
+        body: {'assessment_id': assessmentId, 'language': language},
       );
       final data = response.data;
       if (data is Map<String, dynamic>) return data;
@@ -478,7 +521,9 @@ class VetBackend {
       return {
         'code': 'AI_FUNCTION_ERROR',
         'risk': 'insufficient_data',
-        'message': error.reasonPhrase ?? 'The protected AI service could not complete the case.',
+        'message':
+            error.reasonPhrase ??
+            'The protected AI service could not complete the case.',
       };
     }
     return {
