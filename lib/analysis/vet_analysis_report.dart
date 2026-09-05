@@ -58,7 +58,9 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
       upperBound: .48,
     )..repeat(reverse: true);
     _syncQuestions();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _speakCurrent());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_configureSpeechAudioSession().then((_) => _speakCurrent()));
+    });
   }
 
   @override
@@ -67,7 +69,9 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
     if (oldWidget.initialResult != widget.initialResult) {
       _result = Map<String, dynamic>.from(widget.initialResult);
       _syncQuestions();
-      WidgetsBinding.instance.addPostFrameCallback((_) => _speakCurrent());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_configureSpeechAudioSession().then((_) => _speakCurrent()));
+      });
     }
   }
 
@@ -118,6 +122,31 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
     return value;
   }
 
+  Future<void> _configureSpeechAudioSession() async {
+    try {
+      await _audio.setAudioContext(
+        AudioContext(
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+            options: const {AVAudioSessionOptions.duckOthers},
+          ),
+        ),
+      );
+    } catch (_) {
+      // Continue: some platforms do not need an explicit audio context.
+    }
+    try {
+      await _tts.setSharedInstance(true);
+      await _tts.setIosAudioCategory(
+        IosTextToSpeechAudioCategory.playback,
+        const [IosTextToSpeechAudioCategoryOptions.duckOthers],
+        IosTextToSpeechAudioMode.spokenAudio,
+      );
+    } catch (_) {
+      // Non-iOS platforms ignore this path.
+    }
+  }
+
   Future<void> _speakCurrent() async {
     if (_muted || !mounted) return;
     String text = (_result['voice_summary'] ?? '').toString().trim();
@@ -154,20 +183,24 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
     text = _speechSafeText(text);
     if (text.isEmpty) return;
 
-    try {
-      await _audio.stop();
-      await _tts.stop();
-      final natural = await VetBackend.instance.naturalCaseVoice(
-        text: text,
-        language: widget.languageCode,
-      );
-      if (_muted || !mounted) return;
-      if (natural != null && natural.isNotEmpty) {
-        await _audio.play(BytesSource(natural));
-        return;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        await _audio.stop();
+        await _tts.stop();
+        final natural = await VetBackend.instance.naturalCaseVoice(
+          text: text,
+          language: widget.languageCode,
+        );
+        if (_muted || !mounted) return;
+        if (natural != null && natural.isNotEmpty) {
+          await _audio.play(BytesSource(natural));
+          return;
+        }
+      } catch (_) {
+        // Retry the natural voice once before using the device fallback.
       }
-    } catch (_) {
-      // Natural network voice was unavailable.
+      if (attempt == 0)
+        await Future<void>.delayed(const Duration(milliseconds: 350));
     }
 
     try {

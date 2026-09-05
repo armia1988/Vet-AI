@@ -512,8 +512,42 @@ class VetBackend {
         body: {'assessment_id': assessmentId, 'language': language},
       );
       final data = response.data;
-      if (data is Map<String, dynamic>) return data;
-      if (data is Map) return Map<String, dynamic>.from(data);
+      Map<String, dynamic>? result;
+      if (data is Map<String, dynamic>) {
+        result = data;
+      } else if (data is Map) {
+        result = Map<String, dynamic>.from(data);
+      }
+
+      if (result != null &&
+          result['code'] == 'AI_ANALYSIS_COMPLETE' &&
+          result['group_match'] != 'mismatch') {
+        try {
+          final verifiedResponse = await client.functions
+              .invoke(
+                'verify-case-evidence',
+                body: {'assessment_id': assessmentId, 'language': language},
+              )
+              .timeout(const Duration(seconds: 7));
+          final verifiedData = verifiedResponse.data;
+          Map<String, dynamic>? verified;
+          if (verifiedData is Map<String, dynamic>) {
+            verified = verifiedData;
+          } else if (verifiedData is Map) {
+            verified = Map<String, dynamic>.from(verifiedData);
+          }
+          if (verified != null &&
+              verified['code'] == 'AI_ANALYSIS_COMPLETE' &&
+              verified['official_evidence_verified'] == true) {
+            return verified;
+          }
+        } catch (_) {
+          // Official web verification is an accuracy layer, not a single point
+          // of failure. The reviewed local veterinary knowledge result remains.
+        }
+      }
+
+      if (result != null) return result;
     } on FunctionException catch (error) {
       final details = error.details;
       if (details is Map<String, dynamic>) return details;
