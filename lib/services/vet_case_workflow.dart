@@ -63,17 +63,22 @@ extension VetCaseWorkflow on VetBackend {
     final clean = text.trim();
     if (clean.isEmpty) return null;
     try {
+      // The Edge Function already performs its own provider failover. Keep one
+      // client request alive long enough for Gemini TTS and Google Cloud TTS
+      // fallbacks to complete instead of cancelling the request at 18 seconds.
       final response = await client.functions
           .invoke(
             'case-voice',
             body: {
-              'text': clean.length > 1800 ? clean.substring(0, 1800) : clean,
+              'text': clean.length > 1200 ? clean.substring(0, 1200) : clean,
               'language': language,
             },
           )
-          .timeout(const Duration(seconds: 18));
+          .timeout(const Duration(seconds: 70));
       final data = response.data;
-      final encoded = data is Map ? data['audio_base64']?.toString() : null;
+      if (data is! Map) return null;
+      final encoded =
+          (data['audio_base64'] ?? data['audioContent'])?.toString().trim();
       if (encoded == null || encoded.isEmpty) return null;
       return Uint8List.fromList(base64Decode(encoded));
     } catch (_) {
