@@ -14,9 +14,10 @@ const ANALYSIS_SCHEMA = {
     group_match_reason: { type: "string" },
     species_observed: { type: "string" },
     summary: { type: "string" },
-    observed_signs: { type: "array", items: { type: "string" } },
+    observed_signs: { type: "array", maxItems: 12, items: { type: "string" } },
     differentials: {
       type: "array",
+      maxItems: 6,
       items: {
         type: "object",
         additionalProperties: false,
@@ -33,14 +34,14 @@ const ANALYSIS_SCHEMA = {
     urgent_vet_review: { type: "boolean" },
     isolation_recommended: { type: "boolean" },
     lab_confirmation_required: { type: "boolean" },
-    immediate_actions: { type: "array", items: { type: "string" } },
-    follow_up_questions: { type: "array", items: { type: "string" } },
+    immediate_actions: { type: "array", maxItems: 8, items: { type: "string" } },
+    follow_up_questions: { type: "array", maxItems: 6, items: { type: "string" } },
     confidence_statement: { type: "string" },
   },
   required: [
     "image_quality", "group_match", "group_match_reason", "species_observed", "summary",
     "observed_signs", "differentials", "risk", "urgent_vet_review", "isolation_recommended",
-    "lab_confirmation_required", "immediate_actions", "follow_up_questions", "confidence_statement"
+    "lab_confirmation_required", "immediate_actions", "follow_up_questions", "confidence_statement",
   ],
 };
 
@@ -66,21 +67,26 @@ const bytesToBase64 = (bytes: Uint8Array) => {
   }
   return btoa(s);
 };
+
 const modelText = (payload: any) => {
-  for (const c of payload?.candidates ?? []) {
-    for (const p of c?.content?.parts ?? []) {
-      if (typeof p?.text === "string" && p.text.trim()) return p.text.trim();
+  for (const candidate of payload?.candidates ?? []) {
+    const chunks: string[] = [];
+    for (const part of candidate?.content?.parts ?? []) {
+      if (part?.thought === true) continue;
+      if (typeof part?.text === "string" && part.text.length) chunks.push(part.text);
     }
+    if (chunks.length) return chunks.join("").trim();
   }
   return null;
 };
+
 const parseJsonSafely = (raw: string) => {
-  let value = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  const value = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
   try { return JSON.parse(value); } catch (_) {}
   const first = value.indexOf("{");
   const last = value.lastIndexOf("}");
   if (first >= 0 && last > first) return JSON.parse(value.slice(first, last + 1));
-  throw new Error("No valid JSON object in Gemini response");
+  throw new Error("No complete JSON object in Gemini response");
 };
 
 Deno.serve(async (req: Request) => {
@@ -103,6 +109,7 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } },
     );
+
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError || !authData.user) return json({ error: "Invalid session" }, 401);
 
@@ -120,10 +127,14 @@ Deno.serve(async (req: Request) => {
       .select("id,slug,display_name,animal_groups,cause,default_risk,treatment_summary,prevention_summary,owner_actions_summary,clinical_red_flags,isolation_guidance,lab_confirmation_required,zoonotic,reportable_or_listed,curation_status")
       .eq("curation_status", "reviewed")
       .order("display_name");
-    if (diseaseError || !allDiseases) return fail("KNOWLEDGE_BASE_UNAVAILABLE", ar ? "قاعدة المعرفة البيطرية غير متاحة مؤقتًا." : "Veterinary knowledge base is temporarily unavailable.");
+    if (diseaseError || !allDiseases) {
+      return fail("KNOWLEDGE_BASE_UNAVAILABLE", ar ? "قاعدة المعرفة البيطرية غير متاحة مؤقتًا." : "Veterinary knowledge base is temporarily unavailable.");
+    }
 
     const diseases = allDiseases.filter((d: any) => Array.isArray(d.animal_groups) && d.animal_groups.includes(animalGroup));
-    if (!diseases.length) return fail("KNOWLEDGE_GAP", ar ? "لا توجد معرفة بيطرية مراجعة كافية للنوع المختار." : "No reviewed veterinary knowledge is available for this animal group.");
+    if (!diseases.length) {
+      return fail("KNOWLEDGE_GAP", ar ? "لا توجد معرفة بيطرية مراجعة كافية للنوع المختار." : "No reviewed veterinary knowledge is available for this animal group.");
+    }
 
     const ids = diseases.map((d: any) => d.id);
     const { data: signs } = await supabase
@@ -131,16 +142,11 @@ Deno.serve(async (req: Request) => {
       .select("disease_id,phase,sign,visible_in_image")
       .in("disease_id", ids);
 
-    const catalog = diseases.map((d: any) => ({
+    const modelCatalog = diseases.map((d: any) => ({
       slug: d.slug,
       name: d.display_name,
       cause: d.cause,
       default_risk: d.default_risk,
-      treatment: d.treatment_summary,
-      prevention: d.prevention_summary,
-      owner_actions: d.owner_actions_summary,
-      red_flags: d.clinical_red_flags,
-      isolation: d.isolation_guidance,
       lab_confirmation_required: d.lab_confirmation_required,
       zoonotic: d.zoonotic,
       reportable_or_listed: d.reportable_or_listed,
@@ -159,38 +165,34 @@ Deno.serve(async (req: Request) => {
     const languageInstruction = ar
       ? "اكتب كل الحقول التي يراها المستخدم بالعربية المصرية الواضحة والمهنية، من غير خلط جمل إنجليزية."
       : `Write every user-facing field naturally in language code ${language}.`;
-    const prompt = `You are Vet AI, a veterinary decision-support triage system. You are not a substitute for a veterinarian. ${languageInstruction}\n\nSelected animal group: ${animalGroup}\nSymptoms/history: ${assessment.symptom_notes?.trim() || "None supplied"}\n\nReviewed disease catalog. ONLY these catalog_slug values may be returned:\n${JSON.stringify(catalog)}\n\nAnalyze the image conservatively. First verify the animal group. Never claim a definitive diagnosis from one image. Base visible findings only on what is actually visible. High-consequence diseases require compatible evidence and veterinary/laboratory confirmation. Do not invent drug doses or withdrawal periods.`;
+    const prompt = `You are Vet AI, a veterinary decision-support triage system. You are not a substitute for a veterinarian. ${languageInstruction}\n\nSelected animal group: ${animalGroup}\nSymptoms/history: ${assessment.symptom_notes?.trim() || "None supplied"}\n\nReviewed disease catalog. ONLY these catalog_slug values may be returned:\n${JSON.stringify(modelCatalog)}\n\nAnalyze the image conservatively. Verify the animal group first. Never claim a definitive diagnosis from one image. Only report signs that are actually visible. High-consequence diseases require compatible evidence and veterinary/laboratory confirmation. Do not invent medication doses or withdrawal periods.`;
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 45000);
-    let response: Response;
-    try {
-      response = await fetch(`${BASE}/${encodeURIComponent(MODEL)}:generateContent`, {
-        method: "POST",
-        signal: controller.signal,
-        headers: { "x-goog-api-key": key, "content-type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: image } }] }],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 2200,
-            responseMimeType: "application/json",
-            responseJsonSchema: ANALYSIS_SCHEMA,
-          },
-        }),
-      });
-    } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError") {
-        return fail("GEMINI_TIMEOUT", ar ? "Gemini أخذ وقتًا أطول من المتوقع. جرّب مرة أخرى." : "Gemini took longer than expected. Please retry.", 504);
+    const callGemini = async (maxOutputTokens: number) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 45000);
+      try {
+        const response = await fetch(`${BASE}/${encodeURIComponent(MODEL)}:generateContent`, {
+          method: "POST",
+          signal: controller.signal,
+          headers: { "x-goog-api-key": key, "content-type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: image } }] }],
+            generationConfig: {
+              maxOutputTokens,
+              thinkingConfig: { thinkingLevel: "low" },
+              responseMimeType: "application/json",
+              responseJsonSchema: ANALYSIS_SCHEMA,
+            },
+          }),
+        });
+        const payload = await response.json().catch(() => null);
+        return { response, payload };
+      } finally {
+        clearTimeout(timer);
       }
-      throw e;
-    } finally {
-      clearTimeout(timer);
-    }
+    };
 
-    const payload = await response.json().catch(() => null);
-    const requestId = String(payload?.responseId ?? response.headers.get("x-request-id") ?? "");
-    if (!response.ok || !payload) {
+    const providerFailure = (response: Response, payload: any, requestId: string) => {
       const providerStatus = String(payload?.error?.status ?? "");
       const providerMessage = String(payload?.error?.message ?? "");
       console.error("Vet AI Gemini provider error", response.status, providerStatus, requestId, providerMessage.slice(0, 500));
@@ -204,19 +206,60 @@ Deno.serve(async (req: Request) => {
         return fail("GEMINI_RATE_LIMIT", ar ? "Gemini وصل لحد استخدام مؤقت. حاول بعد وقت قصير." : "Gemini reached a temporary usage limit.", 429, { provider_request_id: requestId });
       }
       return fail("GEMINI_PROVIDER_ERROR", ar ? "Gemini لم يتمكن من إكمال التحليل الآن." : "Gemini could not complete the analysis.", 502, { provider_request_id: requestId, provider_status: response.status });
-    }
+    };
 
-    const raw = modelText(payload);
-    if (!raw) return fail("GEMINI_EMPTY_RESPONSE", ar ? "Gemini لم يُرجع نتيجة قابلة للعرض." : "Gemini returned no usable result.", 502, { provider_request_id: requestId });
-
-    let m: any;
+    let first;
     try {
-      m = parseJsonSafely(raw);
+      first = await callGemini(8192);
     } catch (e) {
-      console.error("Vet AI Gemini invalid JSON", requestId, String(e), raw.slice(0, 500));
-      return fail("GEMINI_INVALID_RESPONSE", ar ? "Gemini أعاد نتيجة غير مكتملة. جرّب مرة أخرى." : "Gemini returned an incomplete structured result. Please retry.", 502, { provider_request_id: requestId });
+      if (e instanceof DOMException && e.name === "AbortError") {
+        return fail("GEMINI_TIMEOUT", ar ? "Gemini أخذ وقتًا أطول من المتوقع. جرّب مرة أخرى." : "Gemini took longer than expected. Please retry.", 504);
+      }
+      throw e;
     }
 
+    let response = first.response;
+    let payload = first.payload;
+    let requestId = String(payload?.responseId ?? response.headers.get("x-request-id") ?? "");
+    if (!response.ok || !payload) return providerFailure(response, payload, requestId);
+
+    const firstFinish = String(payload?.candidates?.[0]?.finishReason ?? "");
+    if (["SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT"].includes(firstFinish) || payload?.promptFeedback?.blockReason) {
+      return fail("GEMINI_SAFETY_STOP", ar ? "Gemini أوقف التحليل بسبب فلتر أمان. استخدم صورة أوضح للحيوان فقط من غير محتوى غير متعلق بالحالة." : "Gemini stopped the analysis because of a safety filter.", 422, { provider_request_id: requestId });
+    }
+
+    let raw = modelText(payload);
+    let parsed: any = null;
+    if (raw) {
+      try { parsed = parseJsonSafely(raw); } catch (_) {}
+    }
+
+    if (!parsed || firstFinish === "MAX_TOKENS") {
+      console.warn("Vet AI Gemini structured retry", requestId, firstFinish, raw?.length ?? 0, payload?.usageMetadata ?? {});
+      let second;
+      try {
+        second = await callGemini(14000);
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") {
+          return fail("GEMINI_TIMEOUT", ar ? "Gemini أخذ وقتًا أطول من المتوقع. جرّب مرة أخرى." : "Gemini took longer than expected. Please retry.", 504);
+        }
+        throw e;
+      }
+      response = second.response;
+      payload = second.payload;
+      requestId = String(payload?.responseId ?? response.headers.get("x-request-id") ?? requestId);
+      if (!response.ok || !payload) return providerFailure(response, payload, requestId);
+      raw = modelText(payload);
+      try { parsed = raw ? parseJsonSafely(raw) : null; } catch (_) { parsed = null; }
+    }
+
+    if (!parsed) {
+      const finishReason = String(payload?.candidates?.[0]?.finishReason ?? "");
+      console.error("Vet AI Gemini invalid structured output", requestId, finishReason, raw?.length ?? 0, payload?.usageMetadata ?? {});
+      return fail("GEMINI_INVALID_RESPONSE", ar ? "Gemini لم يُرجع نتيجة منظمة كاملة. تم تسجيل السبب." : "Gemini did not return a complete structured result.", 502, { provider_request_id: requestId, finish_reason: finishReason });
+    }
+
+    const m = parsed;
     const allowed = new Map(diseases.map((d: any) => [d.slug, d]));
     const differentials = (Array.isArray(m.differentials) ? m.differentials : [])
       .filter((d: any) => allowed.has(String(d?.catalog_slug ?? "")))
@@ -290,10 +333,13 @@ Deno.serve(async (req: Request) => {
         farm_id: assessment.farm_id,
         assessment_id: assessmentId,
         risk: result.risk,
-        title: ar ? (result.risk === "red" ? "تنبيه صحي عاجل من Vet AI" : "حالة محتاجة مراجعة بيطرية") : (result.risk === "red" ? "Urgent Vet AI health alert" : "Vet AI veterinary review alert"),
+        title: ar
+          ? (result.risk === "red" ? "تنبيه صحي عاجل من Vet AI" : "حالة محتاجة مراجعة بيطرية")
+          : (result.risk === "red" ? "Urgent Vet AI health alert" : "Vet AI veterinary review alert"),
         details: result.summary,
       });
     }
+
     return json(result);
   } catch (e) {
     console.error("analyze-case-unhandled", e);
