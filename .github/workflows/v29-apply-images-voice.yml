@@ -1,0 +1,58 @@
+name: V29 apply images and natural voice
+
+on:
+  push:
+    branches:
+      - fix/v29-images-ai-voice
+    paths:
+      - '.github/workflows/v29-apply-images-voice.yml'
+      - 'tools/patch_v29_images_voice.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/v29-images-ai-voice
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Apply V29 patch
+        run: python3 tools/patch_v29_images_voice.py
+
+      - name: Format Dart
+        run: dart format lib/v5_app.dart lib/analysis/vet_analysis_report.dart
+
+      - name: Flutter dependencies
+        run: flutter pub get
+
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Verify repaired assets and voice path
+        run: |
+          grep -q "assets/icons/livestock_section.webp" lib/v5_app.dart
+          grep -q "assets/icons/poultry_section.webp" lib/v5_app.dart
+          grep -q "assets/icons/dog_section.webp" lib/v5_app.dart
+          test -s assets/icons/livestock_section.webp
+          test -s assets/icons/poultry_section.webp
+          test -s assets/icons/dog_section.webp
+          ! grep -q "await _tts.speak(text)" lib/analysis/vet_analysis_report.dart
+          grep -q "Natural cloud voice is temporarily unavailable" lib/analysis/vet_analysis_report.dart
+
+      - name: Commit repaired app code
+        run: |
+          git config user.name "vet-ai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add lib/v5_app.dart lib/analysis/vet_analysis_report.dart
+          git diff --cached --quiet && exit 0
+          git commit -m "V29 wire repaired section artwork and enforce cloud voice"
+          git push origin HEAD:fix/v29-images-ai-voice
