@@ -1850,6 +1850,15 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
     final key = 'vet_ai_scan_privacy_ack_${userId ?? 'signed_out'}';
     if (prefs.getBool(key) == true) return true;
 
+    try {
+      if (await VetBackend.instance.scanPrivacyAcknowledged()) {
+        await prefs.setBool(key, true);
+        return true;
+      }
+    } catch (_) {
+      // A temporary profile read problem must not block the picker.
+    }
+
     final isCamera = source == ImageSource.camera;
     final approved = await _confirmAccess(
       title: tr(
@@ -1860,13 +1869,20 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
       ),
       message: tr(
         context,
-        'This one-time explanation is saved for this account. Vet AI only uploads an animal image after you choose it and start analysis. iOS or Android may still show their own camera or photo permission when required by the operating system.',
-        'الرسالة دي هتظهر مرة واحدة بس للحساب ده. Vet AI مش بيرفع صورة الحيوان إلا بعد ما تختارها وتبدأ التحليل بنفسك. iOS أو Android ممكن يعرضوا إذن النظام للكاميرا أو الصور وقت ما نظام التشغيل يحتاجه.',
-        'Deze uitleg verschijnt één keer voor dit account. Vet AI uploadt een dierenfoto pas nadat je die kiest en zelf de analyse start. iOS of Android kan nog een systeempop-up voor camera of foto’s tonen wanneer dat nodig is.',
+        'This one-time explanation is saved to your Vet AI account. Vet AI only uploads an animal image after you choose it and start analysis. iOS or Android may still show their own camera or photo permission when required by the operating system.',
+        'الرسالة دي هتظهر مرة واحدة بس للحساب ده وهنحفظ الموافقة على حساب Vet AI نفسه. Vet AI مش بيرفع صورة الحيوان إلا بعد ما تختارها وتبدأ التحليل بنفسك. iOS أو Android ممكن يعرضوا إذن النظام للكاميرا أو الصور وقت ما نظام التشغيل يحتاجه.',
+        'Deze uitleg verschijnt één keer per Vet AI-account en wordt op het account opgeslagen. Vet AI uploadt een dierenfoto pas nadat je die kiest en zelf de analyse start. iOS of Android kan nog een systeempop-up voor camera of foto’s tonen wanneer dat nodig is.',
       ),
       icon: isCamera ? Icons.photo_camera_rounded : Icons.photo_library_rounded,
     );
-    if (approved) await prefs.setBool(key, true);
+    if (approved) {
+      await prefs.setBool(key, true);
+      try {
+        await VetBackend.instance.acknowledgeScanPrivacy();
+      } catch (_) {
+        // Local acknowledgement still prevents repeated dialogs on this device.
+      }
+    }
     return approved;
   }
 
