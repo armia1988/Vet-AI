@@ -68,10 +68,14 @@ workflows:
         script: flutter analyze --no-fatal-infos
       - name: Set up code signing
         script: xcode-project use-profiles
-      - name: Build iOS App
+      - name: Build iOS App with unique App Store build number
         script: |
+          CM_SEQUENCE="${PROJECT_BUILD_NUMBER:-${BUILD_NUMBER:-1}}"
+          IOS_BUILD_NUMBER=$((1000 + CM_SEQUENCE))
+          echo "Vet AI App Store build number: ${IOS_BUILD_NUMBER}"
           flutter build ipa --release \
             -t lib/main_v2.dart \
+            --build-number="${IOS_BUILD_NUMBER}" \
             --export-options-plist=$HOME/export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa
