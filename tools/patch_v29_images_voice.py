@@ -17,6 +17,17 @@ app.write_text(s, encoding='utf-8')
 
 report = Path('lib/analysis/vet_analysis_report.dart')
 s = report.read_text(encoding='utf-8')
+
+# Remove the device-TTS locale helper because V29 never speaks through FlutterTts.
+lang_start = s.find("  String _speechLanguage(String code) {")
+lang_end_marker = "  String _speechSafeText(String input) {"
+if lang_start < 0:
+    raise SystemExit('V29: _speechLanguage helper not found')
+lang_end = s.find(lang_end_marker, lang_start)
+if lang_end < 0:
+    raise SystemExit('V29: _speechLanguage helper end marker not found')
+s = s[:lang_start] + s[lang_end:]
+
 start_marker = "    try {\n      await _tts.stop();\n      final isArabic = widget.languageCode.toLowerCase().startsWith('ar');"
 end_marker = "    } catch (_) {\n      // The complete written result remains available if audio is unavailable.\n    }\n"
 start = s.find(start_marker)
@@ -45,4 +56,4 @@ s = s[:start] + replacement + s[end:]
 if '_tts.speak(text)' in s:
     raise SystemExit('V29: robotic device TTS speak call still present')
 report.write_text(s, encoding='utf-8')
-print('V29: robotic device TTS fallback disabled')
+print('V29: robotic device TTS fallback disabled and dead locale helper removed')
