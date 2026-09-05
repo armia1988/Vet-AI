@@ -1,0 +1,68 @@
+name: One-time V28 official grounding
+
+on:
+  push:
+    branches:
+      - v28-official-grounding
+    paths:
+      - '.github/workflows/one-time-v28-official-grounding.yml'
+      - 'tools/patch_v28_official_grounding.py'
+      - 'supabase/functions/verify-case-evidence/index.ts'
+      - 'supabase/migrations/0025_orf_official_evidence.sql'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v28-official-grounding
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Apply V28 patch
+        run: python3 tools/patch_v28_official_grounding.py
+
+      - name: Format Dart
+        run: dart format lib/services/vet_backend.dart lib/analysis/vet_analysis_report.dart
+
+      - name: Flutter dependencies
+        run: flutter pub get
+
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Deno check edge functions
+        run: |
+          deno check supabase/functions/analyze-case/index.ts
+          deno check supabase/functions/verify-case-evidence/index.ts
+          deno check supabase/functions/case-voice/index.ts
+
+      - name: Verify V28 markers
+        run: |
+          grep -q "verify-case-evidence" lib/services/vet_backend.dart
+          grep -q "AVAudioSessionCategory.playback" lib/analysis/vet_analysis_report.dart
+          grep -q "Orf/contagious ecthyma" supabase/functions/analyze-case/index.ts
+          grep -q "google_search" supabase/functions/verify-case-evidence/index.ts
+          grep -q "version: 0.6.14+26" pubspec.yaml
+
+      - name: Commit V28
+        run: |
+          git config user.name "vet-ai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add lib/services/vet_backend.dart lib/analysis/vet_analysis_report.dart supabase/functions/analyze-case/index.ts pubspec.yaml pubspec.lock
+          git diff --cached --quiet && exit 0
+          git commit -m "V28 add official grounding and reliable auto voice"
+          git push origin HEAD:v28-official-grounding
