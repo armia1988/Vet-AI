@@ -48,11 +48,9 @@ workflows:
           PY
       - name: Install Flutter dependencies
         script: flutter pub get
-      - name: Enhance approved Vet AI animal icons
+      - name: Validate approved Vet AI animal artwork
         script: |
-          python3 -m pip install --quiet pillow
           python3 - <<'PY'
-          from PIL import Image, ImageEnhance, ImageFilter
           from pathlib import Path
 
           for raw in [
@@ -61,33 +59,12 @@ workflows:
               'assets/icons/dog_final.png',
           ]:
               path = Path(raw)
-              image = Image.open(path).convert('RGBA')
-              alpha = image.getchannel('A')
-              bbox = alpha.getbbox()
-              if bbox:
-                  image = image.crop(bbox)
-              alpha = image.getchannel('A')
-              rgb = image.convert('RGB')
-              rgb = ImageEnhance.Color(rgb).enhance(1.35)
-              rgb = ImageEnhance.Contrast(rgb).enhance(1.18)
-              rgb = ImageEnhance.Sharpness(rgb).enhance(2.5)
-              rgb = rgb.filter(ImageFilter.UnsharpMask(radius=1.2, percent=190, threshold=2))
-
-              target = 900
-              scale = min(target / rgb.width, target / rgb.height)
-              size = (max(1, round(rgb.width * scale)), max(1, round(rgb.height * scale)))
-              rgb = rgb.resize(size, Image.Resampling.LANCZOS)
-              alpha = alpha.resize(size, Image.Resampling.LANCZOS)
-              alpha = alpha.point(lambda x: 0 if x < 5 else min(255, round(x * 1.08)))
-              art = rgb.convert('RGBA')
-              art.putalpha(alpha)
-
-              canvas = Image.new('RGBA', (1024, 1024), (255, 255, 255, 0))
-              x = (1024 - art.width) // 2
-              y = (1024 - art.height) // 2
-              canvas.alpha_composite(art, (x, y))
-              canvas.save(path, optimize=True)
-              print(f'Enhanced {path}: {image.size} -> {canvas.size}')
+              data = path.read_bytes()
+              if len(data) < 10000:
+                  raise SystemExit(f'Animal artwork is unexpectedly small: {path} ({len(data)} bytes)')
+              if not data.startswith(b'\x89PNG\r\n\x1a\n'):
+                  raise SystemExit(f'Animal artwork is not a valid PNG: {path}')
+              print(f'Using approved artwork unchanged: {path} ({len(data)} bytes)')
           PY
       - name: Generate Vet AI launcher icons
         script: |
