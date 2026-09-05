@@ -141,7 +141,7 @@ async function serviceAccountAccessToken(): Promise<{ token: string; projectId: 
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth-type:jwt-bearer", assertion }),
+      body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
     });
     const tokenPayload = await tokenResponse.json().catch(() => null);
     const token = typeof tokenPayload?.access_token === "string" ? tokenPayload.access_token : "";
