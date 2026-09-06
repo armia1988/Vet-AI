@@ -1,7 +1,7 @@
 name: app
 description: Vet AI - veterinary decision support and smart animal monitoring.
 publish_to: 'none'
-version: 0.6.26+38
+version: 0.6.27+39
 
 environment:
   sdk: '>=3.10.0 <4.0.0'

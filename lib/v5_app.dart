@@ -3339,6 +3339,12 @@ class _V5ProfileScreenState extends State<V5ProfileScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          _ProfileHeroCard(
+            name: c['full_name']!.text,
+            email: VetBackend.instance.currentUser?.email ?? '',
+            farmName: c['farm_name']!.text,
+          ),
+          const SizedBox(height: 18),
           _StepTitle(
             icon: Icons.account_circle_outlined,
             title: tr(
@@ -4213,7 +4219,7 @@ class _AnimalGroupBanner extends StatelessWidget {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        _AnimalSprite(index: spriteIndex, size: 132, radius: 14),
+        _AnimalSprite(index: spriteIndex, size: 142, radius: 16),
         const SizedBox(width: 16),
         Expanded(
           child: Column(
@@ -4584,6 +4590,270 @@ class _FatalState extends StatelessWidget {
   );
 }
 
+class _ProfileHeroCard extends StatelessWidget {
+  const _ProfileHeroCard({
+    required this.name,
+    required this.email,
+    required this.farmName,
+  });
+
+  final String name;
+  final String email;
+  final String farmName;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = name.trim().isEmpty
+        ? tr(context, 'My profile', 'ملفي الشخصي', 'Mijn profiel')
+        : name.trim();
+    final displayFarm = farmName.trim().isEmpty
+        ? tr(context, 'Farm profile', 'ملف المزرعة', 'Boerderijprofiel')
+        : farmName.trim();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: AlignmentDirectional.topStart,
+          end: AlignmentDirectional.bottomEnd,
+          colors: [
+            VetColors.surface3,
+            VetColors.softBlue.withValues(alpha: .72),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: VetColors.primary.withValues(alpha: .22)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 76,
+            height: 76,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .92),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: VetColors.primary.withValues(alpha: .20),
+              ),
+            ),
+            child: const Icon(
+              Icons.account_circle_rounded,
+              size: 53,
+              color: VetColors.primary,
+            ),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  displayFarm,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: VetColors.primary,
+                  ),
+                ),
+                if (email.trim().isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: VetColors.muted,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Icon(Icons.edit_outlined, color: VetColors.muted, size: 24),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnimalVisualTile extends StatelessWidget {
+  const _AnimalVisualTile({
+    required this.spriteIndex,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.enabled = true,
+    this.imageSize = 86,
+  });
+
+  final int spriteIndex;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final bool enabled;
+  final double imageSize;
+
+  @override
+  Widget build(BuildContext context) => Opacity(
+    opacity: enabled ? 1 : .55,
+    child: InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.fromLTRB(9, 10, 9, 11),
+        decoration: BoxDecoration(
+          color: selected
+              ? VetColors.primary.withValues(alpha: .10)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? VetColors.primary : VetColors.border,
+            width: selected ? 2.2 : 1,
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: VetColors.primary.withValues(alpha: .08),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : const [],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                _AnimalSprite(index: spriteIndex, size: imageSize, radius: 13),
+                PositionedDirectional(
+                  top: -3,
+                  end: -3,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 120),
+                    opacity: selected ? 1 : 0,
+                    child: Container(
+                      width: 27,
+                      height: 27,
+                      decoration: const BoxDecoration(
+                        color: VetColors.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        size: 19,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 14.5,
+                height: 1.15,
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _AnimalGroupVisualCard extends StatelessWidget {
+  const _AnimalGroupVisualCard({
+    required this.spriteIndex,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final int spriteIndex;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(20),
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        color: selected
+            ? VetColors.primary.withValues(alpha: .10)
+            : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: selected ? VetColors.primary : VetColors.border,
+          width: selected ? 2.2 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          _AnimalSprite(index: spriteIndex, size: 104, radius: 14),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: VetColors.muted,
+                    fontSize: 12.5,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Icon(
+            selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+            size: 30,
+            color: selected ? VetColors.primary : VetColors.muted,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _SpeciesMultiSelect extends StatelessWidget {
   const _SpeciesMultiSelect({
     required this.title,
@@ -4597,71 +4867,65 @@ class _SpeciesMultiSelect extends StatelessWidget {
   final ValueChanged<Set<String>> onChanged;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: VetColors.surface2,
-      borderRadius: BorderRadius.circular(17),
-      border: Border.all(color: VetColors.border),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 7,
-          runSpacing: 7,
-          children: options.map((item) {
-            final active = selected.contains(item.code);
-            final locale = Localizations.localeOf(context).languageCode;
-            final label = locale == 'ar'
-                ? item.ar
-                : locale == 'nl'
-                ? item.nl
-                : item.en;
-            return FilterChip(
-              avatar: _AnimalSprite(
-                index: item.spriteIndex,
-                size: 34,
-                radius: 7,
-              ),
-              label: Text(
-                label,
-                style: TextStyle(
-                  fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-                  color: VetColors.text,
-                ),
-              ),
-              selected: active,
-              selectedColor: VetColors.primary.withValues(alpha: .22),
-              backgroundColor: Colors.white,
-              checkmarkColor: VetColors.primary,
-              showCheckmark: true,
-              side: BorderSide(
-                color: active ? VetColors.primary : VetColors.border,
-                width: active ? 2.2 : 1,
-              ),
-              elevation: active ? 2 : 0,
-              onSelected: (_) {
-                final next = Set<String>.from(selected);
-                if (active) {
-                  if (next.length > 1) next.remove(item.code);
-                } else {
-                  next.add(item.code);
-                }
-                onChanged(next);
-              },
-            );
-          }).toList(),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final locale = Localizations.localeOf(context).languageCode;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: VetColors.surface2,
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: VetColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16.5),
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 560 ? 3 : 2;
+              const gap = 10.0;
+              final width =
+                  (constraints.maxWidth - gap * (columns - 1)) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: options.map((item) {
+                  final active = selected.contains(item.code);
+                  final label = locale == 'ar'
+                      ? item.ar
+                      : locale == 'nl'
+                      ? item.nl
+                      : item.en;
+                  return SizedBox(
+                    width: width,
+                    child: _AnimalVisualTile(
+                      spriteIndex: item.spriteIndex,
+                      label: label,
+                      selected: active,
+                      onTap: () {
+                        final next = Set<String>.from(selected);
+                        if (active) {
+                          if (next.length > 1) next.remove(item.code);
+                        } else {
+                          next.add(item.code);
+                        }
+                        onChanged(next);
+                      },
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _AnimalGroupMultiSelect extends StatelessWidget {
@@ -4674,17 +4938,46 @@ class _AnimalGroupMultiSelect extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final groups = <(String, String, String, String, int)>[
-      ('livestock', 'Livestock', 'المواشي', 'Vee', 0),
-      ('poultry', 'Birds', 'الطيور', 'Vogels', 2),
-      ('dogs', 'Dogs', 'الكلاب', 'Honden', 1),
-    ];
+    final groups =
+        <(String, String, String, String, int, String, String, String)>[
+          (
+            'livestock',
+            'Livestock',
+            'المواشي',
+            'Vee',
+            0,
+            'Cattle, buffalo, sheep, goats and horses',
+            'أبقار وجاموس وأغنام وماعز وأحصنة',
+            'Runderen, buffels, schapen, geiten en paarden',
+          ),
+          (
+            'poultry',
+            'Birds',
+            'الطيور',
+            'Vogels',
+            2,
+            'Chickens, chicks, ducks, turkeys and geese',
+            'فراخ وكتاكيت وبط وديك رومي وأوز',
+            'Kippen, kuikens, eenden, kalkoenen en ganzen',
+          ),
+          (
+            'dogs',
+            'Dogs',
+            'الكلاب',
+            'Honden',
+            1,
+            'Dog breeds used by the farm',
+            'سلالات الكلاب الموجودة بالمزرعة',
+            'Hondenrassen op de boerderij',
+          ),
+        ];
+    final locale = Localizations.localeOf(context).languageCode;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: VetColors.softBlue,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: VetColors.blue.withValues(alpha: .28)),
       ),
       child: Column(
@@ -4697,41 +4990,27 @@ class _AnimalGroupMultiSelect extends StatelessWidget {
               'أقسام الحيوانات',
               'Diercategorieën',
             ),
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 9,
-            runSpacing: 9,
-            children: groups.map((g) {
-              final active = selected.contains(g.$1);
-              final locale = Localizations.localeOf(context).languageCode;
-              final label = locale == 'ar'
-                  ? g.$3
+          const SizedBox(height: 12),
+          for (var i = 0; i < groups.length; i++) ...[
+            _AnimalGroupVisualCard(
+              spriteIndex: groups[i].$5,
+              title: locale == 'ar'
+                  ? groups[i].$3
                   : locale == 'nl'
-                  ? g.$4
-                  : g.$2;
-              return FilterChip(
-                avatar: _AnimalSprite(index: g.$5, size: 34, radius: 7),
-                label: Text(
-                  label,
-                  style: TextStyle(
-                    fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-                  ),
-                ),
-                selected: active,
-                selectedColor: VetColors.primary.withValues(alpha: .25),
-                backgroundColor: Colors.white,
-                checkmarkColor: VetColors.primary,
-                side: BorderSide(
-                  color: active ? VetColors.primary : VetColors.border,
-                  width: active ? 2.4 : 1,
-                ),
-                elevation: active ? 2 : 0,
-                onSelected: (_) => onToggle(g.$1),
-              );
-            }).toList(),
-          ),
+                  ? groups[i].$4
+                  : groups[i].$2,
+              subtitle: locale == 'ar'
+                  ? groups[i].$7
+                  : locale == 'nl'
+                  ? groups[i].$8
+                  : groups[i].$6,
+              selected: selected.contains(groups[i].$1),
+              onTap: () => onToggle(groups[i].$1),
+            ),
+            if (i != groups.length - 1) const SizedBox(height: 10),
+          ],
         ],
       ),
     );
@@ -4756,7 +5035,7 @@ class _DogBreedMultiSelect extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: VetColors.surface2,
-        borderRadius: BorderRadius.circular(17),
+        borderRadius: BorderRadius.circular(19),
         border: Border.all(color: VetColors.border),
       ),
       child: Column(
@@ -4764,46 +5043,42 @@ class _DogBreedMultiSelect extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5),
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16.5),
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
-            children: vetDogBreeds.map((breed) {
-              final active = selected.contains(breed.code);
-              final label = locale == 'ar'
-                  ? breed.ar
-                  : locale == 'nl'
-                  ? breed.nl
-                  : breed.en;
-              return FilterChip(
-                avatar: _AnimalSprite(
-                  index: breed.spriteIndex,
-                  size: 34,
-                  radius: 7,
-                ),
-                label: Text(
-                  label,
-                  style: TextStyle(
-                    fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-                  ),
-                ),
-                selected: active,
-                selectedColor: VetColors.primary.withValues(alpha: .22),
-                backgroundColor: Colors.white,
-                checkmarkColor: VetColors.primary,
-                side: BorderSide(
-                  color: active ? VetColors.primary : VetColors.border,
-                  width: active ? 2.2 : 1,
-                ),
-                onSelected: (_) {
-                  final next = Set<String>.from(selected);
-                  active ? next.remove(breed.code) : next.add(breed.code);
-                  onChanged(next);
-                },
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 560 ? 3 : 2;
+              const gap = 10.0;
+              final width =
+                  (constraints.maxWidth - gap * (columns - 1)) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: vetDogBreeds.map((breed) {
+                  final active = selected.contains(breed.code);
+                  final label = locale == 'ar'
+                      ? breed.ar
+                      : locale == 'nl'
+                      ? breed.nl
+                      : breed.en;
+                  return SizedBox(
+                    width: width,
+                    child: _AnimalVisualTile(
+                      spriteIndex: breed.spriteIndex,
+                      label: label,
+                      selected: active,
+                      imageSize: 88,
+                      onTap: () {
+                        final next = Set<String>.from(selected);
+                        active ? next.remove(breed.code) : next.add(breed.code);
+                        onChanged(next);
+                      },
+                    ),
+                  );
+                }).toList(),
               );
-            }).toList(),
+            },
           ),
         ],
       ),
@@ -4833,8 +5108,8 @@ class _SpeciesSingleSelect extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: VetColors.softBlue,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: VetColors.blue.withValues(alpha: .2)),
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: VetColors.blue.withValues(alpha: .24)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4848,50 +5123,46 @@ class _SpeciesSingleSelect extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
-                    fontSize: 17,
+                    fontSize: 18,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 11),
-          Wrap(
-            spacing: 9,
-            runSpacing: 9,
-            children: options.map((item) {
-              final label = locale == 'ar'
-                  ? item.ar
-                  : locale == 'nl'
-                  ? item.nl
-                  : item.en;
-              final active = selectedCode == item.code;
-              return ChoiceChip(
-                labelPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
-                avatar: _AnimalSprite(
-                  index: item.spriteIndex,
-                  size: 48,
-                  radius: 9,
-                ),
-                label: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-                  ),
-                ),
-                selected: active,
-                selectedColor: VetColors.primary.withValues(alpha: .22),
-                backgroundColor: Colors.white,
-                side: BorderSide(
-                  color: active ? VetColors.primary : VetColors.border,
-                  width: active ? 2.2 : 1,
-                ),
-                onSelected: enabled ? (_) => onChanged(item.code) : null,
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = options.length == 1
+                  ? 1
+                  : constraints.maxWidth >= 560
+                  ? 3
+                  : 2;
+              const gap = 10.0;
+              final width =
+                  (constraints.maxWidth - gap * (columns - 1)) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: options.map((item) {
+                  final label = locale == 'ar'
+                      ? item.ar
+                      : locale == 'nl'
+                      ? item.nl
+                      : item.en;
+                  return SizedBox(
+                    width: width,
+                    child: _AnimalVisualTile(
+                      spriteIndex: item.spriteIndex,
+                      label: label,
+                      selected: selectedCode == item.code,
+                      enabled: enabled,
+                      imageSize: options.length == 1 ? 102 : 88,
+                      onTap: () => onChanged(item.code),
+                    ),
+                  );
+                }).toList(),
               );
-            }).toList(),
+            },
           ),
         ],
       ),
@@ -4922,8 +5193,8 @@ class _DogBreedSingleSelect extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: VetColors.softBlue,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: VetColors.blue.withValues(alpha: .2)),
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: VetColors.blue.withValues(alpha: .24)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4937,50 +5208,46 @@ class _DogBreedSingleSelect extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
-                    fontSize: 17,
+                    fontSize: 18,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 11),
-          Wrap(
-            spacing: 9,
-            runSpacing: 9,
-            children: options.map((breed) {
-              final label = locale == 'ar'
-                  ? breed.ar
-                  : locale == 'nl'
-                  ? breed.nl
-                  : breed.en;
-              final active = selectedCode == breed.code;
-              return ChoiceChip(
-                labelPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
-                avatar: _AnimalSprite(
-                  index: breed.spriteIndex,
-                  size: 48,
-                  radius: 9,
-                ),
-                label: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 15.5,
-                    fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-                  ),
-                ),
-                selected: active,
-                selectedColor: VetColors.primary.withValues(alpha: .22),
-                backgroundColor: Colors.white,
-                side: BorderSide(
-                  color: active ? VetColors.primary : VetColors.border,
-                  width: active ? 2.2 : 1,
-                ),
-                onSelected: enabled ? (_) => onChanged(breed.code) : null,
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = options.length == 1
+                  ? 1
+                  : constraints.maxWidth >= 560
+                  ? 3
+                  : 2;
+              const gap = 10.0;
+              final width =
+                  (constraints.maxWidth - gap * (columns - 1)) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: options.map((breed) {
+                  final label = locale == 'ar'
+                      ? breed.ar
+                      : locale == 'nl'
+                      ? breed.nl
+                      : breed.en;
+                  return SizedBox(
+                    width: width,
+                    child: _AnimalVisualTile(
+                      spriteIndex: breed.spriteIndex,
+                      label: label,
+                      selected: selectedCode == breed.code,
+                      enabled: enabled,
+                      imageSize: options.length == 1 ? 102 : 88,
+                      onTap: () => onChanged(breed.code),
+                    ),
+                  );
+                }).toList(),
               );
-            }).toList(),
+            },
           ),
         ],
       ),
