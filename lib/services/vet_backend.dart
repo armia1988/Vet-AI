@@ -481,6 +481,8 @@ class VetBackend {
     required String mediaPath,
     String symptomNotes = '',
     String animalGroup = 'livestock',
+    String speciesCode = '',
+    String? birdType,
   }) async {
     final user = currentUser;
     if (user == null || !emailConfirmed) {
@@ -494,6 +496,8 @@ class VetBackend {
           'media_path': mediaPath,
           'symptom_notes': symptomNotes.trim(),
           'animal_group': animalGroup,
+          'species_code': speciesCode,
+          'bird_type': birdType,
           'risk': 'insufficient_data',
           'status': 'draft',
         })
