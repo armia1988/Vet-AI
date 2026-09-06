@@ -278,6 +278,36 @@
       "languageVersion": "3.5"
     },
     {
+      "name": "flutter_local_notifications",
+      "rootUri": "file:///home/runner/.pub-cache/hosted/pub.dev/flutter_local_notifications-22.3.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "flutter_local_notifications_linux",
+      "rootUri": "file:///home/runner/.pub-cache/hosted/pub.dev/flutter_local_notifications_linux-8.0.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "flutter_local_notifications_platform_interface",
+      "rootUri": "file:///home/runner/.pub-cache/hosted/pub.dev/flutter_local_notifications_platform_interface-12.2.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "flutter_local_notifications_web",
+      "rootUri": "file:///home/runner/.pub-cache/hosted/pub.dev/flutter_local_notifications_web-1.0.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "flutter_local_notifications_windows",
+      "rootUri": "file:///home/runner/.pub-cache/hosted/pub.dev/flutter_local_notifications_windows-3.1.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
       "name": "flutter_localizations",
       "rootUri": "file:///opt/hostedtoolcache/flutter/stable-3.47.2-x64/flutter/packages/flutter_localizations",
       "packageUri": "lib/",
@@ -808,6 +838,12 @@
     {
       "name": "test_api",
       "rootUri": "file:///home/runner/.pub-cache/hosted/pub.dev/test_api-0.7.12",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
+      "name": "timezone",
+      "rootUri": "file:///home/runner/.pub-cache/hosted/pub.dev/timezone-0.11.1",
       "packageUri": "lib/",
       "languageVersion": "3.10"
     },

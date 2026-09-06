@@ -41,14 +41,14 @@ class _MetricSpec {
 const _specs = <_MetricSpec>[
   _MetricSpec(metric: 'ambient_temperature_c', sensor: 'SHT40', unit: '°C', mode: 'outside_range', valueKind: 'direct', icon: Icons.device_thermostat_rounded, color: VetColors.orange, en: 'Barn temperature', ar: 'حرارة العنبر', nl: 'Staltemperatuur'),
   _MetricSpec(metric: 'humidity_percent', sensor: 'SHT40', unit: '%RH', mode: 'outside_range', valueKind: 'direct', icon: Icons.water_drop_outlined, color: VetColors.blue, en: 'Relative humidity', ar: 'الرطوبة النسبية', nl: 'Relatieve luchtvochtigheid'),
-  _MetricSpec(metric: 'oxygen_percent', sensor: 'SC4-O2', unit: '%O₂', mode: 'below_min', valueKind: 'direct', icon: Icons.air_rounded, color: VetColors.blue, en: 'Oxygen level', ar: 'نسبة الأكسجين', nl: 'Zuurstofniveau'),
-  _MetricSpec(metric: 'current_amp', sensor: 'SCT-013', unit: 'A', mode: 'above_max', valueKind: 'direct', icon: Icons.electric_bolt_rounded, color: VetColors.orange, en: 'Electrical current', ar: 'التيار الكهربائي', nl: 'Elektrische stroom'),
-  _MetricSpec(metric: 'battery_percent', sensor: 'Battery monitor', unit: '%', mode: 'below_min', valueKind: 'direct', icon: Icons.battery_3_bar_rounded, color: VetColors.green, en: 'Battery level', ar: 'نسبة البطارية', nl: 'Batterijniveau'),
-  _MetricSpec(metric: 'activity_index', sensor: 'MPU6050', unit: 'index', mode: 'below_min', valueKind: 'derived', icon: Icons.directions_run_rounded, color: VetColors.green, en: 'Activity index', ar: 'مؤشر النشاط', nl: 'Activiteitsindex'),
-  _MetricSpec(metric: 'steps', sensor: 'MPU6050', unit: 'steps', mode: 'below_min', valueKind: 'derived', icon: Icons.directions_walk_rounded, color: VetColors.history, en: 'Steps', ar: 'الخطوات', nl: 'Stappen'),
-  _MetricSpec(metric: 'lying_minutes', sensor: 'MPU6050', unit: 'min', mode: 'above_max', valueKind: 'derived', icon: Icons.bedtime_outlined, color: VetColors.blue, en: 'Lying / resting time', ar: 'دقائق الرقاد / الراحة', nl: 'Lig-/rusttijd'),
-  _MetricSpec(metric: 'feeding_minutes', sensor: 'MPU6050', unit: 'min', mode: 'below_min', valueKind: 'derived', icon: Icons.restaurant_rounded, color: VetColors.green, en: 'Feeding time', ar: 'دقائق الأكل', nl: 'Voertijd'),
-  _MetricSpec(metric: 'rumination_minutes', sensor: 'MPU6050', unit: 'min', mode: 'below_min', valueKind: 'derived', icon: Icons.autorenew_rounded, color: VetColors.purple, en: 'Rumination time', ar: 'دقائق الاجترار', nl: 'Herkauwtijd'),
+  _MetricSpec(metric: 'oxygen_percent', sensor: 'SC4-O2', unit: '%O₂', mode: 'outside_range', valueKind: 'direct', icon: Icons.air_rounded, color: VetColors.blue, en: 'Oxygen level', ar: 'نسبة الأكسجين', nl: 'Zuurstofniveau'),
+  _MetricSpec(metric: 'current_amp', sensor: 'SCT-013', unit: 'A', mode: 'outside_range', valueKind: 'direct', icon: Icons.electric_bolt_rounded, color: VetColors.orange, en: 'Electrical current', ar: 'التيار الكهربائي', nl: 'Elektrische stroom'),
+  _MetricSpec(metric: 'battery_percent', sensor: 'Battery monitor', unit: '%', mode: 'outside_range', valueKind: 'direct', icon: Icons.battery_3_bar_rounded, color: VetColors.green, en: 'Battery level', ar: 'نسبة البطارية', nl: 'Batterijniveau'),
+  _MetricSpec(metric: 'activity_index', sensor: 'MPU6050', unit: 'index', mode: 'outside_range', valueKind: 'derived', icon: Icons.directions_run_rounded, color: VetColors.green, en: 'Activity index', ar: 'مؤشر النشاط', nl: 'Activiteitsindex'),
+  _MetricSpec(metric: 'steps', sensor: 'MPU6050', unit: 'steps', mode: 'outside_range', valueKind: 'derived', icon: Icons.directions_walk_rounded, color: VetColors.history, en: 'Steps', ar: 'الخطوات', nl: 'Stappen'),
+  _MetricSpec(metric: 'lying_minutes', sensor: 'MPU6050', unit: 'min', mode: 'outside_range', valueKind: 'derived', icon: Icons.bedtime_outlined, color: VetColors.blue, en: 'Lying / resting time', ar: 'دقائق الرقاد / الراحة', nl: 'Lig-/rusttijd'),
+  _MetricSpec(metric: 'feeding_minutes', sensor: 'MPU6050', unit: 'min', mode: 'outside_range', valueKind: 'derived', icon: Icons.restaurant_rounded, color: VetColors.green, en: 'Feeding time', ar: 'دقائق الأكل', nl: 'Voertijd'),
+  _MetricSpec(metric: 'rumination_minutes', sensor: 'MPU6050', unit: 'min', mode: 'outside_range', valueKind: 'derived', icon: Icons.autorenew_rounded, color: VetColors.purple, en: 'Rumination time', ar: 'دقائق الاجترار', nl: 'Herkauwtijd'),
 ];
 
 _MetricSpec _spec(String metric) => _specs.firstWhere(
@@ -206,11 +206,7 @@ class _RuleCard extends StatelessWidget {
     final min = row['min_value'];
     final max = row['max_value'];
     final unit = (row['unit']?.toString().trim().isNotEmpty ?? false) ? row['unit'].toString() : s.unit;
-    final threshold = switch (s.mode) {
-      'below_min' => '${_rt(context, 'Alert below', 'إنذار أقل من', 'Waarschuw onder')} ${min ?? '—'} $unit',
-      'above_max' => '${_rt(context, 'Alert above', 'إنذار أعلى من', 'Waarschuw boven')} ${max ?? '—'} $unit',
-      _ => '${min ?? '—'} – ${max ?? '—'} $unit',
-    };
+    final threshold = '${_rt(context, 'Must not fall below', 'لا يقل عن', 'Niet lager dan')} ${min ?? '—'} $unit • ${_rt(context, 'Must not exceed', 'لا يزيد عن', 'Niet hoger dan')} ${max ?? '—'} $unit';
     final color = switch (row['severity']?.toString()) {'red' => VetColors.red, 'orange' => VetColors.orange, _ => VetColors.history};
     return Card(
       margin: const EdgeInsets.only(bottom: 11),
@@ -270,16 +266,16 @@ class _RuleEditorState extends State<_RuleEditor> {
 
   void _save() {
     final lo = _n(min.text), hi = _n(max.text);
-    if ((s.mode == 'below_min' && lo == null) || (s.mode == 'above_max' && hi == null) || (s.mode == 'outside_range' && (lo == null || hi == null))) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_rt(context, 'Enter the required threshold for this sensor.', 'اكتب الحد المطلوب للحساس ده.', 'Vul de vereiste drempel voor deze sensor in.'))));
+    if (lo == null || hi == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_rt(context, 'Enter both the minimum and maximum thresholds.', 'اكتب الحدين: لا يقل عن ولا يزيد عن.', 'Vul zowel de minimum- als maximumgrens in.'))));
       return;
     }
-    if (s.mode == 'outside_range' && lo! >= hi!) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_rt(context, 'Minimum must be lower than maximum.', 'الحد الأدنى لازم يكون أقل من الأعلى.', 'Minimum moet lager zijn dan maximum.'))));
+    if (lo >= hi) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_rt(context, 'Minimum must be lower than maximum.', 'قيمة لا يقل عن لازم تكون أقل من قيمة لا يزيد عن.', 'Minimum moet lager zijn dan maximum.'))));
       return;
     }
     final cool = int.tryParse(cooldown.text.trim()) ?? 30;
-    Navigator.pop(context, _RuleDraft(metric, s.mode == 'above_max' ? null : lo, s.mode == 'below_min' ? null : hi, severity, label.text.trim(), cool.clamp(1, 1440), enabled));
+    Navigator.pop(context, _RuleDraft(metric, lo, hi, severity, label.text.trim(), cool.clamp(1, 1440), enabled));
   }
 
   Widget _thresholdField(TextEditingController c, String en, String ar, String nl) => TextField(
@@ -306,9 +302,11 @@ class _RuleEditorState extends State<_RuleEditor> {
             const SizedBox(height: 10),
             TextField(controller: label, decoration: InputDecoration(labelText: _rt(context, 'Alert name (optional)', 'اسم الإنذار (اختياري)', 'Naam waarschuwing (optioneel)'), prefixIcon: const Icon(Icons.label_outline_rounded))),
             const SizedBox(height: 10),
-            if (s.mode == 'below_min') _thresholdField(min, 'Alert when below', 'إنذار عندما تقل عن', 'Waarschuw wanneer lager dan'),
-            if (s.mode == 'above_max') _thresholdField(max, 'Alert when above', 'إنذار عندما تزيد عن', 'Waarschuw wanneer hoger dan'),
-            if (s.mode == 'outside_range') Row(children: [Expanded(child: _thresholdField(min, 'Minimum', 'الحد الأدنى', 'Minimum')), const SizedBox(width: 10), Expanded(child: _thresholdField(max, 'Maximum', 'الحد الأعلى', 'Maximum'))]),
+            Row(children: [
+              Expanded(child: _thresholdField(min, 'Must not fall below', 'لا يقل عن', 'Niet lager dan')),
+              const SizedBox(width: 10),
+              Expanded(child: _thresholdField(max, 'Must not exceed', 'لا يزيد عن', 'Niet hoger dan')),
+            ]),
             const SizedBox(height: 12),
             SegmentedButton<String>(segments: [
               ButtonSegment(value: 'yellow', label: Text(_rt(context, 'Yellow', 'أصفر', 'Geel')), icon: const Icon(Icons.circle, color: VetColors.history)),
