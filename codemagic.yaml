@@ -54,6 +54,7 @@ workflows:
           python3 tools/patch_v37_egyptian_voice.py
           python3 tools/force_voice_playback.py
           python3 tools/patch_v40_voice_pipeline.py
+          python3 tools/patch_v41_instant_voice_prewarm.py
 
       - name: Verify production backend and hotfix
         script: |
@@ -75,6 +76,12 @@ workflows:
               'actions.join',
               'chunks[i + 1]',
               '_egyptianSpeechText(text)',
+              '_prewarmCurrentVoice()',
+              '_voicePrewarmBytes',
+              'voice_prewarm_ready',
+              'voice_tap_cache_hit',
+              'instant_voice_cache',
+              'maxChars: 300',
           ]
           for marker in required:
               if marker not in report:
@@ -83,7 +90,7 @@ workflows:
               raise SystemExit('Vet AI 0.6.24 old BytesSource playback is still active')
           if "String text = (_result['voice_summary']" in report:
               raise SystemExit('Vet AI 0.6.24 old partial voice_summary path is still active')
-          print('Vet AI 0.6.24 fast complete Egyptian voice pipeline verified')
+          print('Vet AI 0.6.24 instant prewarmed Egyptian voice pipeline verified')
           PY
 
       - name: Install Flutter dependencies
