@@ -51,6 +51,11 @@ jobs:
 
       - name: Verify build-time hotfix cannot regress artwork
         run: |
+          # Replace the three old damaged legacy PNGs with valid transparent
+          # equivalents so the historical voice patch cannot break Codemagic.
+          cp assets/icons/livestock_group_transparent.png assets/icons/livestock_final.png
+          cp assets/icons/birds_group_transparent.png assets/icons/poultry_final.png
+          cp assets/icons/dogs_group_transparent.png assets/icons/dog_final.png
           python3 tools/patch_v36_voice_artwork.py
           python3 tools/patch_v37_egyptian_voice.py
           python3 tools/force_voice_playback.py
