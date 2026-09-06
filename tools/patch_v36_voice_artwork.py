@@ -68,8 +68,17 @@ if old_catch in report:
     report = report.replace(old_catch, new_catch, 1)
 REPORT.write_text(report, encoding='utf-8')
 
-# --- Real dog-breed thumbnails instead of one repeated dog emoji. ---
+# --- Use the exact approved source PNG artwork, never the lossy/corrupt section WebP copies. ---
 app = APP.read_text(encoding='utf-8')
+section_assets = {
+    'assets/icons/livestock_section.webp': 'assets/icons/livestock_final.png',
+    'assets/icons/poultry_section.webp': 'assets/icons/poultry_final.png',
+    'assets/icons/dog_section.webp': 'assets/icons/dog_final.png',
+}
+for old_asset, approved_asset in section_assets.items():
+    app = app.replace(old_asset, approved_asset)
+
+# --- Real dog-breed thumbnails instead of one repeated dog emoji. ---
 old_avatar = "avatar: const Text('🐕', style: TextStyle(fontSize: 21)),"
 if old_avatar in app:
     app = app.replace(old_avatar, "avatar: _DogBreedAvatar(code: breed.code),", 1)
@@ -112,7 +121,7 @@ class _DogBreedAvatar extends StatelessWidget {
     if (url == null) {
       return ClipOval(
         child: Image.asset(
-          'assets/icons/dog_section.webp',
+          'assets/icons/dog_final.png',
           width: 34,
           height: 34,
           fit: BoxFit.cover,
@@ -127,7 +136,7 @@ class _DogBreedAvatar extends StatelessWidget {
         fit: BoxFit.cover,
         filterQuality: FilterQuality.medium,
         errorBuilder: (_, __, ___) => Image.asset(
-          'assets/icons/dog_section.webp',
+          'assets/icons/dog_final.png',
           width: 34,
           height: 34,
           fit: BoxFit.cover,
@@ -159,5 +168,10 @@ if "_DogBreedAvatar(code: breed.code)" not in app_check:
     raise SystemExit('0.6.23 breed verification: real breed avatar wiring is missing')
 if "avatar: const Text('🐕'" in app_check:
     raise SystemExit('0.6.23 breed verification: repeated dog emoji still present')
+for old_asset, approved_asset in section_assets.items():
+    if old_asset in app_check:
+        raise SystemExit(f'0.6.23 artwork regression: old section asset still active: {old_asset}')
+    if approved_asset not in app_check:
+        raise SystemExit(f'0.6.23 artwork verification missing: {approved_asset}')
 
-print('Vet AI 0.6.23 iOS file voice playback + breed thumbnails applied')
+print('Vet AI 0.6.23 iOS file voice playback + exact approved PNG artwork + real breed thumbnails applied')
