@@ -4198,6 +4198,46 @@ class _AnimalSprite extends StatelessWidget {
   }
 }
 
+String _animalGroupAssetFromSpriteIndex(int spriteIndex) =>
+    switch (spriteIndex) {
+      1 => 'assets/icons/dogs_group_transparent.webp',
+      2 => 'assets/icons/birds_group_transparent.webp',
+      _ => 'assets/icons/livestock_group_transparent.webp',
+    };
+
+String _animalGroupAssetFromGroup(String group) => switch (group) {
+  'dogs' => 'assets/icons/dogs_group_transparent.webp',
+  'poultry' => 'assets/icons/birds_group_transparent.webp',
+  _ => 'assets/icons/livestock_group_transparent.webp',
+};
+
+String _animalGroupAssetFromLegacyAsset(String asset) {
+  if (asset.contains('poultry'))
+    return 'assets/icons/birds_group_transparent.webp';
+  if (asset.contains('dog')) return 'assets/icons/dogs_group_transparent.webp';
+  return 'assets/icons/livestock_group_transparent.webp';
+}
+
+class _AnimalGroupImage extends StatelessWidget {
+  const _AnimalGroupImage({required this.asset, required this.size});
+
+  final String asset;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: size,
+    child: Image.asset(
+      asset,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+      isAntiAlias: true,
+      gaplessPlayback: true,
+      errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+    ),
+  );
+}
+
 class _AnimalGroupBanner extends StatelessWidget {
   const _AnimalGroupBanner({
     required this.spriteIndex,
@@ -4219,7 +4259,10 @@ class _AnimalGroupBanner extends StatelessWidget {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        _AnimalSprite(index: spriteIndex, size: 142, radius: 16),
+        _AnimalGroupImage(
+          asset: _animalGroupAssetFromSpriteIndex(spriteIndex),
+          size: 156,
+        ),
         const SizedBox(width: 16),
         Expanded(
           child: Column(
@@ -4279,15 +4322,7 @@ class _AnimalChoice extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _AnimalSprite(
-            index: group == 'poultry'
-                ? 2
-                : group == 'dogs'
-                ? 1
-                : 0,
-            size: 86,
-            radius: 12,
-          ),
+          _AnimalGroupImage(asset: _animalGroupAssetFromGroup(group), size: 96),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
@@ -4408,14 +4443,9 @@ class _AnimalCount extends StatelessWidget {
       child: Column(
         children: [
           Center(
-            child: _AnimalSprite(
-              index: asset.contains('poultry')
-                  ? 2
-                  : asset.contains('dog')
-                  ? 1
-                  : 0,
-              size: 164,
-              radius: 14,
+            child: _AnimalGroupImage(
+              asset: _animalGroupAssetFromLegacyAsset(asset),
+              size: 176,
             ),
           ),
           const SizedBox(height: 10),
@@ -4817,7 +4847,10 @@ class _AnimalGroupVisualCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _AnimalSprite(index: spriteIndex, size: 104, radius: 14),
+          _AnimalGroupImage(
+            asset: _animalGroupAssetFromSpriteIndex(spriteIndex),
+            size: 112,
+          ),
           const SizedBox(width: 13),
           Expanded(
             child: Column(
