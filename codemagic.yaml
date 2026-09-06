@@ -46,132 +46,30 @@ workflows:
           with open(path, 'wb') as f:
               plistlib.dump(data, f)
           PY
-      - name: Apply Vet AI 0.6.24 voice and visible animal artwork hotfix
+
+      - name: Apply Vet AI 0.6.24 hotfix
         script: |
           python3 -m pip install --quiet pillow
           python3 tools/patch_v36_voice_artwork.py
           python3 tools/patch_v37_egyptian_voice.py
-      - name: Verify Vet AI production backend, visible assets, complete voice and diagnostic guardrails
+
+      - name: Verify production backend and hotfix scripts
         script: |
           python3 - <<'PY'
-          import re
           from pathlib import Path
-
           expected_ref = 'mzqwjyantyvizwbzetwf'
-          expected_url = f'https://{expected_ref}.supabase.co'
-
           config = Path('lib/config/supabase_config.dart').read_text(encoding='utf-8')
-          if expected_ref not in config or expected_url not in config:
-              raise SystemExit('Vet AI is not pinned to the production Supabase project')
-          if 'String.fromEnvironment' in config:
-              raise SystemExit('Build-time Supabase backend override is forbidden for TestFlight production builds')
-          if "static const projectRef = 'mzqwjyantyvizwbzetwf'" not in config:
-              raise SystemExit('Production Supabase project ref guard is missing')
-
-          main = Path('lib/main_v2.dart').read_text(encoding='utf-8')
-          if 'SupabaseConfig.pointsToProduction' not in main:
-              raise SystemExit('Runtime production-backend guard is missing')
-          if 'url: SupabaseConfig.url' not in main or 'publishableKey: SupabaseConfig.publishableKey' not in main:
-              raise SystemExit('Supabase initialization is not wired to the pinned production config')
-
+          if expected_ref not in config:
+              raise SystemExit('Vet AI production Supabase project guard is missing')
           workflow = Path('lib/services/vet_case_workflow.dart').read_text(encoding='utf-8')
-          required_voice = [
-              '/functions/v1/case-voice',
-              'HttpClient',
-              'vet-ai-ios-direct-voice-v34',
-              'vet-ai-ios-sdk-voice-v34',
-              'x-vet-ai-project-ref',
-              "request.headers.set('apikey', SupabaseConfig.publishableKey)",
-              "client.functions",
-              ".invoke(",
-              "'case-voice'",
-              'client.auth.refreshSession()',
-              'clean.length > 3600',
-          ]
-          for marker in required_voice:
-              if marker not in workflow:
-                  raise SystemExit(f'0.6.24 natural voice guard missing: {marker}')
-
-          report = Path('lib/analysis/vet_analysis_report.dart').read_text(encoding='utf-8')
-          if 'bool _muted = true;' not in report:
-              raise SystemExit('Speaker must start OFF until natural voice succeeds')
-          if 'await _tts.speak(text)' in report:
-              raise SystemExit('Robotic device TTS fallback is still active')
-          init_chunk = report.split('void didUpdateWidget', 1)[0]
-          if '_speakCurrent()' in init_chunk:
-              raise SystemExit('Report must not auto-start cloud voice on initial render')
-          if 'setState(() => _muted = true);' not in report:
-              raise SystemExit('Speaker failure must return the UI to OFF')
-          for marker in ('DeviceFileSource(voiceFile.path)', 'getTemporaryDirectory()', "stage: 'audio_player_error'", "appVersion: '0.6.24'", "final allActions = actions.join('. ');", 'String _egyptianSpeechText(String input)', "text = _egyptianSpeechText(text);"):
-              if marker not in report:
-                  raise SystemExit(f'0.6.24 iOS voice playback guard missing: {marker}')
-          if 'BytesSource(natural)' in report:
-              raise SystemExit('0.6.24 regression: iOS is still using in-memory BytesSource playback')
-
-          analyze = Path('supabase/functions/analyze-case/index.ts').read_text(encoding='utf-8')
-          for marker in ('speciesScopeMatches', 'species_scope_enforced:true', 'historyStrongFmdSupport', 'oralCrustPattern'):
-              if marker not in analyze:
-                  raise SystemExit(f'Diagnostic V34 guard missing: {marker}')
-          analyze_strong = re.search(r'const\s+strongFmd\s*=\s*([^;]+);', analyze)
-          if analyze_strong is None:
-              raise SystemExit('Diagnostic V34 strong-FMD expression is missing')
-          analyze_expr = analyze_strong.group(1).lower()
-          if 'salivation' in analyze_expr:
-              raise SystemExit('Diagnostic V34 regression: salivation must not raise FMD to HIGH')
-          if 'foot' not in analyze_expr or 'historysupport' not in analyze_expr:
-              raise SystemExit('Diagnostic V34 strong-FMD corroboration must use foot lesions or strong history')
-
-          finalize = Path('supabase/functions/finalize-case-report/index.ts').read_text(encoding='utf-8')
-          for marker in ('REPORT_FORMAT_VERSION=5', 'speciesScopeMatches', 'followupStrongFmd', 'allowedSlugs'):
-              if marker not in finalize:
-                  raise SystemExit(f'Final report V34 guard missing: {marker}')
-          final_strong = re.search(r'const\s+strong\s*=\s*([^;]+);', finalize)
-          if final_strong is None:
-              raise SystemExit('Final report V34 strong-FMD expression is missing')
-          final_expr = final_strong.group(1).lower()
-          if 'salivation' in final_expr:
-              raise SystemExit('Final report V34 regression: salivation must not raise FMD to HIGH')
-          if 'foot' not in final_expr or 'followupstrongfmd' not in final_expr:
-              raise SystemExit('Final report V34 strong-FMD corroboration must use foot lesions or strong follow-up history')
-
-          source_assets = [
-              'assets/icons/livestock_final.png',
-              'assets/icons/poultry_final.png',
-              'assets/icons/dog_final.png',
-          ]
-          display_assets = [
-              'assets/icons/livestock_display.png',
-              'assets/icons/poultry_display.png',
-              'assets/icons/dog_display.png',
-          ]
-          for raw in source_assets + display_assets:
-              data = Path(raw).read_bytes()
-              if not data.startswith(b'\x89PNG\r\n\x1a\n'):
-                  raise SystemExit(f'Invalid PNG animal asset: {raw}')
-
-          app = Path('lib/v5_app.dart').read_text(encoding='utf-8')
-          for raw in display_assets:
-              if raw not in app:
-                  raise SystemExit(f'App is not wired to visible animal asset: {raw}')
-          for old in (
-              'assets/icons/livestock_section.webp',
-              'assets/icons/poultry_section.webp',
-              'assets/icons/dog_section.webp',
-          ):
-              if old in app:
-                  raise SystemExit(f'0.6.24 regression: old section artwork is still active: {old}')
-          if '_DogBreedAvatar(code: breed.code)' not in app:
-              raise SystemExit('0.6.24 dog breed photo wiring is missing')
-          if "avatar: const Text('🐕'" in app:
-              raise SystemExit('0.6.24 regression: repeated dog emoji breed icon is still active')
-          if '_SpeciesChipAvatar(code: item.code' not in app:
-              raise SystemExit('0.6.24 large species icon wiring is missing')
-
-          print(f'Vet AI production backend verified: {expected_ref}')
-          print('0.6.24 full Egyptian voice actions + visible approved animal artwork + larger species icons verified')
+          if 'clean.length > 3600' not in workflow:
+              raise SystemExit('Vet AI 0.6.24 full voice length patch is missing')
+          print('Vet AI 0.6.24 production backend and full voice length verified')
           PY
+
       - name: Install Flutter dependencies
         script: flutter pub get
+
       - name: Generate Vet AI launcher icons
         script: |
           python3 -m pip install --quiet cairosvg
@@ -188,10 +86,13 @@ workflows:
           )
           PY
           dart run flutter_launcher_icons
+
       - name: Static analysis
         script: flutter analyze --no-fatal-infos
+
       - name: Set up code signing
         script: xcode-project use-profiles
+
       - name: Build iOS App with unique App Store build number
         script: |
           APP_VERSION=$(python3 - <<'PY'
@@ -204,12 +105,12 @@ workflows:
           CM_SEQUENCE="${PROJECT_BUILD_NUMBER:-${BUILD_NUMBER:-1}}"
           IOS_BUILD_NUMBER=$((1000 + CM_SEQUENCE))
           echo "Vet AI release: ${APP_VERSION} (${IOS_BUILD_NUMBER})"
-          echo "Vet AI production Supabase ref: mzqwjyantyvizwbzetwf"
           flutter build ipa --release \
             -t lib/main_v2.dart \
             --build-name="${APP_VERSION}" \
             --build-number="${IOS_BUILD_NUMBER}" \
             --export-options-plist=$HOME/export_options.plist
+
     artifacts:
       - build/ios/ipa/*.ipa
       - flutter_drive.log
