@@ -1,0 +1,59 @@
+name: One-time Vet AI 0.6.26 approved animal artwork
+
+on:
+  push:
+    branches:
+      - v26-approved-animal-artwork
+    paths:
+      - '.github/workflows/one-time-v26-approved-animal-artwork.yml'
+      - 'tools/patch_v26_approved_animals.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout approved artwork branch
+        uses: actions/checkout@v4
+        with:
+          ref: v26-approved-animal-artwork
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Apply approved animal artwork patch
+        run: python3 tools/patch_v26_approved_animals.py
+
+      - name: Format Dart
+        run: dart format lib/v5_app.dart lib/models/animal_taxonomy.dart
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Static analysis
+        run: flutter analyze --no-fatal-infos
+
+      - name: Verify approved artwork integration
+        run: |
+          test -f assets/icons/animal_sprite_v26.webp
+          grep -q 'version: 0.6.26+38' pubspec.yaml
+          grep -q "code: 'horse'" lib/models/animal_taxonomy.dart
+          ! grep -q "code: 'camel'" lib/models/animal_taxonomy.dart
+          ! grep -q "code: 'quail'" lib/models/animal_taxonomy.dart
+          grep -q '_DogBreedSingleSelect' lib/v5_app.dart
+          grep -q 'animal_sprite_v26.webp' lib/v5_app.dart
+          grep -q 'breed.spriteIndex' lib/v5_app.dart
+          grep -q 'item.spriteIndex' lib/v5_app.dart
+
+      - name: Commit verified app changes
+        run: |
+          git config user.name "vet-ai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add lib/v5_app.dart lib/models/animal_taxonomy.dart pubspec.yaml pubspec.lock
+          git diff --cached --quiet && exit 0
+          git commit -m "Vet AI 0.6.26 integrate approved animal artwork"
+          git push origin HEAD:v26-approved-animal-artwork
