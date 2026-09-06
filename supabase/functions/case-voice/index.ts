@@ -4,7 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const respond=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"content-type":"application/json; charset=utf-8","cache-control":"no-store"}});
 const shortLang=(v:string)=>v.trim().toLowerCase().split(/[-_]/)[0]||"en";
-const sanitize=(v:string)=>v.replace(/https?:\/\/\S+/gi," ").replace(/www\.\S+/gi," ").replace(/[`*_#]+/g," ").replace(/[•●▪◦‣⁃]+/g,". ").replace(/(^|\n)\s*[-–—]+\s*/gm,". ").replace(/\s+/g," ").trim().slice(0,1200);
+const sanitize=(v:string)=>v.replace(/https?:\/\/\S+/gi," ").replace(/www\.\S+/gi," ").replace(/[`*_#]+/g," ").replace(/[•●▪◦‣⁃]+/g,". ").replace(/(^|\n)\s*[-–—]+\s*/gm,". ").replace(/\s+/g," ").trim().slice(0,3600);
 
 const locales:Record<string,string>={ar:"ar-XA",en:"en-GB",nl:"nl-NL",de:"de-DE",fr:"fr-FR",es:"es-ES",it:"it-IT",pt:"pt-BR",tr:"tr-TR",ru:"ru-RU",pl:"pl-PL",uk:"uk-UA",ro:"ro-RO",el:"el-GR",cs:"cs-CZ",sk:"sk-SK",hu:"hu-HU",bg:"bg-BG",hr:"hr-HR",sr:"sr-RS",sl:"sl-SI",sv:"sv-SE",no:"nb-NO",da:"da-DK",fi:"fi-FI",he:"he-IL",hi:"hi-IN",bn:"bn-IN",ta:"ta-IN",te:"te-IN",ml:"ml-IN",mr:"mr-IN",gu:"gu-IN",kn:"kn-IN",zh:"cmn-CN",ja:"ja-JP",ko:"ko-KR",th:"th-TH",vi:"vi-VN",id:"id-ID",sw:"sw-KE"};
 const chirpVoice=(language:string)=>{const code=locales[shortLang(language)]??"en-GB";return{languageCode:code,name:`${code}-Chirp3-HD-Charon`}};
@@ -29,24 +29,24 @@ Deno.serve(async(req:Request)=>{
   const admin=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{auth:{persistSession:false,autoRefreshToken:false}});
   const log=async(user_id:string|null,language:string|null,provider:string,model:string,outcome:string,status:number,detail:string)=>{try{await admin.from("voice_provider_events").insert({user_id,requested_language:language,provider,model_or_voice:model,outcome,http_status:status||null,detail:(detail||"").slice(0,500)||null});}catch(_){}};
   const auth=req.headers.get("Authorization");
-  await log(null,null,"case-voice","v17","edge_entered",0,auth?"authorization_present":"authorization_missing");
+  await log(null,null,"case-voice","v18","edge_entered",0,auth?"authorization_present":"authorization_missing");
   if(!auth)return respond({code:"VOICE_AUTH_MISSING"},401);
   const userClient=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_ANON_KEY")!,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:userData,error:userError}=await userClient.auth.getUser();
-  if(userError||!userData.user){await log(null,null,"case-voice","v17","auth_failure",401,String(userError?.message??"invalid_session"));return respond({code:"VOICE_AUTH_INVALID"},401);}
+  if(userError||!userData.user){await log(null,null,"case-voice","v18","auth_failure",401,String(userError?.message??"invalid_session"));return respond({code:"VOICE_AUTH_INVALID"},401);}
   const body=await req.json().catch(()=>({}));const text=sanitize(typeof body?.text==="string"?body.text:"");const language=typeof body?.language==="string"&&body.language.trim()?body.language.trim().toLowerCase():"en";
   if(!text)return respond({error:"Text is required"},400);
-  const uid=userData.user.id;await log(uid,language,"case-voice","v17","request_started",0,`lang=${language}`);
+  const uid=userData.user.id;await log(uid,language,"case-voice","v18","request_started",0,`lang=${language}; chars=${text.length}`);
   const googleKey=Deno.env.get("GOOGLE_API_KEY")?.trim()??"";const geminiKey=Deno.env.get("GEMINI_API_KEY")?.trim()??"";const saRaw=Deno.env.get("GOOGLE_CLOUD_TTS_SERVICE_ACCOUNT_JSON")?.trim()??"";
-  await log(uid,language,"case-voice","v17","config",0,`google_key=${Boolean(googleKey)}; gemini_key=${Boolean(geminiKey)}; service_account=${Boolean(saRaw)}`);
+  await log(uid,language,"case-voice","v18","config",0,`google_key=${Boolean(googleKey)}; gemini_key=${Boolean(geminiKey)}; service_account=${Boolean(saRaw)}`);
 
   const tasks:Promise<any>[]=[];
   if(shortLang(language)==="ar"&&saRaw)tasks.push(cloudGemini(text,saRaw));
   if(geminiKey)tasks.push(geminiDirect(text,language,geminiKey));
-  if(googleKey)tasks.push((async()=>{if(shortLang(language)==="ar")await new Promise(r=>setTimeout(r,3000));return cloudChirp(text,language,googleKey)})());
-  if(tasks.length===0){await log(uid,language,"case-voice","v17","no_provider_configured",0,"No Google/Gemini TTS secret configured");return respond({code:"VOICE_NOT_CONFIGURED"},503);}
+  if(googleKey)tasks.push((async()=>{if(shortLang(language)==="ar")await new Promise(r=>setTimeout(r,1200));return cloudChirp(text,language,googleKey)})());
+  if(tasks.length===0){await log(uid,language,"case-voice","v18","no_provider_configured",0,"No Google/Gemini TTS secret configured");return respond({code:"VOICE_NOT_CONFIGURED"},503);}
 
   const wrapped=tasks.map(p=>p.then(async r=>{await log(uid,language,r.provider,r.model,r.ok?"success":r.detail==="timeout"?"timeout":"failure",r.status,`${r.detail}; ${r.ms}ms`);if(!r.ok)throw new Error(`${r.provider}:${r.detail}`);return r;}));
-  try{const winner=await Promise.any(wrapped);return respond({audio_base64:winner.audio,audioContent:winner.audio,mime_type:winner.mime,provider:winner.provider,voice:winner.model,requested_language:language,egyptian_style:shortLang(language)==="ar"&&winner.provider!=="google-cloud-chirp3"});}
-  catch(e){await log(uid,language,"case-voice","v17","all_failed",503,String(e).slice(0,400));return respond({code:"VOICE_TEMPORARILY_UNAVAILABLE"},503);}
+  try{const winner=await Promise.any(wrapped);return respond({audio_base64:winner.audio,audioContent:winner.audio,mime_type:winner.mime,provider:winner.provider,voice:winner.model,requested_language:language,egyptian_style:shortLang(language)==="ar"&&winner.provider!=="google-cloud-chirp3",text_chars:text.length});}
+  catch(e){await log(uid,language,"case-voice","v18","all_failed",503,String(e).slice(0,400));return respond({code:"VOICE_TEMPORARILY_UNAVAILABLE"},503);}
 });
