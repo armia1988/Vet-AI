@@ -66,7 +66,8 @@ extension VetCaseWorkflow on VetBackend {
     if (clean.isEmpty) return null;
 
     Future<Uint8List?> requestOnce(String accessToken) async {
-      final httpClient = HttpClient()..connectionTimeout = const Duration(seconds: 12);
+      final httpClient = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 12);
       try {
         final uri = Uri.parse(
           '${SupabaseConfig.url}/functions/v1/case-voice',
@@ -74,10 +75,16 @@ extension VetCaseWorkflow on VetBackend {
         final request = await httpClient.postUrl(uri).timeout(
           const Duration(seconds: 12),
         );
-        request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $accessToken');
-        request.headers.set('apikey', SupabaseConfig.publishableKey);
+        request.headers.set(
+          HttpHeaders.authorizationHeader,
+          'Bearer $accessToken',
+        );
+        // case-voice has verify_jwt disabled at the gateway and validates the
+        // bearer session itself. Omitting apikey here avoids a second gateway
+        // credential check from blocking the request before function telemetry.
         request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
-        request.headers.set('x-client-info', 'vet-ai-ios-direct-voice-v32');
+        request.headers.set('x-client-info', 'vet-ai-ios-direct-voice-v33');
+        request.headers.set('x-vet-ai-project-ref', SupabaseConfig.projectRef);
         request.add(
           utf8.encode(
             jsonEncode({
@@ -109,7 +116,17 @@ extension VetCaseWorkflow on VetBackend {
       }
     }
 
+    // A recovered Supabase session can briefly be absent from currentSession
+    // after app/update startup. Try to restore it before giving up silently.
     var session = client.auth.currentSession;
+    if (session == null) {
+      try {
+        final refreshed = await client.auth.refreshSession();
+        session = refreshed.session;
+      } catch (_) {
+        session = null;
+      }
+    }
     if (session == null) return null;
 
     var audio = await requestOnce(session.accessToken);
