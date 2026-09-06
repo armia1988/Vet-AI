@@ -53,6 +53,7 @@ workflows:
           python3 tools/patch_v36_voice_artwork.py
           python3 tools/patch_v37_egyptian_voice.py
           python3 tools/force_voice_playback.py
+          python3 tools/patch_v40_voice_pipeline.py
 
       - name: Verify production backend and hotfix
         script: |
@@ -66,11 +67,23 @@ workflows:
           if 'clean.length > 3600' not in workflow:
               raise SystemExit('Vet AI 0.6.24 full voice length patch is missing')
           report = Path('lib/analysis/vet_analysis_report.dart').read_text(encoding='utf-8')
-          if 'DeviceFileSource(voiceFile.path)' not in report:
-              raise SystemExit('Vet AI 0.6.24 device-file voice playback is missing')
+          required = [
+              'DeviceFileSource(voiceFile.path)',
+              'device_file_pipeline',
+              '_splitVoiceChunks',
+              '_buildSpokenReportText()',
+              'actions.join',
+              'chunks[i + 1]',
+              '_egyptianSpeechText(text)',
+          ]
+          for marker in required:
+              if marker not in report:
+                  raise SystemExit(f'Vet AI 0.6.24 voice pipeline missing: {marker}')
           if 'BytesSource(natural)' in report:
               raise SystemExit('Vet AI 0.6.24 old BytesSource playback is still active')
-          print('Vet AI 0.6.24 production backend, full voice length and iOS file playback verified')
+          if "String text = (_result['voice_summary']" in report:
+              raise SystemExit('Vet AI 0.6.24 old partial voice_summary path is still active')
+          print('Vet AI 0.6.24 fast complete Egyptian voice pipeline verified')
           PY
 
       - name: Install Flutter dependencies
