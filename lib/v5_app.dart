@@ -982,10 +982,16 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
       );
       await VetBackend.instance.saveFarmAnimalProfile(
         createdFarmId,
-        livestockSpecies: selectedGroups.contains('livestock') ? selectedLivestockSpecies : <String>{},
-        birdSpecies: selectedGroups.contains('poultry') ? selectedBirdSpecies : <String>{},
+        livestockSpecies: selectedGroups.contains('livestock')
+            ? selectedLivestockSpecies
+            : <String>{},
+        birdSpecies: selectedGroups.contains('poultry')
+            ? selectedBirdSpecies
+            : <String>{},
         dogEnabled: selectedGroups.contains('dogs'),
-        dogBreeds: selectedGroups.contains('dogs') ? selectedDogBreeds : <String>{},
+        dogBreeds: selectedGroups.contains('dogs')
+            ? selectedDogBreeds
+            : <String>{},
       );
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
@@ -1243,7 +1249,11 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
           title: tr(context, 'Livestock types', 'أنواع المواشي', 'Veetypen'),
           options: vetLivestockSpecies,
           selected: selectedLivestockSpecies,
-          onChanged: (next) => setState(() { selectedLivestockSpecies..clear()..addAll(next); }),
+          onChanged: (next) => setState(() {
+            selectedLivestockSpecies
+              ..clear()
+              ..addAll(next);
+          }),
         ),
         const SizedBox(height: 12),
       ],
@@ -1252,7 +1262,11 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
           title: tr(context, 'Bird types', 'أنواع الطيور', 'Vogeltypen'),
           options: vetBirdSpecies,
           selected: selectedBirdSpecies,
-          onChanged: (next) => setState(() { selectedBirdSpecies..clear()..addAll(next); }),
+          onChanged: (next) => setState(() {
+            selectedBirdSpecies
+              ..clear()
+              ..addAll(next);
+          }),
         ),
         const SizedBox(height: 12),
       ],
@@ -1260,7 +1274,11 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
         _DogBreedMultiSelect(
           title: tr(context, 'Dog breeds', 'سلالات الكلاب', 'Hondenrassen'),
           selected: selectedDogBreeds,
-          onChanged: (next) => setState(() { selectedDogBreeds..clear()..addAll(next); }),
+          onChanged: (next) => setState(() {
+            selectedDogBreeds
+              ..clear()
+              ..addAll(next);
+          }),
         ),
         const SizedBox(height: 12),
       ],
@@ -1495,7 +1513,9 @@ class _V5DashboardState extends State<V5Dashboard> {
     _alertListeningSince = DateTime.now().toUtc();
     final farmId = farm['id']?.toString();
     if (farmId != null && farmId.isNotEmpty) {
-      _alertSubscription = VetBackend.instance.alertsStream(farmId).listen(_handleAlertRows);
+      _alertSubscription = VetBackend.instance
+          .alertsStream(farmId)
+          .listen(_handleAlertRows);
     }
   }
 
@@ -1518,7 +1538,9 @@ class _V5DashboardState extends State<V5Dashboard> {
       title: (title == null || title.isEmpty) ? 'Vet AI sensor alert' : title,
       body: (details != null && details.isNotEmpty)
           ? details
-          : ((threshold != null && threshold.isNotEmpty) ? threshold : 'A real sensor threshold was crossed.'),
+          : ((threshold != null && threshold.isNotEmpty)
+                ? threshold
+                : 'A real sensor threshold was crossed.'),
       payload: id,
     );
   }
@@ -1885,14 +1907,19 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
   List<String> _speciesCodesForGroup(String g) {
     if (g == 'dogs') return const ['dog'];
     final key = g == 'poultry' ? 'bird_species' : 'livestock_species';
-    final configured = ((widget.farm[key] as List?) ?? const []).map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+    final configured = ((widget.farm[key] as List?) ?? const [])
+        .map((e) => e.toString())
+        .where((e) => e.isNotEmpty)
+        .toList();
     if (configured.isNotEmpty) return configured;
     return vetSpeciesForGroup(g).map((e) => e.code).toList();
   }
 
   List<VetAnimalSpecies> get _currentSpeciesOptions {
     final allowed = _speciesCodesForGroup(group).toSet();
-    return vetSpeciesForGroup(group).where((e) => allowed.contains(e.code)).toList();
+    return vetSpeciesForGroup(
+      group,
+    ).where((e) => allowed.contains(e.code)).toList();
   }
 
   @override
@@ -1900,7 +1927,13 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
     super.initState();
     group = groups.isEmpty ? 'livestock' : groups.first;
     final initialSpecies = _speciesCodesForGroup(group);
-    speciesCode = initialSpecies.isEmpty ? (group == 'dogs' ? 'dog' : group == 'poultry' ? 'chicken' : 'cattle') : initialSpecies.first;
+    speciesCode = initialSpecies.isEmpty
+        ? (group == 'dogs'
+              ? 'dog'
+              : group == 'poultry'
+              ? 'chicken'
+              : 'cattle')
+        : initialSpecies.first;
   }
 
   @override
@@ -2136,10 +2169,10 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
   }
 
   String asset(String g) => g == 'poultry'
-      ? 'assets/icons/poultry_section.webp'
+      ? 'assets/icons/poultry_final.png'
       : g == 'dogs'
-      ? 'assets/icons/dog_section.webp'
-      : 'assets/icons/livestock_section.webp';
+      ? 'assets/icons/dog_final.png'
+      : 'assets/icons/livestock_final.png';
 
   @override
   Widget build(BuildContext context) {
@@ -2180,12 +2213,20 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
                     ),
                     label: Text(label(g)),
                     selected: group == g,
-                    onSelected: busy ? null : (_) => setState(() {
-                      group = g;
-                      final choices = _speciesCodesForGroup(g);
-                      speciesCode = choices.isEmpty ? (g == 'dogs' ? 'dog' : g == 'poultry' ? 'chicken' : 'cattle') : choices.first;
-                      result = null;
-                    }),
+                    onSelected: busy
+                        ? null
+                        : (_) => setState(() {
+                            group = g;
+                            final choices = _speciesCodesForGroup(g);
+                            speciesCode = choices.isEmpty
+                                ? (g == 'dogs'
+                                      ? 'dog'
+                                      : g == 'poultry'
+                                      ? 'chicken'
+                                      : 'cattle')
+                                : choices.first;
+                            result = null;
+                          }),
                   ),
                 )
                 .toList(),
@@ -2204,14 +2245,27 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
         const SizedBox(height: 12),
         _SpeciesSingleSelect(
           title: group == 'livestock'
-              ? tr(context, 'Choose livestock type', 'اختار نوع المواشي', 'Kies veetype')
+              ? tr(
+                  context,
+                  'Choose livestock type',
+                  'اختار نوع المواشي',
+                  'Kies veetype',
+                )
               : group == 'poultry'
-              ? tr(context, 'Choose bird type', 'اختار نوع الطير', 'Kies vogeltype')
+              ? tr(
+                  context,
+                  'Choose bird type',
+                  'اختار نوع الطير',
+                  'Kies vogeltype',
+                )
               : tr(context, 'Animal type', 'نوع الحيوان', 'Diertype'),
           options: _currentSpeciesOptions,
           selectedCode: speciesCode,
           enabled: !busy,
-          onChanged: (code) => setState(() { speciesCode = code; result = null; }),
+          onChanged: (code) => setState(() {
+            speciesCode = code;
+            result = null;
+          }),
         ),
         const SizedBox(height: 16),
         Container(
@@ -2848,7 +2902,9 @@ class V5HistoryPanel extends StatelessWidget {
                 size: 32,
                 color: VetColors.primary,
               ),
-              title: Text('${a['species_code'] ?? a['animal_group'] ?? ''} • ${a['risk'] ?? ''}'),
+              title: Text(
+                '${a['species_code'] ?? a['animal_group'] ?? ''} • ${a['risk'] ?? ''}',
+              ),
               subtitle: Text('${a['status'] ?? ''}\n${a['created_at'] ?? ''}'),
               isThreeLine: true,
             ),
@@ -3022,9 +3078,18 @@ class _V5ProfileScreenState extends State<V5ProfileScreen> {
   void initState() {
     super.initState();
     final f = widget.farm;
-    profileLivestockSpecies = ((f['livestock_species'] as List?) ?? const []).map((e) => e.toString()).where((e) => e.isNotEmpty).toSet();
-    profileBirdSpecies = ((f['bird_species'] as List?) ?? const []).map((e) => e.toString()).where((e) => e.isNotEmpty).toSet();
-    profileDogBreeds = ((f['dog_breeds'] as List?) ?? const []).map((e) => e.toString()).where((e) => e.isNotEmpty).toSet();
+    profileLivestockSpecies = ((f['livestock_species'] as List?) ?? const [])
+        .map((e) => e.toString())
+        .where((e) => e.isNotEmpty)
+        .toSet();
+    profileBirdSpecies = ((f['bird_species'] as List?) ?? const [])
+        .map((e) => e.toString())
+        .where((e) => e.isNotEmpty)
+        .toSet();
+    profileDogBreeds = ((f['dog_breeds'] as List?) ?? const [])
+        .map((e) => e.toString())
+        .where((e) => e.isNotEmpty)
+        .toSet();
     final livestockCount = ((f['livestock_count'] as num?)?.toInt() ?? 0);
     final birdCount = ((f['poultry_count'] as num?)?.toInt() ?? 0);
     final dogCount = ((f['dog_count'] as num?)?.toInt() ?? 0);
@@ -3034,8 +3099,10 @@ class _V5ProfileScreenState extends State<V5ProfileScreen> {
       if (dogCount > 0 || f['dog_enabled'] == true) 'dogs',
     };
     if (profileSelectedGroups.isEmpty) profileSelectedGroups.add('livestock');
-    if (profileLivestockSpecies.isEmpty && livestockCount > 0) profileLivestockSpecies.add('cattle');
-    if (profileBirdSpecies.isEmpty && birdCount > 0) profileBirdSpecies.add('chicken');
+    if (profileLivestockSpecies.isEmpty && livestockCount > 0)
+      profileLivestockSpecies.add('cattle');
+    if (profileBirdSpecies.isEmpty && birdCount > 0)
+      profileBirdSpecies.add('chicken');
     c = {
       'full_name': TextEditingController(),
       'phone': TextEditingController(),
@@ -3108,7 +3175,8 @@ class _V5ProfileScreenState extends State<V5ProfileScreen> {
         profileSelectedGroups.add(group);
         if (group == 'livestock') {
           if (_i('livestock_count') == 0) c['livestock_count']!.text = '1';
-          if (profileLivestockSpecies.isEmpty) profileLivestockSpecies.add('cattle');
+          if (profileLivestockSpecies.isEmpty)
+            profileLivestockSpecies.add('cattle');
         } else if (group == 'poultry') {
           if (_i('poultry_count') == 0) c['poultry_count']!.text = '1';
           if (profileBirdSpecies.isEmpty) profileBirdSpecies.add('chicken');
@@ -3138,9 +3206,15 @@ class _V5ProfileScreenState extends State<V5ProfileScreen> {
         veterinarianCount: _i('veterinarian_count'),
         barnCount: _i('barn_count', 1),
         totalIndoorAreaM2: _d('area'),
-        livestockCount: profileSelectedGroups.contains('livestock') ? (_i('livestock_count') == 0 ? 1 : _i('livestock_count')) : 0,
-        poultryCount: profileSelectedGroups.contains('poultry') ? (_i('poultry_count') == 0 ? 1 : _i('poultry_count')) : 0,
-        dogCount: profileSelectedGroups.contains('dogs') ? (_i('dog_count') == 0 ? 1 : _i('dog_count')) : 0,
+        livestockCount: profileSelectedGroups.contains('livestock')
+            ? (_i('livestock_count') == 0 ? 1 : _i('livestock_count'))
+            : 0,
+        poultryCount: profileSelectedGroups.contains('poultry')
+            ? (_i('poultry_count') == 0 ? 1 : _i('poultry_count'))
+            : 0,
+        dogCount: profileSelectedGroups.contains('dogs')
+            ? (_i('dog_count') == 0 ? 1 : _i('dog_count'))
+            : 0,
         breeds: c['breeds']!.text,
         ageRange: c['age_range']!.text,
         productionPurpose: c['production_purpose']!.text,
@@ -3150,17 +3224,29 @@ class _V5ProfileScreenState extends State<V5ProfileScreen> {
       );
       await VetBackend.instance.saveFarmAnimalProfile(
         widget.farm['id'] as String,
-        livestockSpecies: profileSelectedGroups.contains('livestock') ? profileLivestockSpecies : <String>{},
-        birdSpecies: profileSelectedGroups.contains('poultry') ? profileBirdSpecies : <String>{},
+        livestockSpecies: profileSelectedGroups.contains('livestock')
+            ? profileLivestockSpecies
+            : <String>{},
+        birdSpecies: profileSelectedGroups.contains('poultry')
+            ? profileBirdSpecies
+            : <String>{},
         dogEnabled: profileSelectedGroups.contains('dogs'),
-        dogBreeds: profileSelectedGroups.contains('dogs') ? profileDogBreeds : <String>{},
+        dogBreeds: profileSelectedGroups.contains('dogs')
+            ? profileDogBreeds
+            : <String>{},
       );
       widget.farm
         ..addAll(updatedFarm)
-        ..['livestock_species'] = profileSelectedGroups.contains('livestock') ? (profileLivestockSpecies.toList()..sort()) : <String>[]
-        ..['bird_species'] = profileSelectedGroups.contains('poultry') ? (profileBirdSpecies.toList()..sort()) : <String>[]
+        ..['livestock_species'] = profileSelectedGroups.contains('livestock')
+            ? (profileLivestockSpecies.toList()..sort())
+            : <String>[]
+        ..['bird_species'] = profileSelectedGroups.contains('poultry')
+            ? (profileBirdSpecies.toList()..sort())
+            : <String>[]
         ..['dog_enabled'] = profileSelectedGroups.contains('dogs')
-        ..['dog_breeds'] = profileSelectedGroups.contains('dogs') ? (profileDogBreeds.toList()..sort()) : <String>[];
+        ..['dog_breeds'] = profileSelectedGroups.contains('dogs')
+            ? (profileDogBreeds.toList()..sort())
+            : <String>[];
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -3272,34 +3358,76 @@ class _V5ProfileScreenState extends State<V5ProfileScreen> {
           const SizedBox(height: 14),
           if (profileSelectedGroups.contains('livestock')) ...[
             _SpeciesMultiSelect(
-              title: tr(context, 'Livestock types used by AI', 'أنواع المواشي المستخدمة في الفحص', 'Veetypen voor AI'),
+              title: tr(
+                context,
+                'Livestock types used by AI',
+                'أنواع المواشي المستخدمة في الفحص',
+                'Veetypen voor AI',
+              ),
               options: vetLivestockSpecies,
               selected: profileLivestockSpecies,
-              onChanged: (next) => setState(() { profileLivestockSpecies..clear()..addAll(next); }),
+              onChanged: (next) => setState(() {
+                profileLivestockSpecies
+                  ..clear()
+                  ..addAll(next);
+              }),
             ),
             const SizedBox(height: 10),
-            _Field(controller: c['livestock_count']!, label: tr(context, 'Livestock count', 'عدد المواشي', 'Aantal vee'), icon: Icons.pets_rounded, keyboard: TextInputType.number),
+            _Field(
+              controller: c['livestock_count']!,
+              label: tr(
+                context,
+                'Livestock count',
+                'عدد المواشي',
+                'Aantal vee',
+              ),
+              icon: Icons.pets_rounded,
+              keyboard: TextInputType.number,
+            ),
             const SizedBox(height: 12),
           ],
           if (profileSelectedGroups.contains('poultry')) ...[
             _SpeciesMultiSelect(
-              title: tr(context, 'Bird types used by AI', 'أنواع الطيور المستخدمة في الفحص', 'Vogeltypen voor AI'),
+              title: tr(
+                context,
+                'Bird types used by AI',
+                'أنواع الطيور المستخدمة في الفحص',
+                'Vogeltypen voor AI',
+              ),
               options: vetBirdSpecies,
               selected: profileBirdSpecies,
-              onChanged: (next) => setState(() { profileBirdSpecies..clear()..addAll(next); }),
+              onChanged: (next) => setState(() {
+                profileBirdSpecies
+                  ..clear()
+                  ..addAll(next);
+              }),
             ),
             const SizedBox(height: 10),
-            _Field(controller: c['poultry_count']!, label: tr(context, 'Bird count', 'عدد الطيور', 'Aantal vogels'), icon: Icons.egg_alt_rounded, keyboard: TextInputType.number),
+            _Field(
+              controller: c['poultry_count']!,
+              label: tr(context, 'Bird count', 'عدد الطيور', 'Aantal vogels'),
+              icon: Icons.egg_alt_rounded,
+              keyboard: TextInputType.number,
+            ),
             const SizedBox(height: 12),
           ],
           if (profileSelectedGroups.contains('dogs')) ...[
             _DogBreedMultiSelect(
               title: tr(context, 'Dog breeds', 'سلالات الكلاب', 'Hondenrassen'),
               selected: profileDogBreeds,
-              onChanged: (next) => setState(() { profileDogBreeds..clear()..addAll(next); }),
+              onChanged: (next) => setState(() {
+                profileDogBreeds
+                  ..clear()
+                  ..addAll(next);
+              }),
             ),
             const SizedBox(height: 10),
-            _Field(controller: c['dog_count']!, label: tr(context, 'Dog count', 'عدد الكلاب', 'Aantal honden'), icon: Icons.pets_rounded, keyboard: TextInputType.number),
+            _Field(
+              controller: c['dog_count']!,
+              label: tr(context, 'Dog count', 'عدد الكلاب', 'Aantal honden'),
+              icon: Icons.pets_rounded,
+              keyboard: TextInputType.number,
+            ),
             const SizedBox(height: 12),
           ],
           for (final spec in <(String, String, IconData)>[
@@ -3991,30 +4119,43 @@ class _AnimalGroupBanner extends StatelessWidget {
   final String asset;
   final String title;
   final String text;
+
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
     decoration: BoxDecoration(
       color: VetColors.surface,
       borderRadius: BorderRadius.circular(18),
       border: Border.all(color: VetColors.border),
     ),
     child: Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
-          width: 138,
-          height: 102,
-          child: ClipRect(
-            child: Center(
-              child: Transform.scale(
-                scale: 1.25,
-                child: Image.asset(
-                  asset,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.high,
-                  isAntiAlias: true,
-                ),
-              ),
+          width: 172,
+          height: 126,
+          child: Image.asset(
+            asset,
+            fit: BoxFit.contain,
+            alignment: Alignment.center,
+            filterQuality: FilterQuality.high,
+            isAntiAlias: true,
+            gaplessPlayback: true,
+            errorBuilder: (context, error, stackTrace) => Center(
+              child: asset.contains('livestock')
+                  ? SvgPicture.asset(
+                      'assets/icons/cow.svg',
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.contain,
+                    )
+                  : Icon(
+                      asset.contains('poultry')
+                          ? Icons.flutter_dash_rounded
+                          : Icons.pets_rounded,
+                      size: 76,
+                      color: VetColors.primary,
+                    ),
             ),
           ),
         ),
@@ -4022,18 +4163,23 @@ class _AnimalGroupBanner extends StatelessWidget {
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 17,
+                  fontSize: 18,
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 6),
               Text(
                 text,
-                style: const TextStyle(color: VetColors.muted, height: 1.4),
+                style: const TextStyle(
+                  color: VetColors.muted,
+                  height: 1.4,
+                  fontSize: 13.5,
+                ),
               ),
             ],
           ),
@@ -4399,9 +4545,13 @@ class _FatalState extends StatelessWidget {
   );
 }
 
-
 class _SpeciesMultiSelect extends StatelessWidget {
-  const _SpeciesMultiSelect({required this.title, required this.options, required this.selected, required this.onChanged});
+  const _SpeciesMultiSelect({
+    required this.title,
+    required this.options,
+    required this.selected,
+    required this.onChanged,
+  });
   final String title;
   final List<VetAnimalSpecies> options;
   final Set<String> selected;
@@ -4409,48 +4559,73 @@ class _SpeciesMultiSelect extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: VetColors.surface2, borderRadius: BorderRadius.circular(17), border: Border.all(color: VetColors.border)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5)),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
-            children: options.map((item) {
-              final active = selected.contains(item.code);
-              final locale = Localizations.localeOf(context).languageCode;
-              final label = locale == 'ar' ? item.ar : locale == 'nl' ? item.nl : item.en;
-              return FilterChip(
-                avatar: Text(item.emoji, style: const TextStyle(fontSize: 23)),
-                label: Text(label, style: TextStyle(fontWeight: active ? FontWeight.w900 : FontWeight.w700, color: VetColors.text)),
-                selected: active,
-                selectedColor: VetColors.primary.withValues(alpha: .22),
-                backgroundColor: Colors.white,
-                checkmarkColor: VetColors.primary,
-                showCheckmark: true,
-                side: BorderSide(color: active ? VetColors.primary : VetColors.border, width: active ? 2.2 : 1),
-                elevation: active ? 2 : 0,
-                onSelected: (_) {
-                  final next = Set<String>.from(selected);
-                  if (active) {
-                    if (next.length > 1) next.remove(item.code);
-                  } else {
-                    next.add(item.code);
-                  }
-                  onChanged(next);
-                },
-              );
-            }).toList(),
-          ),
-        ]),
-      );
+    width: double.infinity,
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: VetColors.surface2,
+      borderRadius: BorderRadius.circular(17),
+      border: Border.all(color: VetColors.border),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          children: options.map((item) {
+            final active = selected.contains(item.code);
+            final locale = Localizations.localeOf(context).languageCode;
+            final label = locale == 'ar'
+                ? item.ar
+                : locale == 'nl'
+                ? item.nl
+                : item.en;
+            return FilterChip(
+              avatar: Text(item.emoji, style: const TextStyle(fontSize: 23)),
+              label: Text(
+                label,
+                style: TextStyle(
+                  fontWeight: active ? FontWeight.w900 : FontWeight.w700,
+                  color: VetColors.text,
+                ),
+              ),
+              selected: active,
+              selectedColor: VetColors.primary.withValues(alpha: .22),
+              backgroundColor: Colors.white,
+              checkmarkColor: VetColors.primary,
+              showCheckmark: true,
+              side: BorderSide(
+                color: active ? VetColors.primary : VetColors.border,
+                width: active ? 2.2 : 1,
+              ),
+              elevation: active ? 2 : 0,
+              onSelected: (_) {
+                final next = Set<String>.from(selected);
+                if (active) {
+                  if (next.length > 1) next.remove(item.code);
+                } else {
+                  next.add(item.code);
+                }
+                onChanged(next);
+              },
+            );
+          }).toList(),
+        ),
+      ],
+    ),
+  );
 }
 
-
 class _AnimalGroupMultiSelect extends StatelessWidget {
-  const _AnimalGroupMultiSelect({required this.selected, required this.onToggle});
+  const _AnimalGroupMultiSelect({
+    required this.selected,
+    required this.onToggle,
+  });
   final Set<String> selected;
   final ValueChanged<String> onToggle;
 
@@ -4469,36 +4644,63 @@ class _AnimalGroupMultiSelect extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: VetColors.blue.withValues(alpha: .28)),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(tr(context, 'Animal sections', 'أقسام الحيوانات', 'Diercategorieën'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 9,
-          runSpacing: 9,
-          children: groups.map((g) {
-            final active = selected.contains(g.$1);
-            final locale = Localizations.localeOf(context).languageCode;
-            final label = locale == 'ar' ? g.$3 : locale == 'nl' ? g.$4 : g.$2;
-            return FilterChip(
-              avatar: Text(g.$5, style: const TextStyle(fontSize: 24)),
-              label: Text(label, style: TextStyle(fontWeight: active ? FontWeight.w900 : FontWeight.w700)),
-              selected: active,
-              selectedColor: VetColors.primary.withValues(alpha: .25),
-              backgroundColor: Colors.white,
-              checkmarkColor: VetColors.primary,
-              side: BorderSide(color: active ? VetColors.primary : VetColors.border, width: active ? 2.4 : 1),
-              elevation: active ? 2 : 0,
-              onSelected: (_) => onToggle(g.$1),
-            );
-          }).toList(),
-        ),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            tr(
+              context,
+              'Animal sections',
+              'أقسام الحيوانات',
+              'Diercategorieën',
+            ),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 9,
+            runSpacing: 9,
+            children: groups.map((g) {
+              final active = selected.contains(g.$1);
+              final locale = Localizations.localeOf(context).languageCode;
+              final label = locale == 'ar'
+                  ? g.$3
+                  : locale == 'nl'
+                  ? g.$4
+                  : g.$2;
+              return FilterChip(
+                avatar: Text(g.$5, style: const TextStyle(fontSize: 24)),
+                label: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: active ? FontWeight.w900 : FontWeight.w700,
+                  ),
+                ),
+                selected: active,
+                selectedColor: VetColors.primary.withValues(alpha: .25),
+                backgroundColor: Colors.white,
+                checkmarkColor: VetColors.primary,
+                side: BorderSide(
+                  color: active ? VetColors.primary : VetColors.border,
+                  width: active ? 2.4 : 1,
+                ),
+                elevation: active ? 2 : 0,
+                onSelected: (_) => onToggle(g.$1),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _DogBreedMultiSelect extends StatelessWidget {
-  const _DogBreedMultiSelect({required this.title, required this.selected, required this.onChanged});
+  const _DogBreedMultiSelect({
+    required this.title,
+    required this.selected,
+    required this.onChanged,
+  });
   final String title;
   final Set<String> selected;
   final ValueChanged<Set<String>> onChanged;
@@ -4509,44 +4711,101 @@ class _DogBreedMultiSelect extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: VetColors.surface2, borderRadius: BorderRadius.circular(17), border: Border.all(color: VetColors.border)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5)),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 7,
-          runSpacing: 7,
-          children: vetDogBreeds.map((breed) {
-            final active = selected.contains(breed.code);
-            final label = locale == 'ar' ? breed.ar : locale == 'nl' ? breed.nl : breed.en;
-            return FilterChip(
-              avatar: const Text('🐕', style: TextStyle(fontSize: 21)),
-              label: Text(label, style: TextStyle(fontWeight: active ? FontWeight.w900 : FontWeight.w700)),
-              selected: active,
-              selectedColor: VetColors.primary.withValues(alpha: .22),
-              backgroundColor: Colors.white,
-              checkmarkColor: VetColors.primary,
-              side: BorderSide(color: active ? VetColors.primary : VetColors.border, width: active ? 2.2 : 1),
-              onSelected: (_) {
-                final next = Set<String>.from(selected);
-                active ? next.remove(breed.code) : next.add(breed.code);
-                onChanged(next);
-              },
-            );
-          }).toList(),
-        ),
-      ]),
+      decoration: BoxDecoration(
+        color: VetColors.surface2,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: VetColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: vetDogBreeds.map((breed) {
+              final active = selected.contains(breed.code);
+              final label = locale == 'ar'
+                  ? breed.ar
+                  : locale == 'nl'
+                  ? breed.nl
+                  : breed.en;
+              return FilterChip(
+                avatar: const Text('🐕', style: TextStyle(fontSize: 21)),
+                label: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: active ? FontWeight.w900 : FontWeight.w700,
+                  ),
+                ),
+                selected: active,
+                selectedColor: VetColors.primary.withValues(alpha: .22),
+                backgroundColor: Colors.white,
+                checkmarkColor: VetColors.primary,
+                side: BorderSide(
+                  color: active ? VetColors.primary : VetColors.border,
+                  width: active ? 2.2 : 1,
+                ),
+                onSelected: (_) {
+                  final next = Set<String>.from(selected);
+                  active ? next.remove(breed.code) : next.add(breed.code);
+                  onChanged(next);
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _SpeciesSingleSelect extends StatelessWidget {
-  const _SpeciesSingleSelect({required this.title, required this.options, required this.selectedCode, required this.enabled, required this.onChanged});
+  const _SpeciesSingleSelect({
+    required this.title,
+    required this.options,
+    required this.selectedCode,
+    required this.enabled,
+    required this.onChanged,
+  });
   final String title;
   final List<VetAnimalSpecies> options;
   final String selectedCode;
   final bool enabled;
   final ValueChanged<String> onChanged;
+
+  Widget _speciesArtwork(VetAnimalSpecies item) {
+    Widget child;
+    switch (item.code) {
+      case 'cattle':
+        child = SvgPicture.asset('assets/icons/cow.svg', fit: BoxFit.contain);
+        break;
+      case 'buffalo':
+        child = SvgPicture.asset(
+          'assets/icons/buffalo.svg',
+          fit: BoxFit.contain,
+        );
+        break;
+      case 'chicken':
+        child = SvgPicture.asset(
+          'assets/icons/chicken.svg',
+          fit: BoxFit.contain,
+        );
+        break;
+      case 'chick':
+        child = SvgPicture.asset('assets/icons/chick.svg', fit: BoxFit.contain);
+        break;
+      default:
+        child = Center(
+          child: Text(item.emoji, style: const TextStyle(fontSize: 34)),
+        );
+    }
+    return SizedBox(width: 42, height: 42, child: child);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -4554,28 +4813,72 @@ class _SpeciesSingleSelect extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: VetColors.softBlue, borderRadius: BorderRadius.circular(17), border: Border.all(color: VetColors.blue.withValues(alpha: .2))),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [const Icon(Icons.pets_outlined, color: VetColors.blue), const SizedBox(width: 8), Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5))]),
-        const SizedBox(height: 9),
-        Wrap(
-          spacing: 7,
-          runSpacing: 7,
-          children: options.map((item) {
-            final label = locale == 'ar' ? item.ar : locale == 'nl' ? item.nl : item.en;
-            final active = selectedCode == item.code;
-            return ChoiceChip(
-              avatar: Text(item.emoji, style: const TextStyle(fontSize: 23)),
-              label: Text(label, style: TextStyle(fontWeight: active ? FontWeight.w900 : FontWeight.w700)),
-              selected: active,
-              selectedColor: VetColors.primary.withValues(alpha: .22),
-              backgroundColor: Colors.white,
-              side: BorderSide(color: active ? VetColors.primary : VetColors.border, width: active ? 2.2 : 1),
-              onSelected: enabled ? (_) => onChanged(item.code) : null,
-            );
-          }).toList(),
-        ),
-      ]),
+      decoration: BoxDecoration(
+        color: VetColors.softBlue,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: VetColors.blue.withValues(alpha: .2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.pets_outlined, color: VetColors.blue, size: 31),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 11),
+          Wrap(
+            spacing: 9,
+            runSpacing: 9,
+            children: options.map((item) {
+              final label = locale == 'ar'
+                  ? item.ar
+                  : locale == 'nl'
+                  ? item.nl
+                  : item.en;
+              final active = selectedCode == item.code;
+              return ChoiceChip(
+                labelPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 3,
+                ),
+                label: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _speciesArtwork(item),
+                    const SizedBox(width: 8),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: active ? FontWeight.w900 : FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                selected: active,
+                selectedColor: VetColors.primary.withValues(alpha: .22),
+                backgroundColor: Colors.white,
+                side: BorderSide(
+                  color: active ? VetColors.primary : VetColors.border,
+                  width: active ? 2.2 : 1,
+                ),
+                onSelected: enabled ? (_) => onChanged(item.code) : null,
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 }
