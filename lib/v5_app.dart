@@ -4184,7 +4184,7 @@ class _AnimalSprite extends StatelessWidget {
               width: size * columns,
               height: size * rows,
               child: Image.asset(
-                'assets/icons/animal_sprite_v26.webp',
+                'assets/icons/animal_sprite_v29.webp',
                 fit: BoxFit.fill,
                 filterQuality: FilterQuality.high,
                 isAntiAlias: true,
@@ -4200,22 +4200,21 @@ class _AnimalSprite extends StatelessWidget {
 
 String _animalGroupAssetFromSpriteIndex(int spriteIndex) =>
     switch (spriteIndex) {
-      1 => 'assets/icons/dogs_group_transparent.webp',
-      2 => 'assets/icons/birds_group_transparent.webp',
-      _ => 'assets/icons/livestock_group_transparent.webp',
+      1 => 'assets/icons/dogs_group_v29.webp',
+      2 => 'assets/icons/birds_group_v29.webp',
+      _ => 'assets/icons/livestock_group_v29.webp',
     };
 
 String _animalGroupAssetFromGroup(String group) => switch (group) {
-  'dogs' => 'assets/icons/dogs_group_transparent.webp',
-  'poultry' => 'assets/icons/birds_group_transparent.webp',
-  _ => 'assets/icons/livestock_group_transparent.webp',
+  'dogs' => 'assets/icons/dogs_group_v29.webp',
+  'poultry' => 'assets/icons/birds_group_v29.webp',
+  _ => 'assets/icons/livestock_group_v29.webp',
 };
 
 String _animalGroupAssetFromLegacyAsset(String asset) {
-  if (asset.contains('poultry'))
-    return 'assets/icons/birds_group_transparent.webp';
-  if (asset.contains('dog')) return 'assets/icons/dogs_group_transparent.webp';
-  return 'assets/icons/livestock_group_transparent.webp';
+  if (asset.contains('poultry')) return 'assets/icons/birds_group_v29.webp';
+  if (asset.contains('dog')) return 'assets/icons/dogs_group_v29.webp';
+  return 'assets/icons/livestock_group_v29.webp';
 }
 
 class _AnimalGroupImage extends StatelessWidget {
@@ -4261,7 +4260,7 @@ class _AnimalGroupBanner extends StatelessWidget {
       children: [
         _AnimalGroupImage(
           asset: _animalGroupAssetFromSpriteIndex(spriteIndex),
-          size: 156,
+          size: 170,
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -4445,7 +4444,7 @@ class _AnimalCount extends StatelessWidget {
           Center(
             child: _AnimalGroupImage(
               asset: _animalGroupAssetFromLegacyAsset(asset),
-              size: 176,
+              size: 190,
             ),
           ),
           const SizedBox(height: 10),
@@ -4726,7 +4725,7 @@ class _AnimalVisualTile extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.enabled = true,
-    this.imageSize = 86,
+    this.imageSize = 102,
   });
 
   final int spriteIndex;
@@ -4748,7 +4747,7 @@ class _AnimalVisualTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected
               ? VetColors.primary.withValues(alpha: .10)
-              : Colors.white,
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: selected ? VetColors.primary : VetColors.border,
@@ -4849,7 +4848,7 @@ class _AnimalGroupVisualCard extends StatelessWidget {
         children: [
           _AnimalGroupImage(
             asset: _animalGroupAssetFromSpriteIndex(spriteIndex),
-            size: 112,
+            size: 128,
           ),
           const SizedBox(width: 13),
           Expanded(
@@ -5101,7 +5100,7 @@ class _DogBreedMultiSelect extends StatelessWidget {
                       spriteIndex: breed.spriteIndex,
                       label: label,
                       selected: active,
-                      imageSize: 88,
+                      imageSize: 102,
                       onTap: () {
                         final next = Set<String>.from(selected);
                         active ? next.remove(breed.code) : next.add(breed.code);
@@ -5189,7 +5188,7 @@ class _SpeciesSingleSelect extends StatelessWidget {
                       label: label,
                       selected: selectedCode == item.code,
                       enabled: enabled,
-                      imageSize: options.length == 1 ? 102 : 88,
+                      imageSize: options.length == 1 ? 116 : 102,
                       onTap: () => onChanged(item.code),
                     ),
                   );
@@ -5274,7 +5273,7 @@ class _DogBreedSingleSelect extends StatelessWidget {
                       label: label,
                       selected: selectedCode == breed.code,
                       enabled: enabled,
-                      imageSize: options.length == 1 ? 102 : 88,
+                      imageSize: options.length == 1 ? 116 : 102,
                       onTap: () => onChanged(breed.code),
                     ),
                   );
