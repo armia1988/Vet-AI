@@ -5,11 +5,13 @@
   "packages": [
     {
       "name": "app",
-      "version": "0.6.12+24",
+      "version": "0.6.22+34",
       "dependencies": [
         "audioplayers",
+        "crypto",
         "file_picker",
         "flutter",
+        "flutter_local_notifications",
         "flutter_localizations",
         "flutter_svg",
         "flutter_tts",
@@ -64,6 +66,19 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "flutter_local_notifications",
+      "version": "22.3.0",
+      "dependencies": [
+        "clock",
+        "flutter",
+        "flutter_local_notifications_linux",
+        "flutter_local_notifications_platform_interface",
+        "flutter_local_notifications_web",
+        "flutter_local_notifications_windows",
+        "timezone"
       ]
     },
     {
@@ -219,6 +234,13 @@
         "shared_preferences_platform_interface",
         "shared_preferences_web",
         "shared_preferences_windows"
+      ]
+    },
+    {
+      "name": "crypto",
+      "version": "3.0.7",
+      "dependencies": [
+        "typed_data"
       ]
     },
     {
@@ -386,6 +408,49 @@
       ]
     },
     {
+      "name": "flutter_local_notifications_windows",
+      "version": "3.1.1",
+      "dependencies": [
+        "ffi",
+        "flutter",
+        "flutter_local_notifications_platform_interface",
+        "meta",
+        "timezone",
+        "xml"
+      ]
+    },
+    {
+      "name": "flutter_local_notifications_web",
+      "version": "1.0.0",
+      "dependencies": [
+        "collection",
+        "flutter",
+        "flutter_local_notifications_platform_interface",
+        "timezone",
+        "web"
+      ]
+    },
+    {
+      "name": "flutter_local_notifications_platform_interface",
+      "version": "12.2.0",
+      "dependencies": [
+        "plugin_platform_interface",
+        "timezone"
+      ]
+    },
+    {
+      "name": "flutter_local_notifications_linux",
+      "version": "8.0.1",
+      "dependencies": [
+        "dbus",
+        "ffi",
+        "flutter",
+        "flutter_local_notifications_platform_interface",
+        "path",
+        "xdg_directories"
+      ]
+    },
+    {
       "name": "web",
       "version": "1.1.1",
       "dependencies": []
@@ -498,13 +563,6 @@
       "dependencies": [
         "meta",
         "vector_math"
-      ]
-    },
-    {
-      "name": "crypto",
-      "version": "3.0.7",
-      "dependencies": [
-        "typed_data"
       ]
     },
     {
@@ -966,6 +1024,13 @@
       ]
     },
     {
+      "name": "typed_data",
+      "version": "1.4.0",
+      "dependencies": [
+        "collection"
+      ]
+    },
+    {
       "name": "sky_engine",
       "version": "0.0.0",
       "dependencies": []
@@ -1029,6 +1094,24 @@
       "dependencies": [
         "source_span",
         "string_scanner"
+      ]
+    },
+    {
+      "name": "xdg_directories",
+      "version": "1.1.0",
+      "dependencies": [
+        "meta",
+        "path"
+      ]
+    },
+    {
+      "name": "dbus",
+      "version": "0.7.15",
+      "dependencies": [
+        "args",
+        "ffi",
+        "meta",
+        "xml"
       ]
     },
     {
@@ -1142,13 +1225,6 @@
       ]
     },
     {
-      "name": "typed_data",
-      "version": "1.4.0",
-      "dependencies": [
-        "collection"
-      ]
-    },
-    {
       "name": "qr",
       "version": "3.0.2",
       "dependencies": [
@@ -1194,16 +1270,6 @@
       "dependencies": [
         "dbus",
         "meta"
-      ]
-    },
-    {
-      "name": "dbus",
-      "version": "0.7.15",
-      "dependencies": [
-        "args",
-        "ffi",
-        "meta",
-        "xml"
       ]
     },
     {
@@ -1366,14 +1432,6 @@
       ]
     },
     {
-      "name": "xdg_directories",
-      "version": "1.1.0",
-      "dependencies": [
-        "meta",
-        "path"
-      ]
-    },
-    {
       "name": "platform",
       "version": "3.1.6",
       "dependencies": []
@@ -1491,6 +1549,14 @@
         "collection",
         "meta",
         "pub_semver"
+      ]
+    },
+    {
+      "name": "timezone",
+      "version": "0.11.1",
+      "dependencies": [
+        "http",
+        "path"
       ]
     }
   ],

@@ -39,11 +39,13 @@ extension VetOperations on VetBackend {
     required Set<String> livestockSpecies,
     required Set<String> birdSpecies,
     required bool dogEnabled,
+    Set<String> dogBreeds = const <String>{},
   }) async {
     await client.from('farms').update({
       'livestock_species': livestockSpecies.toList()..sort(),
       'bird_species': birdSpecies.toList()..sort(),
       'dog_enabled': dogEnabled,
+      'dog_breeds': dogEnabled ? (dogBreeds.toList()..sort()) : <String>[],
       'updated_at': DateTime.now().toIso8601String(),
     }).eq('id', farmId);
   }
@@ -82,6 +84,9 @@ extension VetOperations on VetBackend {
     final user = currentUser;
     if (user == null) throw StateError('Signed-in user required.');
     if (minValue == null && maxValue == null) throw ArgumentError('At least one threshold is required.');
+    if (minValue != null && maxValue != null && minValue >= maxValue) {
+      throw ArgumentError('Minimum threshold must be lower than maximum threshold.');
+    }
     final data = <String, dynamic>{
       'farm_id': farmId,
       'metric': metric,
