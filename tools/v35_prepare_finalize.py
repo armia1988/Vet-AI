@@ -14,16 +14,16 @@ if marker not in s:
     s = s[:at] + 'User-selected species: ${selectedSpecies}\\\n' + s[at:]
     p.write_text(s, encoding='utf-8')
 
-# The main patch used to repeat the same multiline prompt replacement. Remove that
-# one redundant line at runtime so the rest of the source patch remains idempotent.
+# Prepare the one-time source patch so it remains compatible with dormant legacy
+# V2/V3 callers. Empty species is NOT treated as a real species: the production
+# analysis function still rejects it with SPECIES_REQUIRED. V5 always supplies
+# the user's explicit selection.
 patch = Path('tools/apply_v35_species_voice.py')
 ps = patch.read_text(encoding='utf-8')
 lines = ps.splitlines(keepends=True)
 filtered = [line for line in lines if 'final model species prompt' not in line]
-if len(filtered) == len(lines):
-    print('V35 duplicate final prompt marker already absent')
-else:
-    patch.write_text(''.join(filtered), encoding='utf-8')
-    print('V35 duplicate final prompt marker removed')
+ps = ''.join(filtered)
+ps = ps.replace('    required String speciesCode,\\n    String? birdType,', "    String speciesCode = '',\\n    String? birdType,")
+patch.write_text(ps, encoding='utf-8')
 
-print('V35 final-report species prompt prepared')
+print('V35 final prompt prepared; legacy callers remain compile-safe without species guessing')
