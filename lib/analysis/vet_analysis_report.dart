@@ -40,7 +40,7 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
   final Map<String, TextEditingController> _answerControllers = {};
   late Map<String, dynamic> _result;
   late final AnimationController _pulse;
-  bool _muted = false;
+  bool _muted = true;
   bool _finalizing = false;
   String? _finalError;
 
@@ -59,7 +59,7 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
     )..repeat(reverse: true);
     _syncQuestions();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_configureSpeechAudioSession().then((_) => _speakCurrent()));
+      unawaited(_configureSpeechAudioSession());
     });
   }
 
@@ -70,7 +70,7 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
       _result = Map<String, dynamic>.from(widget.initialResult);
       _syncQuestions();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        unawaited(_configureSpeechAudioSession().then((_) => _speakCurrent()));
+        unawaited(_configureSpeechAudioSession());
       });
     }
   }
@@ -163,7 +163,10 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
       text = parts.join(' ');
     }
     text = _speechSafeText(text);
-    if (text.isEmpty) return;
+    if (text.isEmpty) {
+      if (mounted) setState(() => _muted = true);
+      return;
+    }
 
     for (var attempt = 0; attempt < 2; attempt++) {
       try {
@@ -179,36 +182,39 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
           return;
         }
       } catch (_) {
-        // Retry the natural voice once before using the device fallback.
+        // Retry the natural voice once.
       }
-      if (attempt == 0)
+      if (attempt == 0) {
         await Future<void>.delayed(const Duration(milliseconds: 350));
+      }
     }
 
     if (mounted && !_muted) {
+      setState(() => _muted = true);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             widget.translate(
-              'Natural cloud voice is temporarily unavailable. Please try the speaker again.',
-              'الصوت الطبيعي السحابي غير متاح مؤقتًا. جرّب زر السماعة مرة تانية.',
-              'De natuurlijke cloudstem is tijdelijk niet beschikbaar. Probeer de luidspreker opnieuw.',
+              'Natural cloud voice could not start. The speaker has been turned off; try it again after checking your connection.',
+              'الصوت الطبيعي السحابي ما اشتغلش. تم إغلاق السماعة تلقائيًا؛ جرّب تاني بعد التأكد من الاتصال.',
+              'De natuurlijke cloudstem kon niet starten. De luidspreker is uitgezet; probeer opnieuw nadat je verbinding is gecontroleerd.',
             ),
           ),
         ),
       );
     }
-    return;
   }
 
   Future<void> _toggleMute() async {
-    setState(() => _muted = !_muted);
-    if (_muted) {
+    if (!_muted) {
+      setState(() => _muted = true);
       await _audio.stop();
       await _tts.stop();
-    } else {
-      await _speakCurrent();
+      return;
     }
+
+    setState(() => _muted = false);
+    await _speakCurrent();
   }
 
   void _quickAnswer(String question, String value) {
@@ -223,8 +229,9 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
     final answers = <Map<String, String>>[];
     for (final entry in _answerControllers.entries) {
       final answer = entry.value.text.trim();
-      if (answer.isNotEmpty)
+      if (answer.isNotEmpty) {
         answers.add({'question': entry.key, 'answer': answer});
+      }
     }
     setState(() {
       _finalizing = true;
@@ -244,7 +251,7 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
           _finalError = null;
         });
         widget.onFinalized?.call(response);
-        await _speakCurrent();
+        if (!_muted) await _speakCurrent();
       } else {
         setState(() {
           _finalizing = false;
@@ -339,14 +346,14 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
                 IconButton.filledTonal(
                   tooltip: _muted
                       ? widget.translate(
-                          'Turn sound on',
-                          'تشغيل الصوت',
-                          'Geluid aan',
+                          'Turn natural voice on',
+                          'تشغيل الصوت الطبيعي',
+                          'Natuurlijke stem aan',
                         )
                       : widget.translate(
-                          'Mute result',
-                          'كتم النتيجة',
-                          'Resultaat dempen',
+                          'Turn sound off',
+                          'إيقاف الصوت',
+                          'Geluid uit',
                         ),
                   onPressed: _toggleMute,
                   icon: Icon(

@@ -11,6 +11,7 @@ on:
       - 'pubspec.lock'
       - 'ios/**'
       - 'android/**'
+      - 'supabase/functions/**'
   pull_request:
     branches: [main]
     paths:
@@ -20,6 +21,7 @@ on:
       - 'pubspec.lock'
       - 'ios/**'
       - 'android/**'
+      - 'supabase/functions/**'
 
 concurrency:
   group: flutter-check-${{ github.ref }}
@@ -40,3 +42,12 @@ jobs:
         run: flutter pub get
       - name: Analyze
         run: flutter analyze
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Check Vet AI Edge Functions
+        run: |
+          deno check supabase/functions/analyze-case/index.ts
+          deno check supabase/functions/finalize-case-report/index.ts
+          deno check supabase/functions/case-voice/index.ts
