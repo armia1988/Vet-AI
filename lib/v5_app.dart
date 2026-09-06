@@ -1896,6 +1896,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
   String? assessmentId;
   late String group;
   late String speciesCode;
+  late String dogBreedCode;
 
   List<String> get groups => [
     if (((widget.farm['livestock_count'] as num?)?.toInt() ?? 0) > 0)
@@ -1906,13 +1907,26 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
 
   List<String> _speciesCodesForGroup(String g) {
     if (g == 'dogs') return const ['dog'];
+    final supported = vetSpeciesForGroup(g).map((e) => e.code).toSet();
     final key = g == 'poultry' ? 'bird_species' : 'livestock_species';
     final configured = ((widget.farm[key] as List?) ?? const [])
         .map((e) => e.toString())
-        .where((e) => e.isNotEmpty)
+        .where((e) => e.isNotEmpty && supported.contains(e))
         .toList();
     if (configured.isNotEmpty) return configured;
-    return vetSpeciesForGroup(g).map((e) => e.code).toList();
+    return supported.toList();
+  }
+
+  List<VetDogBreed> get _availableDogBreeds {
+    final configured = ((widget.farm['dog_breeds'] as List?) ?? const [])
+        .map((e) => e.toString())
+        .where((e) => e.isNotEmpty)
+        .toSet();
+    if (configured.isEmpty) return vetDogBreeds;
+    final filtered = vetDogBreeds
+        .where((breed) => configured.contains(breed.code))
+        .toList();
+    return filtered.isEmpty ? vetDogBreeds : filtered;
   }
 
   List<VetAnimalSpecies> get _currentSpeciesOptions {
@@ -1934,6 +1948,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
               ? 'chicken'
               : 'cattle')
         : initialSpecies.first;
+    dogBreedCode = _availableDogBreeds.first.code;
   }
 
   @override
@@ -2037,7 +2052,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
   Future<String> _scanCacheKey() async {
     final language = Localizations.localeOf(context).languageCode.toLowerCase();
     final metadata = utf8.encode(
-      '|$group|$speciesCode|$language|${notes.text.trim().toLowerCase()}',
+      '|$group|$speciesCode|$dogBreedCode|$language|${notes.text.trim().toLowerCase()}',
     );
     final digest = sha256.convert(<int>[...bytes!, ...metadata]).toString();
     return 'vet_ai_exact_scan_v3_$digest';
@@ -2128,7 +2143,9 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
       final newAssessmentId = await VetBackend.instance.createDraftAssessment(
         farmId: farmId,
         mediaPath: path,
-        symptomNotes: notes.text,
+        symptomNotes: group == 'dogs'
+            ? '[Dog breed: $dogBreedCode]\n${notes.text}'
+            : notes.text,
         animalGroup: group,
         speciesCode: speciesCode,
         birdType: group == 'poultry' ? speciesCode : null,
@@ -2168,11 +2185,11 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
     return tr(context, 'Livestock', 'المواشي', 'Vee');
   }
 
-  String asset(String g) => g == 'poultry'
-      ? 'assets/icons/poultry_final.png'
+  int groupSpriteIndex(String g) => g == 'poultry'
+      ? 2
       : g == 'dogs'
-      ? 'assets/icons/dog_final.png'
-      : 'assets/icons/livestock_final.png';
+      ? 1
+      : 0;
 
   @override
   Widget build(BuildContext context) {
@@ -2206,10 +2223,10 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
             children: groups
                 .map(
                   (g) => ChoiceChip(
-                    avatar: SizedBox(
-                      width: 56,
-                      height: 42,
-                      child: Image.asset(asset(g), fit: BoxFit.contain),
+                    avatar: _AnimalSprite(
+                      index: groupSpriteIndex(g),
+                      size: 46,
+                      radius: 8,
                     ),
                     label: Text(label(g)),
                     selected: group == g,
@@ -2225,48 +2242,69 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
                                       ? 'chicken'
                                       : 'cattle')
                                 : choices.first;
+                            if (g == 'dogs' &&
+                                !_availableDogBreeds.any(
+                                  (breed) => breed.code == dogBreedCode,
+                                )) {
+                              dogBreedCode = _availableDogBreeds.first.code;
+                            }
                             result = null;
                           }),
                   ),
                 )
                 .toList(),
           ),
-        if (groups.length == 1)
-          _AnimalGroupBanner(
-            asset: asset(groups.first),
-            title: label(groups.first),
-            text: tr(
-              context,
-              'This is the animal group enabled for this farm.',
-              'ده نوع الحيوان المفعّل للمزرعة دي.',
-              'Dit is de diergroep die voor deze boerderij is ingeschakeld.',
-            ),
+        if (groups.length > 1) const SizedBox(height: 12),
+        _AnimalGroupBanner(
+          spriteIndex: groupSpriteIndex(group),
+          title: label(group),
+          text: tr(
+            context,
+            'This is the animal group selected for this scan.',
+            'ده قسم الحيوان المختار للفحص ده.',
+            'Dit is de diergroep die voor deze scan is geselecteerd.',
           ),
-        const SizedBox(height: 12),
-        _SpeciesSingleSelect(
-          title: group == 'livestock'
-              ? tr(
-                  context,
-                  'Choose livestock type',
-                  'اختار نوع المواشي',
-                  'Kies veetype',
-                )
-              : group == 'poultry'
-              ? tr(
-                  context,
-                  'Choose bird type',
-                  'اختار نوع الطير',
-                  'Kies vogeltype',
-                )
-              : tr(context, 'Animal type', 'نوع الحيوان', 'Diertype'),
-          options: _currentSpeciesOptions,
-          selectedCode: speciesCode,
-          enabled: !busy,
-          onChanged: (code) => setState(() {
-            speciesCode = code;
-            result = null;
-          }),
         ),
+        const SizedBox(height: 12),
+        if (group == 'dogs')
+          _DogBreedSingleSelect(
+            title: tr(
+              context,
+              'Choose dog breed',
+              'اختار نوع الكلب',
+              'Kies hondenras',
+            ),
+            options: _availableDogBreeds,
+            selectedCode: dogBreedCode,
+            enabled: !busy,
+            onChanged: (code) => setState(() {
+              dogBreedCode = code;
+              result = null;
+            }),
+          )
+        else
+          _SpeciesSingleSelect(
+            title: group == 'livestock'
+                ? tr(
+                    context,
+                    'Choose livestock type',
+                    'اختار نوع المواشي',
+                    'Kies veetype',
+                  )
+                : tr(
+                    context,
+                    'Choose bird type',
+                    'اختار نوع الطير',
+                    'Kies vogeltype',
+                  ),
+            options: _currentSpeciesOptions,
+            selectedCode: speciesCode,
+            enabled: !busy,
+            onChanged: (code) => setState(() {
+              speciesCode = code;
+              result = null;
+            }),
+          ),
         const SizedBox(height: 16),
         Container(
           height: 285,
@@ -4110,19 +4148,63 @@ class _Notice extends StatelessWidget {
   );
 }
 
+class _AnimalSprite extends StatelessWidget {
+  const _AnimalSprite({
+    required this.index,
+    required this.size,
+    this.radius = 10,
+  });
+
+  final int index;
+  final double size;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    const columns = 5;
+    const rows = 5;
+    final col = index % columns;
+    final row = index ~/ columns;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: SizedBox.square(
+        dimension: size,
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            Positioned(
+              left: -col * size,
+              top: -row * size,
+              width: size * columns,
+              height: size * rows,
+              child: Image.asset(
+                'assets/icons/animal_sprite_v26.webp',
+                fit: BoxFit.fill,
+                filterQuality: FilterQuality.high,
+                isAntiAlias: true,
+                gaplessPlayback: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AnimalGroupBanner extends StatelessWidget {
   const _AnimalGroupBanner({
-    required this.asset,
+    required this.spriteIndex,
     required this.title,
     required this.text,
   });
-  final String asset;
+  final int spriteIndex;
   final String title;
   final String text;
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     decoration: BoxDecoration(
       color: VetColors.surface,
       borderRadius: BorderRadius.circular(18),
@@ -4131,35 +4213,8 @@ class _AnimalGroupBanner extends StatelessWidget {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        SizedBox(
-          width: 172,
-          height: 126,
-          child: Image.asset(
-            asset,
-            fit: BoxFit.contain,
-            alignment: Alignment.center,
-            filterQuality: FilterQuality.high,
-            isAntiAlias: true,
-            gaplessPlayback: true,
-            errorBuilder: (context, error, stackTrace) => Center(
-              child: asset.contains('livestock')
-                  ? SvgPicture.asset(
-                      'assets/icons/cow.svg',
-                      width: 100,
-                      height: 100,
-                      fit: BoxFit.contain,
-                    )
-                  : Icon(
-                      asset.contains('poultry')
-                          ? Icons.flutter_dash_rounded
-                          : Icons.pets_rounded,
-                      size: 76,
-                      color: VetColors.primary,
-                    ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 14),
+        _AnimalSprite(index: spriteIndex, size: 132, radius: 14),
+        const SizedBox(width: 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -4168,11 +4223,11 @@ class _AnimalGroupBanner extends StatelessWidget {
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: 20,
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 7),
               Text(
                 text,
                 style: const TextStyle(
@@ -4218,22 +4273,14 @@ class _AnimalChoice extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 112,
-            height: 82,
-            child: ClipRect(
-              child: Center(
-                child: Transform.scale(
-                  scale: 1.2,
-                  child: Image.asset(
-                    asset,
-                    fit: BoxFit.contain,
-                    filterQuality: FilterQuality.high,
-                    isAntiAlias: true,
-                  ),
-                ),
-              ),
-            ),
+          _AnimalSprite(
+            index: group == 'poultry'
+                ? 2
+                : group == 'dogs'
+                ? 1
+                : 0,
+            size: 86,
+            radius: 12,
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -4354,23 +4401,15 @@ class _AnimalCount extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
       child: Column(
         children: [
-          SizedBox(
-            width: double.infinity,
-            height: 174,
-            child: ClipRect(
-              child: Center(
-                child: Transform.scale(
-                  scale: 1.0,
-                  child: Image.asset(
-                    asset,
-                    width: 300,
-                    height: 168,
-                    fit: BoxFit.contain,
-                    filterQuality: FilterQuality.high,
-                    isAntiAlias: true,
-                  ),
-                ),
-              ),
+          Center(
+            child: _AnimalSprite(
+              index: asset.contains('poultry')
+                  ? 2
+                  : asset.contains('dog')
+                  ? 1
+                  : 0,
+              size: 164,
+              radius: 14,
             ),
           ),
           const SizedBox(height: 10),
@@ -4586,7 +4625,11 @@ class _SpeciesMultiSelect extends StatelessWidget {
                 ? item.nl
                 : item.en;
             return FilterChip(
-              avatar: Text(item.emoji, style: const TextStyle(fontSize: 23)),
+              avatar: _AnimalSprite(
+                index: item.spriteIndex,
+                size: 34,
+                radius: 7,
+              ),
               label: Text(
                 label,
                 style: TextStyle(
@@ -4631,10 +4674,10 @@ class _AnimalGroupMultiSelect extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final groups = <(String, String, String, String, String)>[
-      ('livestock', 'Livestock', 'المواشي', 'Vee', '🐄'),
-      ('poultry', 'Birds', 'الطيور', 'Vogels', '🐔'),
-      ('dogs', 'Dogs', 'الكلاب', 'Honden', '🐕'),
+    final groups = <(String, String, String, String, int)>[
+      ('livestock', 'Livestock', 'المواشي', 'Vee', 0),
+      ('poultry', 'Birds', 'الطيور', 'Vogels', 2),
+      ('dogs', 'Dogs', 'الكلاب', 'Honden', 1),
     ];
     return Container(
       width: double.infinity,
@@ -4669,7 +4712,7 @@ class _AnimalGroupMultiSelect extends StatelessWidget {
                   ? g.$4
                   : g.$2;
               return FilterChip(
-                avatar: Text(g.$5, style: const TextStyle(fontSize: 24)),
+                avatar: _AnimalSprite(index: g.$5, size: 34, radius: 7),
                 label: Text(
                   label,
                   style: TextStyle(
@@ -4735,7 +4778,11 @@ class _DogBreedMultiSelect extends StatelessWidget {
                   ? breed.nl
                   : breed.en;
               return FilterChip(
-                avatar: const Text('🐕', style: TextStyle(fontSize: 21)),
+                avatar: _AnimalSprite(
+                  index: breed.spriteIndex,
+                  size: 34,
+                  radius: 7,
+                ),
                 label: Text(
                   label,
                   style: TextStyle(
@@ -4777,35 +4824,6 @@ class _SpeciesSingleSelect extends StatelessWidget {
   final String selectedCode;
   final bool enabled;
   final ValueChanged<String> onChanged;
-
-  Widget _speciesArtwork(VetAnimalSpecies item) {
-    Widget child;
-    switch (item.code) {
-      case 'cattle':
-        child = SvgPicture.asset('assets/icons/cow.svg', fit: BoxFit.contain);
-        break;
-      case 'buffalo':
-        child = SvgPicture.asset(
-          'assets/icons/buffalo.svg',
-          fit: BoxFit.contain,
-        );
-        break;
-      case 'chicken':
-        child = SvgPicture.asset(
-          'assets/icons/chicken.svg',
-          fit: BoxFit.contain,
-        );
-        break;
-      case 'chick':
-        child = SvgPicture.asset('assets/icons/chick.svg', fit: BoxFit.contain);
-        break;
-      default:
-        child = Center(
-          child: Text(item.emoji, style: const TextStyle(fontSize: 34)),
-        );
-    }
-    return SizedBox(width: 42, height: 42, child: child);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -4850,21 +4868,19 @@ class _SpeciesSingleSelect extends StatelessWidget {
               return ChoiceChip(
                 labelPadding: const EdgeInsets.symmetric(
                   horizontal: 8,
-                  vertical: 3,
+                  vertical: 4,
                 ),
-                label: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _speciesArtwork(item),
-                    const SizedBox(width: 8),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-                      ),
-                    ),
-                  ],
+                avatar: _AnimalSprite(
+                  index: item.spriteIndex,
+                  size: 48,
+                  radius: 9,
+                ),
+                label: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: active ? FontWeight.w900 : FontWeight.w700,
+                  ),
                 ),
                 selected: active,
                 selectedColor: VetColors.primary.withValues(alpha: .22),
@@ -4874,6 +4890,95 @@ class _SpeciesSingleSelect extends StatelessWidget {
                   width: active ? 2.2 : 1,
                 ),
                 onSelected: enabled ? (_) => onChanged(item.code) : null,
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DogBreedSingleSelect extends StatelessWidget {
+  const _DogBreedSingleSelect({
+    required this.title,
+    required this.options,
+    required this.selectedCode,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final String title;
+  final List<VetDogBreed> options;
+  final String selectedCode;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final locale = Localizations.localeOf(context).languageCode;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: VetColors.softBlue,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: VetColors.blue.withValues(alpha: .2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.pets_rounded, color: VetColors.blue, size: 31),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 11),
+          Wrap(
+            spacing: 9,
+            runSpacing: 9,
+            children: options.map((breed) {
+              final label = locale == 'ar'
+                  ? breed.ar
+                  : locale == 'nl'
+                  ? breed.nl
+                  : breed.en;
+              final active = selectedCode == breed.code;
+              return ChoiceChip(
+                labelPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                avatar: _AnimalSprite(
+                  index: breed.spriteIndex,
+                  size: 48,
+                  radius: 9,
+                ),
+                label: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: active ? FontWeight.w900 : FontWeight.w700,
+                  ),
+                ),
+                selected: active,
+                selectedColor: VetColors.primary.withValues(alpha: .22),
+                backgroundColor: Colors.white,
+                side: BorderSide(
+                  color: active ? VetColors.primary : VetColors.border,
+                  width: active ? 2.2 : 1,
+                ),
+                onSelected: enabled ? (_) => onChanged(breed.code) : null,
               );
             }).toList(),
           ),

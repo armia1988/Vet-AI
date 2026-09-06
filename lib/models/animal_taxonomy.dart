@@ -9,6 +9,7 @@ class VetAnimalSpecies {
     required this.nl,
     required this.icon,
     required this.emoji,
+    required this.spriteIndex,
     this.diseaseScopeAliases = const [],
   });
 
@@ -19,32 +20,139 @@ class VetAnimalSpecies {
   final String nl;
   final IconData icon;
   final String emoji;
+  final int spriteIndex;
   final List<String> diseaseScopeAliases;
 }
 
 class VetDogBreed {
-  const VetDogBreed({required this.code, required this.en, required this.ar, required this.nl});
+  const VetDogBreed({
+    required this.code,
+    required this.en,
+    required this.ar,
+    required this.nl,
+    required this.spriteIndex,
+  });
   final String code;
   final String en;
   final String ar;
   final String nl;
+  final int spriteIndex;
 }
 
 const vetLivestockSpecies = <VetAnimalSpecies>[
-  VetAnimalSpecies(code: 'cattle', group: 'livestock', en: 'Cattle', ar: 'أبقار', nl: 'Runderen', icon: Icons.pets_rounded, emoji: '🐄', diseaseScopeAliases: ['cattle', 'cow', 'calf', 'bovine']),
-  VetAnimalSpecies(code: 'buffalo', group: 'livestock', en: 'Buffalo', ar: 'جاموس', nl: 'Buffels', icon: Icons.pets_rounded, emoji: '🐃', diseaseScopeAliases: ['buffalo', 'water buffalo']),
-  VetAnimalSpecies(code: 'sheep', group: 'livestock', en: 'Sheep', ar: 'أغنام / خراف', nl: 'Schapen', icon: Icons.pets_rounded, emoji: '🐑', diseaseScopeAliases: ['sheep', 'lamb', 'ovine']),
-  VetAnimalSpecies(code: 'goat', group: 'livestock', en: 'Goats', ar: 'ماعز', nl: 'Geiten', icon: Icons.pets_rounded, emoji: '🐐', diseaseScopeAliases: ['goat', 'kid', 'caprine']),
-  VetAnimalSpecies(code: 'camel', group: 'livestock', en: 'Camels', ar: 'إبل / جمال', nl: 'Kamelen', icon: Icons.pets_rounded, emoji: '🐪', diseaseScopeAliases: ['camel', 'camelid']),
+  VetAnimalSpecies(
+    code: 'cattle',
+    group: 'livestock',
+    en: 'Cattle',
+    ar: 'أبقار',
+    nl: 'Runderen',
+    icon: Icons.pets_rounded,
+    emoji: '🐄',
+    spriteIndex: 3,
+    diseaseScopeAliases: ['cattle', 'cow', 'calf', 'bovine'],
+  ),
+  VetAnimalSpecies(
+    code: 'buffalo',
+    group: 'livestock',
+    en: 'Buffalo',
+    ar: 'جاموس',
+    nl: 'Buffels',
+    icon: Icons.pets_rounded,
+    emoji: '🐃',
+    spriteIndex: 4,
+    diseaseScopeAliases: ['buffalo', 'water buffalo'],
+  ),
+  VetAnimalSpecies(
+    code: 'sheep',
+    group: 'livestock',
+    en: 'Sheep',
+    ar: 'أغنام / خراف',
+    nl: 'Schapen',
+    icon: Icons.pets_rounded,
+    emoji: '🐑',
+    spriteIndex: 5,
+    diseaseScopeAliases: ['sheep', 'lamb', 'ovine'],
+  ),
+  VetAnimalSpecies(
+    code: 'goat',
+    group: 'livestock',
+    en: 'Goats',
+    ar: 'ماعز',
+    nl: 'Geiten',
+    icon: Icons.pets_rounded,
+    emoji: '🐐',
+    spriteIndex: 6,
+    diseaseScopeAliases: ['goat', 'kid', 'caprine'],
+  ),
+  VetAnimalSpecies(
+    code: 'horse',
+    group: 'livestock',
+    en: 'Horses',
+    ar: 'خيول / أحصنة',
+    nl: 'Paarden',
+    icon: Icons.pets_rounded,
+    emoji: '🐎',
+    spriteIndex: 7,
+    diseaseScopeAliases: ['horse', 'equine', 'foal'],
+  ),
 ];
 
 const vetBirdSpecies = <VetAnimalSpecies>[
-  VetAnimalSpecies(code: 'chicken', group: 'poultry', en: 'Chickens', ar: 'دجاج', nl: 'Kippen', icon: Icons.flutter_dash_rounded, emoji: '🐔', diseaseScopeAliases: ['chicken', 'poultry', 'hen', 'rooster']),
-  VetAnimalSpecies(code: 'chick', group: 'poultry', en: 'Chicks', ar: 'كتاكيت', nl: 'Kuikens', icon: Icons.flutter_dash_rounded, emoji: '🐣', diseaseScopeAliases: ['chick', 'chicken', 'poultry']),
-  VetAnimalSpecies(code: 'duck', group: 'poultry', en: 'Ducks', ar: 'بط', nl: 'Eenden', icon: Icons.flutter_dash_rounded, emoji: '🦆', diseaseScopeAliases: ['duck', 'waterfowl']),
-  VetAnimalSpecies(code: 'turkey', group: 'poultry', en: 'Turkeys', ar: 'ديك رومي', nl: 'Kalkoenen', icon: Icons.flutter_dash_rounded, emoji: '🦃', diseaseScopeAliases: ['turkey', 'poultry']),
-  VetAnimalSpecies(code: 'goose', group: 'poultry', en: 'Geese', ar: 'أوز', nl: 'Ganzen', icon: Icons.flutter_dash_rounded, emoji: '🪿', diseaseScopeAliases: ['goose', 'geese', 'waterfowl']),
-  VetAnimalSpecies(code: 'quail', group: 'poultry', en: 'Quail', ar: 'سمان', nl: 'Kwartels', icon: Icons.flutter_dash_rounded, emoji: '🐦', diseaseScopeAliases: ['quail', 'poultry']),
+  VetAnimalSpecies(
+    code: 'chicken',
+    group: 'poultry',
+    en: 'Chickens',
+    ar: 'دجاج',
+    nl: 'Kippen',
+    icon: Icons.flutter_dash_rounded,
+    emoji: '🐔',
+    spriteIndex: 8,
+    diseaseScopeAliases: ['chicken', 'poultry', 'hen', 'rooster'],
+  ),
+  VetAnimalSpecies(
+    code: 'chick',
+    group: 'poultry',
+    en: 'Chicks',
+    ar: 'كتاكيت',
+    nl: 'Kuikens',
+    icon: Icons.flutter_dash_rounded,
+    emoji: '🐣',
+    spriteIndex: 9,
+    diseaseScopeAliases: ['chick', 'chicken', 'poultry'],
+  ),
+  VetAnimalSpecies(
+    code: 'duck',
+    group: 'poultry',
+    en: 'Ducks',
+    ar: 'بط',
+    nl: 'Eenden',
+    icon: Icons.flutter_dash_rounded,
+    emoji: '🦆',
+    spriteIndex: 10,
+    diseaseScopeAliases: ['duck', 'waterfowl'],
+  ),
+  VetAnimalSpecies(
+    code: 'turkey',
+    group: 'poultry',
+    en: 'Turkeys',
+    ar: 'ديك رومي',
+    nl: 'Kalkoenen',
+    icon: Icons.flutter_dash_rounded,
+    emoji: '🦃',
+    spriteIndex: 11,
+    diseaseScopeAliases: ['turkey', 'poultry'],
+  ),
+  VetAnimalSpecies(
+    code: 'goose',
+    group: 'poultry',
+    en: 'Geese',
+    ar: 'أوز',
+    nl: 'Ganzen',
+    icon: Icons.flutter_dash_rounded,
+    emoji: '🪿',
+    spriteIndex: 12,
+    diseaseScopeAliases: ['goose', 'geese', 'waterfowl'],
+  ),
 ];
 
 const vetDogSpecies = VetAnimalSpecies(
@@ -55,30 +163,88 @@ const vetDogSpecies = VetAnimalSpecies(
   nl: 'Honden',
   icon: Icons.pets_rounded,
   emoji: '🐕',
+  spriteIndex: 1,
   diseaseScopeAliases: ['dog', 'canine'],
 );
 
 const vetDogBreeds = <VetDogBreed>[
-  VetDogBreed(code: 'german_shepherd', en: 'German Shepherd', ar: 'جيرمن شيبرد', nl: 'Duitse herder'),
-  VetDogBreed(code: 'belgian_malinois', en: 'Belgian Malinois', ar: 'مالينوي بلجيكي', nl: 'Mechelse herder'),
-  VetDogBreed(code: 'rottweiler', en: 'Rottweiler', ar: 'روت وايلر', nl: 'Rottweiler'),
-  VetDogBreed(code: 'labrador', en: 'Labrador Retriever', ar: 'لابرادور', nl: 'Labrador retriever'),
-  VetDogBreed(code: 'golden_retriever', en: 'Golden Retriever', ar: 'جولدن ريتريفر', nl: 'Golden retriever'),
-  VetDogBreed(code: 'doberman', en: 'Doberman', ar: 'دوبرمان', nl: 'Dobermann'),
-  VetDogBreed(code: 'cane_corso', en: 'Cane Corso', ar: 'كاني كورسو', nl: 'Cane corso'),
-  VetDogBreed(code: 'pitbull_amstaff', en: 'Pit Bull / AmStaff', ar: 'بيتبول / أمستاف', nl: 'Pitbull / AmStaff'),
-  VetDogBreed(code: 'husky', en: 'Siberian Husky', ar: 'هاسكي', nl: 'Siberische husky'),
-  VetDogBreed(code: 'border_collie', en: 'Border Collie', ar: 'بوردر كولي', nl: 'Border collie'),
-  VetDogBreed(code: 'boxer', en: 'Boxer', ar: 'بوكسر', nl: 'Boxer'),
-  VetDogBreed(code: 'great_dane', en: 'Great Dane', ar: 'جريت دان', nl: 'Duitse dog'),
-  VetDogBreed(code: 'mastiff', en: 'Mastiff', ar: 'ماستيف', nl: 'Mastiff'),
-  VetDogBreed(code: 'beagle', en: 'Beagle', ar: 'بيجل', nl: 'Beagle'),
-  VetDogBreed(code: 'poodle', en: 'Poodle', ar: 'بودل', nl: 'Poedel'),
-  VetDogBreed(code: 'cocker_spaniel', en: 'Cocker Spaniel', ar: 'كوكر سبانيل', nl: 'Cocker spaniel'),
-  VetDogBreed(code: 'shih_tzu', en: 'Shih Tzu', ar: 'شيه تزو', nl: 'Shih tzu'),
-  VetDogBreed(code: 'pomeranian', en: 'Pomeranian', ar: 'بوميرانيان', nl: 'Pomeriaan'),
-  VetDogBreed(code: 'chihuahua', en: 'Chihuahua', ar: 'تشيواوا', nl: 'Chihuahua'),
-  VetDogBreed(code: 'mixed_other', en: 'Mixed / Other', ar: 'هجين / أخرى', nl: 'Kruising / anders'),
+  VetDogBreed(
+    code: 'german_shepherd',
+    en: 'German Shepherd',
+    ar: 'جيرمن شيبرد',
+    nl: 'Duitse herder',
+    spriteIndex: 13,
+  ),
+  VetDogBreed(
+    code: 'belgian_malinois',
+    en: 'Belgian Malinois',
+    ar: 'مالينوي بلجيكي',
+    nl: 'Mechelse herder',
+    spriteIndex: 14,
+  ),
+  VetDogBreed(
+    code: 'rottweiler',
+    en: 'Rottweiler',
+    ar: 'روت وايلر',
+    nl: 'Rottweiler',
+    spriteIndex: 15,
+  ),
+  VetDogBreed(
+    code: 'labrador',
+    en: 'Labrador Retriever',
+    ar: 'لابرادور',
+    nl: 'Labrador retriever',
+    spriteIndex: 16,
+  ),
+  VetDogBreed(
+    code: 'golden_retriever',
+    en: 'Golden Retriever',
+    ar: 'جولدن ريتريفر',
+    nl: 'Golden retriever',
+    spriteIndex: 17,
+  ),
+  VetDogBreed(
+    code: 'doberman',
+    en: 'Doberman',
+    ar: 'دوبرمان',
+    nl: 'Dobermann',
+    spriteIndex: 18,
+  ),
+  VetDogBreed(
+    code: 'cane_corso',
+    en: 'Cane Corso',
+    ar: 'كاني كورسو',
+    nl: 'Cane corso',
+    spriteIndex: 19,
+  ),
+  VetDogBreed(
+    code: 'pitbull_amstaff',
+    en: 'Pit Bull / AmStaff',
+    ar: 'بيتبول / أمستاف',
+    nl: 'Pitbull / AmStaff',
+    spriteIndex: 20,
+  ),
+  VetDogBreed(
+    code: 'husky',
+    en: 'Siberian Husky',
+    ar: 'هاسكي',
+    nl: 'Siberische husky',
+    spriteIndex: 21,
+  ),
+  VetDogBreed(
+    code: 'chihuahua',
+    en: 'Chihuahua',
+    ar: 'تشيواوا',
+    nl: 'Chihuahua',
+    spriteIndex: 22,
+  ),
+  VetDogBreed(
+    code: 'mixed_other',
+    en: 'Mixed / Other',
+    ar: 'هجين / أخرى',
+    nl: 'Kruising / anders',
+    spriteIndex: 1,
+  ),
 ];
 
 List<VetAnimalSpecies> vetSpeciesForGroup(String group) => switch (group) {
