@@ -1,0 +1,72 @@
+name: One-time Vet AI 0.6.29 real transparent artwork
+
+on:
+  push:
+    branches: [v29-real-transparent-artwork]
+    paths:
+      - 'tools/v29_transparent_art_bundle.zip'
+      - 'tools/patch_v29_real_transparent_artwork.py'
+      - '.github/workflows/one-time-v29-real-transparent-artwork.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vet-ai-v29-real-transparent-artwork
+  cancel-in-progress: true
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: v29-real-transparent-artwork
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Pillow
+        run: python3 -m pip install --quiet pillow
+
+      - name: Apply real transparent approved artwork
+        run: python3 tools/patch_v29_real_transparent_artwork.py
+
+      - name: Format Dart
+        run: dart format lib/v5_app.dart
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Static analysis
+        run: flutter analyze
+
+      - name: Verify transparent artwork package
+        run: python3 tools/verify_v29_transparent_artwork.py
+
+      - name: Verify build-time hotfix cannot regress artwork
+        run: |
+          python3 tools/patch_v36_voice_artwork.py
+          python3 tools/patch_v37_egyptian_voice.py
+          python3 tools/force_voice_playback.py
+          python3 tools/patch_v40_voice_pipeline.py
+          python3 tools/patch_v41_instant_voice_prewarm.py
+          python3 tools/verify_v29_transparent_artwork.py
+          dart format lib/v5_app.dart
+          flutter analyze
+
+      - name: Commit verified release to main
+        run: |
+          rm -f tools/v29_transparent_art_bundle.zip
+          rm -f tools/patch_v29_real_transparent_artwork.py
+          rm -f .github/workflows/one-time-v29-real-transparent-artwork.yml
+          git add -A
+          git config user.name "vet-ai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "Vet AI 0.6.29 restore real transparent approved artwork"
+          git push origin HEAD:main
