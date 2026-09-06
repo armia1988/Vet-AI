@@ -46,6 +46,8 @@ workflows:
           with open(path, 'wb') as f:
               plistlib.dump(data, f)
           PY
+      - name: Apply Vet AI 0.6.23 iOS voice and breed artwork patch
+        script: python3 tools/patch_v36_voice_artwork.py
       - name: Verify Vet AI production backend, assets, voice and diagnostic guardrails
         script: |
           python3 - <<'PY'
@@ -96,6 +98,11 @@ workflows:
               raise SystemExit('Report must not auto-start cloud voice on initial render')
           if 'setState(() => _muted = true);' not in report:
               raise SystemExit('Speaker failure must return the UI to OFF')
+          for marker in ('DeviceFileSource(voiceFile.path)', 'getTemporaryDirectory()', "stage: 'audio_player_error'", "appVersion: '0.6.23'"):
+              if marker not in report:
+                  raise SystemExit(f'0.6.23 iOS voice playback guard missing: {marker}')
+          if 'BytesSource(natural)' in report:
+              raise SystemExit('0.6.23 regression: iOS is still using in-memory BytesSource playback')
 
           analyze = Path('supabase/functions/analyze-case/index.ts').read_text(encoding='utf-8')
           for marker in ('speciesScopeMatches', 'species_scope_enforced:true', 'historyStrongFmdSupport', 'oralCrustPattern'):
@@ -130,23 +137,22 @@ workflows:
           ]
           for raw in assets:
               data = Path(raw).read_bytes()
-              if len(data) < 12 or data[:4] != b'RIFF' or data[8:12] != b'WEBP':
-                  raise SystemExit(f'Invalid WEBP asset: {raw}')
+              is_webp = len(data) >= 12 and data[:4] == b'RIFF' and data[8:12] == b'WEBP'
+              is_png = data.startswith(b'\x89PNG\r\n\x1a\n')
+              if not (is_webp or is_png):
+                  raise SystemExit(f'Invalid approved image asset: {raw}')
 
           app = Path('lib/v5_app.dart').read_text(encoding='utf-8')
           for raw in assets:
               if raw not in app:
                   raise SystemExit(f'App is not wired to asset: {raw}')
-          for old in (
-              'assets/icons/livestock_final.png',
-              'assets/icons/poultry_final.png',
-              'assets/icons/dog_final.png',
-          ):
-              if old in app:
-                  raise SystemExit(f'Old broken artwork reference still present: {old}')
+          if '_DogBreedAvatar(code: breed.code)' not in app:
+              raise SystemExit('0.6.23 dog breed photo wiring is missing')
+          if "avatar: const Text('🐕'" in app:
+              raise SystemExit('0.6.23 regression: repeated dog emoji breed icon is still active')
 
           print(f'Vet AI production backend verified: {expected_ref}')
-          print('V34 gateway-auth natural voice, speaker state, species scope and FMD/Orf guards verified')
+          print('V36 approved artwork, real breed photos and iOS file-based cloud voice verified')
           PY
       - name: Install Flutter dependencies
         script: flutter pub get
