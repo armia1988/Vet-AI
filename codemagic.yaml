@@ -30,7 +30,7 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Vet AI uses your location, after your approval, while you use the app to apply the correct local veterinary guidance and animal-health rules.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Vet AI uses your location, after your approval, while you use the app to apply the correct local veterinary guidance and animal-health rules.'" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Vet AI uses location only after your approval to apply the correct local veterinary guidance and animal-health rules. Vet AI does not continuously track your location in the background.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Vet AI uses location only after your approval to apply the correct local veterinary guidance and animal-health rules. Vet AI does not continuously track your location in the background.'" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Vet AI uses location only after your approval to apply the correct local veterinary guidance and animal-health rules. Vet AI does not continuously track your location in the background.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Vet AI uses location only after your approval to apply the correct local veterinary guidance and animal-health rules. Vet AI does not continuously track your location in the background.'" ios/Runner/Info.plist
-          sed -i '' "/target 'Runner' do/a\
+          sed -i '' "/target 'Runner' do/a\\
             use_frameworks!
           " ios/Podfile
           python3 - <<'PY'
@@ -149,4 +149,3 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
