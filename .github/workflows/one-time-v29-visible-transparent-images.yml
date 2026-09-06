@@ -1,0 +1,93 @@
+name: One-time Vet AI 0.6.29 visible transparent animal images
+
+on:
+  push:
+    branches: [v29-fix-visible-images]
+    paths:
+      - 'tools/patch_v29_fix_visible_images.py'
+      - '.github/workflows/one-time-v29-visible-transparent-images.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vet-ai-v29-visible-transparent-images
+  cancel-in-progress: true
+
+jobs:
+  fix-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: v29-fix-visible-images
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install image tooling
+        run: python3 -m pip install --quiet pillow
+
+      - name: Generate transparent animal artwork
+        run: python3 tools/patch_v29_fix_visible_images.py
+
+      - name: Format Dart
+        run: dart format lib/v5_app.dart
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Static analysis
+        run: flutter analyze --no-fatal-infos
+
+      - name: Verify images really exist and have transparency
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          files = [
+              'assets/icons/animal_sprite_v29.webp',
+              'assets/icons/livestock_group_v29.webp',
+              'assets/icons/birds_group_v29.webp',
+              'assets/icons/dogs_group_v29.webp',
+          ]
+          for path in files:
+              p = Path(path)
+              assert p.exists() and p.stat().st_size > 5000, (path, p.stat().st_size if p.exists() else 0)
+              im = Image.open(p).convert('RGBA')
+              lo, hi = im.getchannel('A').getextrema()
+              assert lo == 0 and hi == 255, (path, (lo, hi))
+              assert im.getchannel('A').getbbox() is not None, path
+              print(path, im.size, p.stat().st_size, (lo, hi))
+
+          app = Path('lib/v5_app.dart').read_text(encoding='utf-8')
+          required = [
+              'animal_sprite_v29.webp',
+              'livestock_group_v29.webp',
+              'birds_group_v29.webp',
+              'dogs_group_v29.webp',
+          ]
+          for marker in required:
+              assert marker in app, marker
+          assert 'animal_sprite_v26.webp' not in app
+
+          pubspec = Path('pubspec.yaml').read_text(encoding='utf-8')
+          assert 'version: 0.6.29+41' in pubspec
+          print('Vet AI 0.6.29 visible transparent animal artwork verified')
+          PY
+
+      - name: Commit verified fix to main
+        run: |
+          rm -f tools/patch_v29_fix_visible_images.py
+          rm -f .github/workflows/one-time-v29-visible-transparent-images.yml
+          git add -A
+          git config user.name "vet-ai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "Vet AI 0.6.29 fix missing animal images and white icon backgrounds"
+          git push origin HEAD:main
