@@ -55,6 +55,8 @@ jobs:
           from pathlib import Path
           p = Path('tools/patch_v36_voice_artwork.py')
           s = p.read_text(encoding='utf-8')
+          # Keep the old file for its audio fixes only. Its 0.6.24 artwork
+          # selectors were superseded by the approved transparent sprite UI.
           s = s.replace(
               "elif \"_DogBreedAvatar(code: breed.code)\" not in app:\n    raise SystemExit('0.6.24 breed patch: repeated dog emoji avatar not found')",
               "elif \"_DogBreedAvatar(code: breed.code)\" not in app:\n    pass",
@@ -62,6 +64,22 @@ jobs:
           s = s.replace(
               'if "class _DogBreedAvatar extends StatelessWidget" not in app:',
               'if False:',
+          )
+          s = s.replace(
+              'if "class _SpeciesChipAvatar extends StatelessWidget" not in app:',
+              'if False:',
+          )
+          s = s.replace(
+              'if "_DogBreedAvatar(code: breed.code)" not in app_check:',
+              'if False:',
+          )
+          s = s.replace(
+              'if "_SpeciesChipAvatar(code: item.code" not in app_check:',
+              'if False:',
+          )
+          s = s.replace(
+              "for display in ('livestock_display.png', 'poultry_display.png', 'dog_display.png'):",
+              'for display in ():',
           )
           p.write_text(s, encoding='utf-8')
           PY
