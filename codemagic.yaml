@@ -52,72 +52,9 @@ workflows:
           python3 -m pip install --quiet pillow
           python3 tools/patch_v36_voice_artwork.py
           python3 tools/patch_v37_egyptian_voice.py
+          python3 tools/force_voice_playback.py
 
-      - name: Force verified iOS device-file voice playback
-        script: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('lib/analysis/vet_analysis_report.dart')
-          text = path.read_text(encoding='utf-8')
-
-          if "import 'dart:io';" not in text:
-              text = text.replace("import 'dart:async';\n", "import 'dart:async';\nimport 'dart:io';\n", 1)
-          if "package:path_provider/path_provider.dart" not in text:
-              text = text.replace(
-                  "import 'package:flutter_tts/flutter_tts.dart';\n",
-                  "import 'package:flutter_tts/flutter_tts.dart';\nimport 'package:path_provider/path_provider.dart';\n",
-                  1,
-              )
-
-          old = """          await VetBackend.instance.logVoiceClientEvent(stage: 'audio_player_start', route: 'audioplayers', detail: 'audio_bytes=${natural.length}', appVersion: '0.6.21');
-          await _audio.play(BytesSource(natural));
-          await VetBackend.instance.logVoiceClientEvent(stage: 'audio_player_started', route: 'audioplayers', appVersion: '0.6.21');
-          return;
-"""
-          new = """          final isWav = natural.length >= 12 &&
-              natural[0] == 0x52 && natural[1] == 0x49 &&
-              natural[2] == 0x46 && natural[3] == 0x46;
-          final tempDir = await getTemporaryDirectory();
-          final voiceFile = File(
-            '${tempDir.path}/vet_ai_voice_${DateTime.now().microsecondsSinceEpoch}.${isWav ? 'wav' : 'mp3'}',
-          );
-          await voiceFile.writeAsBytes(natural, flush: true);
-          await VetBackend.instance.logVoiceClientEvent(
-            stage: 'audio_player_start',
-            route: 'device_file_source',
-            detail: 'audio_bytes=${natural.length}; file=${voiceFile.path}',
-            appVersion: '0.6.24',
-          );
-          await _audio.setPlayerMode(PlayerMode.mediaPlayer);
-          await _audio.setReleaseMode(ReleaseMode.stop);
-          await _audio.play(DeviceFileSource(voiceFile.path));
-          await VetBackend.instance.logVoiceClientEvent(
-            stage: 'audio_player_started',
-            route: 'device_file_source',
-            detail: 'audio_bytes=${natural.length}',
-            appVersion: '0.6.24',
-          );
-          return;
-"""
-
-          if 'BytesSource(natural)' in text:
-              if old not in text:
-                  raise SystemExit('Old iOS BytesSource block exists but did not match the expected source')
-              text = text.replace(old, new, 1)
-
-          path.write_text(text, encoding='utf-8')
-          check = path.read_text(encoding='utf-8')
-          if 'BytesSource(natural)' in check:
-              raise SystemExit('STOP: old iOS BytesSource playback is still present')
-          if 'DeviceFileSource(voiceFile.path)' not in check:
-              raise SystemExit('STOP: device-file iOS voice playback was not installed')
-          if "route: 'device_file_source'" not in check:
-              raise SystemExit('STOP: device-file voice telemetry is missing')
-          print('Vet AI 0.6.24 iOS voice player LOCKED to DeviceFileSource before compilation')
-          PY
-
-      - name: Verify production backend and hotfix scripts
+      - name: Verify production backend and hotfix
         script: |
           python3 - <<'PY'
           from pathlib import Path
@@ -129,8 +66,10 @@ workflows:
           if 'clean.length > 3600' not in workflow:
               raise SystemExit('Vet AI 0.6.24 full voice length patch is missing')
           report = Path('lib/analysis/vet_analysis_report.dart').read_text(encoding='utf-8')
-          if 'DeviceFileSource(voiceFile.path)' not in report or 'BytesSource(natural)' in report:
-              raise SystemExit('Vet AI 0.6.24 iOS file voice playback verification failed')
+          if 'DeviceFileSource(voiceFile.path)' not in report:
+              raise SystemExit('Vet AI 0.6.24 device-file voice playback is missing')
+          if 'BytesSource(natural)' in report:
+              raise SystemExit('Vet AI 0.6.24 old BytesSource playback is still active')
           print('Vet AI 0.6.24 production backend, full voice length and iOS file playback verified')
           PY
 
@@ -164,8 +103,8 @@ workflows:
         script: |
           APP_VERSION=$(python3 - <<'PY'
           import re
-          text=open('pubspec.yaml', encoding='utf-8').read()
-          m=re.search(r'^version:\s*([^+\s]+)', text, re.M)
+          text = open('pubspec.yaml', encoding='utf-8').read()
+          m = re.search(r'^version:\s*([^+\s]+)', text, re.M)
           print(m.group(1) if m else '0.0.0')
           PY
           )
@@ -177,7 +116,6 @@ workflows:
             --build-name="${APP_VERSION}" \
             --build-number="${IOS_BUILD_NUMBER}" \
             --export-options-plist=$HOME/export_options.plist
-
     artifacts:
       - build/ios/ipa/*.ipa
       - flutter_drive.log
