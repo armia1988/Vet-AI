@@ -1,0 +1,84 @@
+name: One-time Vet AI 0.6.28 transparent group artwork
+
+on:
+  push:
+    branches: [v28-transparent-animal-art]
+    paths:
+      - 'tools/patch_v28_transparent_groups.py'
+      - '.github/workflows/one-time-v28-transparent-groups.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vet-ai-v28-transparent-groups
+  cancel-in-progress: true
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: v28-transparent-animal-art
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Apply transparent group artwork
+        run: python3 tools/patch_v28_transparent_groups.py
+
+      - name: Format Dart
+        run: dart format lib/v5_app.dart
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Static analysis
+        run: flutter analyze
+
+      - name: Verify approved transparent assets
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          expected = {
+              'assets/icons/livestock_group_transparent.webp': 69924,
+              'assets/icons/birds_group_transparent.webp': 63544,
+              'assets/icons/dogs_group_transparent.webp': 68732,
+          }
+          for path, expected_size in expected.items():
+              data = Path(path).read_bytes()
+              assert len(data) == expected_size, (path, len(data), expected_size)
+              assert data[:4] == b'RIFF' and data[8:12] == b'WEBP', path
+
+          app = Path('lib/v5_app.dart').read_text(encoding='utf-8')
+          for marker in (
+              'livestock_group_transparent.webp',
+              'birds_group_transparent.webp',
+              'dogs_group_transparent.webp',
+              'class _AnimalGroupImage extends StatelessWidget',
+              'size: 156',
+              'size: 176',
+          ):
+              assert marker in app, marker
+
+          pubspec = Path('pubspec.yaml').read_text(encoding='utf-8')
+          assert 'version: 0.6.28+40' in pubspec
+          print('Vet AI 0.6.28 transparent group artwork verified')
+          PY
+
+      - name: Commit verified release to main
+        run: |
+          rm -f tools/patch_v28_transparent_groups.py
+          rm -f .github/workflows/one-time-v28-transparent-groups.yml
+          git add -A
+          git config user.name "vet-ai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "Vet AI 0.6.28 use approved transparent animal group images"
+          git push origin HEAD:main
