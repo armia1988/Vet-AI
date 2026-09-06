@@ -1,0 +1,91 @@
+name: One-time Vet AI 0.6.27 approved UI restore
+
+on:
+  push:
+    branches: [v27-approved-ui-fix]
+    paths:
+      - 'tools/v27_sprite_parts/**'
+      - 'tools/patch_v27_restore_approved_ui.py'
+      - '.github/workflows/one-time-v27-approved-ui-fix.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vet-ai-v27-approved-ui-restore
+  cancel-in-progress: true
+
+jobs:
+  restore-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout approved UI repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: v27-approved-ui-fix
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Restore approved artwork and profile UI
+        run: python3 tools/patch_v27_restore_approved_ui.py
+
+      - name: Format Dart
+        run: dart format lib/v5_app.dart
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Static analysis
+        run: flutter analyze
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check Vet AI Edge Functions
+        run: |
+          deno check supabase/functions/analyze-case/index.ts
+          deno check supabase/functions/finalize-case-report/index.ts
+          deno check supabase/functions/case-voice/index.ts
+
+      - name: Verify approved image package and UI markers
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+
+          sprite = Path('assets/icons/animal_sprite_v26.webp').read_bytes()
+          assert len(sprite) == 42714, len(sprite)
+          assert sprite[:4] == b'RIFF' and sprite[8:12] == b'WEBP'
+          assert hashlib.sha256(sprite).hexdigest() == '082c3fe780b86489e0a2fcd3d2fc6d61e73d3b3dae2a2e73fc299c1c9d2303c0'
+
+          app = Path('lib/v5_app.dart').read_text(encoding='utf-8')
+          for marker in (
+              'class _AnimalVisualTile extends StatelessWidget',
+              'class _AnimalGroupVisualCard extends StatelessWidget',
+              '_ProfileHeroCard(',
+              '_AnimalSprite(index: spriteIndex, size: 142, radius: 16)',
+          ):
+              assert marker in app, marker
+
+          pubspec = Path('pubspec.yaml').read_text(encoding='utf-8')
+          assert 'version: 0.6.27+39' in pubspec
+          print('Approved Vet AI 0.6.27 UI package verified')
+          PY
+
+      - name: Commit clean verified release to main
+        run: |
+          rm -rf tools/v27_sprite_parts
+          rm -f tools/patch_v27_restore_approved_ui.py
+          rm -f .github/workflows/one-time-v27-approved-ui-fix.yml
+          git add -A
+          git config user.name "vet-ai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "Vet AI 0.6.27 restore approved images and profile design"
+          git push origin HEAD:main
