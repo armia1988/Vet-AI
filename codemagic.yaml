@@ -46,10 +46,33 @@ workflows:
           with open(path, 'wb') as f:
               plistlib.dump(data, f)
           PY
-      - name: Verify Vet AI V29 assets and cloud voice wiring
+      - name: Verify Vet AI production backend, assets and cloud voice wiring
         script: |
           python3 - <<'PY'
           from pathlib import Path
+
+          expected_ref = 'mzqwjyantyvizwbzetwf'
+          expected_url = f'https://{expected_ref}.supabase.co'
+
+          config = Path('lib/config/supabase_config.dart').read_text(encoding='utf-8')
+          if expected_ref not in config or expected_url not in config:
+              raise SystemExit('Vet AI is not pinned to the production Supabase project')
+          if 'String.fromEnvironment' in config:
+              raise SystemExit('Build-time Supabase backend override is forbidden for TestFlight production builds')
+          if "static const projectRef = 'mzqwjyantyvizwbzetwf'" not in config:
+              raise SystemExit('Production Supabase project ref guard is missing')
+
+          main = Path('lib/main_v2.dart').read_text(encoding='utf-8')
+          if 'SupabaseConfig.pointsToProduction' not in main:
+              raise SystemExit('Runtime production-backend guard is missing')
+          if 'url: SupabaseConfig.url' not in main or 'publishableKey: SupabaseConfig.publishableKey' not in main:
+              raise SystemExit('Supabase initialization is not wired to the pinned production config')
+
+          workflow = Path('lib/services/vet_case_workflow.dart').read_text(encoding='utf-8')
+          if "'case-voice'" not in workflow:
+              raise SystemExit('Natural voice client is not wired to case-voice')
+          if 'Duration(seconds: 70)' not in workflow:
+              raise SystemExit('Natural voice client timeout regression detected')
 
           assets = [
               'assets/icons/livestock_section.webp',
@@ -76,7 +99,9 @@ workflows:
           report = Path('lib/analysis/vet_analysis_report.dart').read_text(encoding='utf-8')
           if 'await _tts.speak(text)' in report:
               raise SystemExit('Robotic device TTS fallback is still active')
-          print('V29 assets and cloud voice wiring verified')
+
+          print(f'Vet AI production backend verified: {expected_ref}')
+          print('Natural cloud voice wiring and animal artwork verified')
           PY
       - name: Install Flutter dependencies
         script: flutter pub get
@@ -112,6 +137,7 @@ workflows:
           CM_SEQUENCE="${PROJECT_BUILD_NUMBER:-${BUILD_NUMBER:-1}}"
           IOS_BUILD_NUMBER=$((1000 + CM_SEQUENCE))
           echo "Vet AI release: ${APP_VERSION} (${IOS_BUILD_NUMBER})"
+          echo "Vet AI production Supabase ref: mzqwjyantyvizwbzetwf"
           flutter build ipa --release \
             -t lib/main_v2.dart \
             --build-name="${APP_VERSION}" \
