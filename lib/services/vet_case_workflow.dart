@@ -78,9 +78,14 @@ extension VetCaseWorkflow on VetBackend {
   }) async {
     final clean = text.trim();
     if (clean.isEmpty) return null;
-    await logVoiceClientEvent(stage: 'start', route: 'voice_v35', appVersion: '0.6.21', projectRef: SupabaseConfig.projectRef);
+    await logVoiceClientEvent(
+      stage: 'start',
+      route: 'voice_v36',
+      appVersion: '0.6.24',
+      projectRef: SupabaseConfig.projectRef,
+    );
     final body = {
-      'text': clean.length > 1200 ? clean.substring(0, 1200) : clean,
+      'text': clean.length > 3600 ? clean.substring(0, 3600) : clean,
       'language': language,
     };
 
@@ -94,8 +99,6 @@ extension VetCaseWorkflow on VetBackend {
         final request = await httpClient.postUrl(uri).timeout(
           const Duration(seconds: 12),
         );
-        // Supabase authenticated client calls use BOTH headers: the signed-in
-        // user's JWT in Authorization and the project publishable key in apikey.
         request.headers.set(
           HttpHeaders.authorizationHeader,
           'Bearer $accessToken',
@@ -112,14 +115,27 @@ extension VetCaseWorkflow on VetBackend {
         final raw = await utf8.decoder.bind(response).join().timeout(
           const Duration(seconds: 25),
         );
-        await logVoiceClientEvent(stage: 'direct_response', route: 'http', httpStatus: response.statusCode, detail: 'bytes=${raw.length}', appVersion: '0.6.21', projectRef: SupabaseConfig.projectRef);
+        await logVoiceClientEvent(
+          stage: 'direct_response',
+          route: 'http',
+          httpStatus: response.statusCode,
+          detail: 'bytes=${raw.length}',
+          appVersion: '0.6.24',
+          projectRef: SupabaseConfig.projectRef,
+        );
         if (response.statusCode < 200 || response.statusCode >= 300) {
           return null;
         }
         final decoded = jsonDecode(raw);
         return _decodeVoicePayload(decoded);
       } catch (e) {
-        await logVoiceClientEvent(stage: 'direct_exception', route: 'http', detail: e.toString(), appVersion: '0.6.21', projectRef: SupabaseConfig.projectRef);
+        await logVoiceClientEvent(
+          stage: 'direct_exception',
+          route: 'http',
+          detail: e.toString(),
+          appVersion: '0.6.24',
+          projectRef: SupabaseConfig.projectRef,
+        );
         return null;
       } finally {
         httpClient.close(force: true);
@@ -139,16 +155,28 @@ extension VetCaseWorkflow on VetBackend {
             )
             .timeout(const Duration(seconds: 30));
         final decoded = _decodeVoicePayload(response.data);
-        await logVoiceClientEvent(stage: decoded == null ? 'sdk_decode_empty' : 'sdk_success', route: 'sdk', detail: decoded == null ? 'No decodable audio payload' : 'audio_bytes=${decoded.length}', appVersion: '0.6.21', projectRef: SupabaseConfig.projectRef);
+        await logVoiceClientEvent(
+          stage: decoded == null ? 'sdk_decode_empty' : 'sdk_success',
+          route: 'sdk',
+          detail: decoded == null
+              ? 'No decodable audio payload'
+              : 'audio_bytes=${decoded.length}',
+          appVersion: '0.6.24',
+          projectRef: SupabaseConfig.projectRef,
+        );
         return decoded;
       } catch (e) {
-        await logVoiceClientEvent(stage: 'sdk_exception', route: 'sdk', detail: e.toString(), appVersion: '0.6.21', projectRef: SupabaseConfig.projectRef);
+        await logVoiceClientEvent(
+          stage: 'sdk_exception',
+          route: 'sdk',
+          detail: e.toString(),
+          appVersion: '0.6.24',
+          projectRef: SupabaseConfig.projectRef,
+        );
         return null;
       }
     }
 
-    // A recovered Supabase session can briefly be absent from currentSession
-    // after app/update startup. Restore it before giving up.
     var session = client.auth.currentSession;
     if (session == null) {
       try {
@@ -159,20 +187,21 @@ extension VetCaseWorkflow on VetBackend {
       }
     }
     if (session == null) {
-      await logVoiceClientEvent(stage: 'no_session', route: 'auth', appVersion: '0.6.21', projectRef: SupabaseConfig.projectRef);
+      await logVoiceClientEvent(
+        stage: 'no_session',
+        route: 'auth',
+        appVersion: '0.6.24',
+        projectRef: SupabaseConfig.projectRef,
+      );
       return null;
     }
 
-    // Route 1: explicit HTTP with the documented Authorization + apikey pair.
     var audio = await requestDirect(session.accessToken);
     if (audio != null && audio.isNotEmpty) return audio;
 
-    // Route 2: official Supabase Functions client, which manages gateway auth.
     audio = await requestViaSdk();
     if (audio != null && audio.isNotEmpty) return audio;
 
-    // One token refresh protects against a session that expired between opening
-    // the report and tapping the speaker.
     try {
       final refreshed = await client.auth.refreshSession();
       session = refreshed.session;
