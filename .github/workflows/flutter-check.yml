@@ -12,6 +12,7 @@ on:
       - 'ios/**'
       - 'android/**'
       - 'supabase/functions/**'
+      - 'tools/patch_v36_voice_artwork.py'
   pull_request:
     branches: [main]
     paths:
@@ -22,6 +23,8 @@ on:
       - 'ios/**'
       - 'android/**'
       - 'supabase/functions/**'
+      - 'tools/patch_v36_voice_artwork.py'
+      - 'codemagic.yaml'
 
 concurrency:
   group: flutter-check-${{ github.ref }}
@@ -38,6 +41,8 @@ jobs:
           cache: true
       - name: Flutter version
         run: flutter --version
+      - name: Apply Vet AI 0.6.23 voice and breed patch
+        run: python3 tools/patch_v36_voice_artwork.py
       - name: Get dependencies
         run: flutter pub get
       - name: Analyze
