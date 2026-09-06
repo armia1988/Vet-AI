@@ -10,15 +10,13 @@ if 'String _egyptianSpeechText(String input)' not in report:
     helper = r'''  String _egyptianSpeechText(String input) {
     var value = input;
     const replacements = <String, String>{
+      'لا توجد': 'مفيش',
+      'لا يوجد': 'مفيش',
       'تظهر الصورة': 'باين في الصورة',
       'يظهر في الصورة': 'باين في الصورة',
       'توضح الصورة': 'باين في الصورة',
       'يعاني من': 'عنده',
       'تعاني من': 'عندها',
-      'توجد': 'فيه',
-      'يوجد': 'فيه',
-      'لا توجد': 'مفيش',
-      'لا يوجد': 'مفيش',
       'مع وجود': 'ومعه',
       'في هذه المرحلة': 'دلوقتي',
       'الآن': 'دلوقتي',
@@ -30,9 +28,10 @@ if 'String _egyptianSpeechText(String input)' not in report:
       'فورًا': 'على طول',
       'فوراً': 'على طول',
       'الحيوان المصاب': 'الحيوان اللي عنده الإصابة',
-      'باقي القطيع': 'باقي القطيع',
       'احتمالية': 'احتمال',
       'منع العدوى': 'منع انتشار العدوى',
+      'توجد': 'فيه',
+      'يوجد': 'فيه',
     };
     replacements.forEach((from, to) {
       value = value.replaceAll(from, to);
@@ -61,6 +60,7 @@ for marker in (
     "text = _egyptianSpeechText(text);",
     "'تظهر الصورة': 'باين في الصورة'",
     "'يعاني من': 'عنده'",
+    "'لا توجد': 'مفيش'",
     "'يجب': 'لازم'",
 ):
     if marker not in check:
