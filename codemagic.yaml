@@ -46,9 +46,9 @@ workflows:
           with open(path, 'wb') as f:
               plistlib.dump(data, f)
           PY
-      - name: Apply Vet AI 0.6.23 iOS voice and breed artwork patch
+      - name: Apply Vet AI 0.6.23 iOS voice and exact approved animal/breed artwork patch
         script: python3 tools/patch_v36_voice_artwork.py
-      - name: Verify Vet AI production backend, assets, voice and diagnostic guardrails
+      - name: Verify Vet AI production backend, approved assets, voice and diagnostic guardrails
         script: |
           python3 - <<'PY'
           import re
@@ -131,9 +131,9 @@ workflows:
               raise SystemExit('Final report V34 strong-FMD corroboration must use foot lesions or strong follow-up history')
 
           assets = [
-              'assets/icons/livestock_section.webp',
-              'assets/icons/poultry_section.webp',
-              'assets/icons/dog_section.webp',
+              'assets/icons/livestock_final.png',
+              'assets/icons/poultry_final.png',
+              'assets/icons/dog_final.png',
           ]
           for raw in assets:
               data = Path(raw).read_bytes()
@@ -145,14 +145,23 @@ workflows:
           app = Path('lib/v5_app.dart').read_text(encoding='utf-8')
           for raw in assets:
               if raw not in app:
-                  raise SystemExit(f'App is not wired to asset: {raw}')
+                  raise SystemExit(f'App is not wired to approved asset: {raw}')
+          for old in (
+              'assets/icons/livestock_section.webp',
+              'assets/icons/poultry_section.webp',
+              'assets/icons/dog_section.webp',
+          ):
+              if old in app:
+                  raise SystemExit(f'0.6.23 regression: old section artwork is still active: {old}')
           if '_DogBreedAvatar(code: breed.code)' not in app:
               raise SystemExit('0.6.23 dog breed photo wiring is missing')
           if "avatar: const Text('🐕'" in app:
               raise SystemExit('0.6.23 regression: repeated dog emoji breed icon is still active')
+          if "'assets/icons/dog_final.png'" not in app:
+              raise SystemExit('0.6.23 dog breed fallback must use the approved dog artwork')
 
           print(f'Vet AI production backend verified: {expected_ref}')
-          print('V36 approved artwork, real breed photos and iOS file-based cloud voice verified')
+          print('0.6.23 exact approved PNG artwork, real breed photos and iOS file-based cloud voice verified')
           PY
       - name: Install Flutter dependencies
         script: flutter pub get
