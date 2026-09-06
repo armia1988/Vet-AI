@@ -6,6 +6,7 @@ on:
       - feat/v35-species-hardware-alerts
     paths:
       - tools/apply_v35_species_voice.py
+      - tools/v35_prepare_finalize.py
       - lib/monitoring/**
       - lib/models/**
       - lib/services/vet_operations.dart
@@ -29,6 +30,8 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - name: Prepare multiline final-report prompt
+        run: python3 tools/v35_prepare_finalize.py
       - name: Apply V35 source patch
         run: python3 tools/apply_v35_species_voice.py
       - name: Flutter dependencies
@@ -40,6 +43,8 @@ jobs:
           deno check supabase/functions/analyze-case/index.ts
           deno check supabase/functions/finalize-case-report/index.ts
           deno check supabase/functions/case-voice/index.ts
+          deno check supabase/functions/provision-sensor-device/index.ts
+          deno check supabase/functions/ingest-sensor-reading/index.ts
       - name: Verify V35 markers
         run: |
           grep -q "speciesCode: speciesCode" lib/v5_app.dart
@@ -48,6 +53,7 @@ jobs:
           grep -q "voice_client_events" lib/services/vet_operations.dart
           grep -q "oxygen_percent" lib/monitoring/smart_home_vitals.dart
           grep -q "SC4-O2" lib/monitoring/sensor_alert_rules.dart
+          grep -q "version: 0.6.21+33" pubspec.yaml
       - name: Commit patched source
         run: |
           if git diff --quiet; then
@@ -58,4 +64,5 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add lib pubspec.yaml supabase/functions
           git commit -m "Apply V35 species, diagnosis and voice telemetry source changes"
+          git pull --rebase origin feat/v35-species-hardware-alerts
           git push origin HEAD:feat/v35-species-hardware-alerts
