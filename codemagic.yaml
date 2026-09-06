@@ -46,7 +46,7 @@ workflows:
           with open(path, 'wb') as f:
               plistlib.dump(data, f)
           PY
-      - name: Verify Vet AI production backend, assets and cloud voice wiring
+      - name: Verify Vet AI production backend, assets, voice and diagnostic guardrails
         script: |
           python3 - <<'PY'
           from pathlib import Path
@@ -69,12 +69,39 @@ workflows:
               raise SystemExit('Supabase initialization is not wired to the pinned production config')
 
           workflow = Path('lib/services/vet_case_workflow.dart').read_text(encoding='utf-8')
-          if '/functions/v1/case-voice' not in workflow:
-              raise SystemExit('Natural voice is not using the pinned direct Edge Function endpoint')
-          if 'HttpClient' not in workflow or 'vet-ai-ios-direct-voice-v32' not in workflow:
-              raise SystemExit('Direct production natural voice client guard is missing')
-          if 'Duration(seconds: 70)' not in workflow:
-              raise SystemExit('Natural voice client timeout regression detected')
+          required_voice = [
+              '/functions/v1/case-voice',
+              'HttpClient',
+              'vet-ai-ios-direct-voice-v33',
+              'x-vet-ai-project-ref',
+              'client.auth.refreshSession()',
+              'Duration(seconds: 70)',
+          ]
+          for marker in required_voice:
+              if marker not in workflow:
+                  raise SystemExit(f'V33 natural voice guard missing: {marker}')
+          if "request.headers.set('apikey'" in workflow:
+              raise SystemExit('V33 direct voice must not add a second gateway apikey check')
+
+          report = Path('lib/analysis/vet_analysis_report.dart').read_text(encoding='utf-8')
+          if 'bool _muted = true;' not in report:
+              raise SystemExit('Speaker must start OFF until natural voice succeeds')
+          if 'await _tts.speak(text)' in report:
+              raise SystemExit('Robotic device TTS fallback is still active')
+          init_chunk = report.split('void didUpdateWidget', 1)[0]
+          if '_speakCurrent()' in init_chunk:
+              raise SystemExit('Report must not auto-start cloud voice on initial render')
+          if 'setState(() => _muted = true);' not in report:
+              raise SystemExit('Speaker failure must return the UI to OFF')
+
+          analyze = Path('supabase/functions/analyze-case/index.ts').read_text(encoding='utf-8')
+          for marker in ('speciesScopeMatches', 'species_scope_enforced:true', 'salivation alone is NOT enough', 'oralCrustPattern'):
+              if marker not in analyze:
+                  raise SystemExit(f'Diagnostic V33 guard missing: {marker}')
+          finalize = Path('supabase/functions/finalize-case-report/index.ts').read_text(encoding='utf-8')
+          for marker in ('REPORT_FORMAT_VERSION=5', 'speciesScopeMatches', 'salivation alone is not enough', 'allowedSlugs'):
+              if marker not in finalize:
+                  raise SystemExit(f'Final report V33 guard missing: {marker}')
 
           assets = [
               'assets/icons/livestock_section.webp',
@@ -98,12 +125,8 @@ workflows:
               if old in app:
                   raise SystemExit(f'Old broken artwork reference still present: {old}')
 
-          report = Path('lib/analysis/vet_analysis_report.dart').read_text(encoding='utf-8')
-          if 'await _tts.speak(text)' in report:
-              raise SystemExit('Robotic device TTS fallback is still active')
-
           print(f'Vet AI production backend verified: {expected_ref}')
-          print('Direct natural cloud voice wiring and animal artwork verified')
+          print('V33 natural voice, speaker state, species scope and FMD/Orf guards verified')
           PY
       - name: Install Flutter dependencies
         script: flutter pub get
