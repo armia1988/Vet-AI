@@ -19,6 +19,7 @@ import 'i18n/vet_locale.dart';
 import 'startup/vet_startup_experience.dart';
 import 'monitoring/smart_home_vitals.dart';
 import 'monitoring/sensor_alert_rules.dart';
+import 'models/animal_taxonomy.dart';
 import 'legal/vet_legal_pages.dart';
 
 class VetAIAppV5 extends StatefulWidget {
@@ -874,6 +875,8 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
   String plan = 'software';
   String cycle = 'monthly';
   final selectedGroups = <String>{'livestock'};
+  final selectedLivestockSpecies = <String>{'cattle'};
+  final selectedBirdSpecies = <String>{'chicken'};
 
   final company = TextEditingController();
   final farmName = TextEditingController();
@@ -949,7 +952,7 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
       return;
     setState(() => busy = true);
     try {
-      await VetBackend.instance.createFarm(
+      final createdFarmId = await VetBackend.instance.createFarm(
         FarmSetupPayload(
           companyName: company.text,
           farmName: farmName.text,
@@ -973,6 +976,12 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
           subscriptionTier: plan,
           billingCycle: cycle,
         ),
+      );
+      await VetBackend.instance.saveFarmAnimalProfile(
+        createdFarmId,
+        livestockSpecies: selectedGroups.contains('livestock') ? selectedLivestockSpecies : <String>{},
+        birdSpecies: selectedGroups.contains('poultry') ? selectedBirdSpecies : <String>{},
+        dogEnabled: selectedGroups.contains('dogs'),
       );
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
@@ -1211,7 +1220,7 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
       const SizedBox(height: 10),
       _AnimalChoice(
         group: 'poultry',
-        label: tr(context, 'Poultry', 'الدواجن', 'Pluimvee'),
+        label: tr(context, 'Birds', 'الطيور', 'Vogels'),
         asset: 'assets/icons/poultry_section.webp',
         selected: selectedGroups.contains('poultry'),
         onTap: () => _toggleGroup('poultry'),
@@ -1224,7 +1233,26 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
         selected: selectedGroups.contains('dogs'),
         onTap: () => _toggleGroup('dogs'),
       ),
-      const SizedBox(height: 18),
+      const SizedBox(height: 14),
+      if (selectedGroups.contains('livestock')) ...[
+        _SpeciesMultiSelect(
+          title: tr(context, 'Livestock types', 'أنواع المواشي', 'Veetypen'),
+          options: vetLivestockSpecies,
+          selected: selectedLivestockSpecies,
+          onChanged: (next) => setState(() { selectedLivestockSpecies..clear()..addAll(next); }),
+        ),
+        const SizedBox(height: 12),
+      ],
+      if (selectedGroups.contains('poultry')) ...[
+        _SpeciesMultiSelect(
+          title: tr(context, 'Bird types', 'أنواع الطيور', 'Vogeltypen'),
+          options: vetBirdSpecies,
+          selected: selectedBirdSpecies,
+          onChanged: (next) => setState(() { selectedBirdSpecies..clear()..addAll(next); }),
+        ),
+        const SizedBox(height: 12),
+      ],
+      const SizedBox(height: 6),
       if (selectedGroups.contains('livestock'))
         _Field(
           controller: livestock,
@@ -1236,7 +1264,7 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
       if (selectedGroups.contains('poultry'))
         _Field(
           controller: poultry,
-          label: tr(context, 'Poultry count', 'عدد الدواجن', 'Aantal pluimvee'),
+          label: tr(context, 'Bird count', 'عدد الطيور', 'Aantal vogels'),
           icon: Icons.tag_rounded,
           keyboard: TextInputType.number,
         ),
@@ -1659,7 +1687,7 @@ class V5Home extends StatelessWidget {
               Expanded(
                 child: _AnimalCount(
                   asset: 'assets/icons/poultry_section.webp',
-                  label: tr(context, 'Poultry', 'الدواجن', 'Pluimvee'),
+                  label: tr(context, 'Birds', 'الطيور', 'Vogels'),
                   value: farm['poultry_count'],
                 ),
               ),
@@ -1795,6 +1823,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
   Map<String, dynamic>? result;
   String? assessmentId;
   late String group;
+  late String speciesCode;
 
   List<String> get groups => [
     if (((widget.farm['livestock_count'] as num?)?.toInt() ?? 0) > 0)
@@ -1803,10 +1832,25 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
     if (((widget.farm['dog_count'] as num?)?.toInt() ?? 0) > 0) 'dogs',
   ];
 
+  List<String> _speciesCodesForGroup(String g) {
+    if (g == 'dogs') return const ['dog'];
+    final key = g == 'poultry' ? 'bird_species' : 'livestock_species';
+    final configured = ((widget.farm[key] as List?) ?? const []).map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+    if (configured.isNotEmpty) return configured;
+    return vetSpeciesForGroup(g).map((e) => e.code).toList();
+  }
+
+  List<VetAnimalSpecies> get _currentSpeciesOptions {
+    final allowed = _speciesCodesForGroup(group).toSet();
+    return vetSpeciesForGroup(group).where((e) => allowed.contains(e.code)).toList();
+  }
+
   @override
   void initState() {
     super.initState();
     group = groups.isEmpty ? 'livestock' : groups.first;
+    final initialSpecies = _speciesCodesForGroup(group);
+    speciesCode = initialSpecies.isEmpty ? (group == 'dogs' ? 'dog' : group == 'poultry' ? 'chicken' : 'cattle') : initialSpecies.first;
   }
 
   @override
@@ -1910,10 +1954,10 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
   Future<String> _scanCacheKey() async {
     final language = Localizations.localeOf(context).languageCode.toLowerCase();
     final metadata = utf8.encode(
-      '|$group|$language|${notes.text.trim().toLowerCase()}',
+      '|$group|$speciesCode|$language|${notes.text.trim().toLowerCase()}',
     );
     final digest = sha256.convert(<int>[...bytes!, ...metadata]).toString();
-    return 'vet_ai_exact_scan_v2_$digest';
+    return 'vet_ai_exact_scan_v3_$digest';
   }
 
   Future<Map<String, dynamic>?> _readExactScanCache(String key) async {
@@ -2003,6 +2047,8 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
         mediaPath: path,
         symptomNotes: notes.text,
         animalGroup: group,
+        speciesCode: speciesCode,
+        birdType: group == 'poultry' ? speciesCode : null,
       );
       assessmentId = newAssessmentId;
       final response = await VetBackend.instance.analyzeAssessment(
@@ -2034,7 +2080,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
   }
 
   String label(String g) {
-    if (g == 'poultry') return tr(context, 'Poultry', 'الدواجن', 'Pluimvee');
+    if (g == 'poultry') return tr(context, 'Birds', 'الطيور', 'Vogels');
     if (g == 'dogs') return tr(context, 'Dogs', 'الكلاب', 'Honden');
     return tr(context, 'Livestock', 'المواشي', 'Vee');
   }
@@ -2084,7 +2130,12 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
                     ),
                     label: Text(label(g)),
                     selected: group == g,
-                    onSelected: busy ? null : (_) => setState(() => group = g),
+                    onSelected: busy ? null : (_) => setState(() {
+                      group = g;
+                      final choices = _speciesCodesForGroup(g);
+                      speciesCode = choices.isEmpty ? (g == 'dogs' ? 'dog' : g == 'poultry' ? 'chicken' : 'cattle') : choices.first;
+                      result = null;
+                    }),
                   ),
                 )
                 .toList(),
@@ -2100,6 +2151,18 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
               'Dit is de diergroep die voor deze boerderij is ingeschakeld.',
             ),
           ),
+        const SizedBox(height: 12),
+        _SpeciesSingleSelect(
+          title: group == 'livestock'
+              ? tr(context, 'Choose livestock type', 'اختار نوع المواشي', 'Kies veetype')
+              : group == 'poultry'
+              ? tr(context, 'Choose bird type', 'اختار نوع الطير', 'Kies vogeltype')
+              : tr(context, 'Animal type', 'نوع الحيوان', 'Diertype'),
+          options: _currentSpeciesOptions,
+          selectedCode: speciesCode,
+          enabled: !busy,
+          onChanged: (code) => setState(() { speciesCode = code; result = null; }),
+        ),
         const SizedBox(height: 16),
         Container(
           height: 285,
@@ -2735,7 +2798,7 @@ class V5HistoryPanel extends StatelessWidget {
                 size: 32,
                 color: VetColors.primary,
               ),
-              title: Text('${a['animal_group'] ?? ''} • ${a['risk'] ?? ''}'),
+              title: Text('${a['species_code'] ?? a['animal_group'] ?? ''} • ${a['risk'] ?? ''}'),
               subtitle: Text('${a['status'] ?? ''}\n${a['created_at'] ?? ''}'),
               isThreeLine: true,
             ),
@@ -2900,11 +2963,17 @@ class _V5ProfileScreenState extends State<V5ProfileScreen> {
   bool saving = false;
   Map<String, dynamic>? profile;
   late final Map<String, TextEditingController> c;
+  late final Set<String> profileLivestockSpecies;
+  late final Set<String> profileBirdSpecies;
 
   @override
   void initState() {
     super.initState();
     final f = widget.farm;
+    profileLivestockSpecies = ((f['livestock_species'] as List?) ?? const []).map((e) => e.toString()).where((e) => e.isNotEmpty).toSet();
+    profileBirdSpecies = ((f['bird_species'] as List?) ?? const []).map((e) => e.toString()).where((e) => e.isNotEmpty).toSet();
+    if (profileLivestockSpecies.isEmpty && ((f['livestock_count'] as num?)?.toInt() ?? 0) > 0) profileLivestockSpecies.add('cattle');
+    if (profileBirdSpecies.isEmpty && ((f['poultry_count'] as num?)?.toInt() ?? 0) > 0) profileBirdSpecies.add('chicken');
     c = {
       'full_name': TextEditingController(),
       'phone': TextEditingController(),
@@ -2986,6 +3055,12 @@ class _V5ProfileScreenState extends State<V5ProfileScreen> {
         ventilationSystem: c['ventilation_system']!.text,
         vaccinationNotes: c['vaccination_notes']!.text,
         diseaseHistory: c['disease_history']!.text,
+      );
+      await VetBackend.instance.saveFarmAnimalProfile(
+        widget.farm['id'] as String,
+        livestockSpecies: _i('livestock_count') > 0 ? profileLivestockSpecies : <String>{},
+        birdSpecies: _i('poultry_count') > 0 ? profileBirdSpecies : <String>{},
+        dogEnabled: _i('dog_count') > 0,
       );
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3096,6 +3171,20 @@ class _V5ProfileScreenState extends State<V5ProfileScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          _SpeciesMultiSelect(
+            title: tr(context, 'Livestock types used by AI', 'أنواع المواشي المستخدمة في الفحص', 'Veetypen voor AI'),
+            options: vetLivestockSpecies,
+            selected: profileLivestockSpecies,
+            onChanged: (next) => setState(() { profileLivestockSpecies..clear()..addAll(next); }),
+          ),
+          const SizedBox(height: 12),
+          _SpeciesMultiSelect(
+            title: tr(context, 'Bird types used by AI', 'أنواع الطيور المستخدمة في الفحص', 'Vogeltypen voor AI'),
+            options: vetBirdSpecies,
+            selected: profileBirdSpecies,
+            onChanged: (next) => setState(() { profileBirdSpecies..clear()..addAll(next); }),
+          ),
+          const SizedBox(height: 16),
           for (final spec in <(String, String, IconData)>[
             (
               'company_name',
@@ -3149,7 +3238,7 @@ class _V5ProfileScreenState extends State<V5ProfileScreen> {
             ),
             (
               'poultry_count',
-              tr(context, 'Poultry', 'الدواجن', 'Pluimvee'),
+              tr(context, 'Birds', 'الطيور', 'Vogels'),
               Icons.egg_alt_outlined,
             ),
             (
@@ -4206,4 +4295,83 @@ class _FatalState extends StatelessWidget {
       ),
     ),
   );
+}
+
+
+class _SpeciesMultiSelect extends StatelessWidget {
+  const _SpeciesMultiSelect({required this.title, required this.options, required this.selected, required this.onChanged});
+  final String title;
+  final List<VetAnimalSpecies> options;
+  final Set<String> selected;
+  final ValueChanged<Set<String>> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: VetColors.surface2, borderRadius: BorderRadius.circular(17), border: Border.all(color: VetColors.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5)),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: options.map((item) {
+              final active = selected.contains(item.code);
+              final locale = Localizations.localeOf(context).languageCode;
+              final label = locale == 'ar' ? item.ar : locale == 'nl' ? item.nl : item.en;
+              return FilterChip(
+                avatar: Icon(item.icon, size: 19),
+                label: Text(label),
+                selected: active,
+                onSelected: (_) {
+                  final next = Set<String>.from(selected);
+                  if (active) {
+                    if (next.length > 1) next.remove(item.code);
+                  } else {
+                    next.add(item.code);
+                  }
+                  onChanged(next);
+                },
+              );
+            }).toList(),
+          ),
+        ]),
+      );
+}
+
+class _SpeciesSingleSelect extends StatelessWidget {
+  const _SpeciesSingleSelect({required this.title, required this.options, required this.selectedCode, required this.enabled, required this.onChanged});
+  final String title;
+  final List<VetAnimalSpecies> options;
+  final String selectedCode;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final locale = Localizations.localeOf(context).languageCode;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: VetColors.softBlue, borderRadius: BorderRadius.circular(17), border: Border.all(color: VetColors.blue.withValues(alpha: .2))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [const Icon(Icons.pets_outlined, color: VetColors.blue), const SizedBox(width: 8), Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5))]),
+        const SizedBox(height: 9),
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          children: options.map((item) {
+            final label = locale == 'ar' ? item.ar : locale == 'nl' ? item.nl : item.en;
+            return ChoiceChip(
+              avatar: Icon(item.icon, size: 19),
+              label: Text(label),
+              selected: selectedCode == item.code,
+              onSelected: enabled ? (_) => onChanged(item.code) : null,
+            );
+          }).toList(),
+        ),
+      ]),
+    );
+  }
 }

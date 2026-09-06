@@ -7,6 +7,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import '../services/vet_backend.dart';
 import '../reports/vet_pdf_report.dart';
 import '../services/vet_case_workflow.dart';
+import '../services/vet_operations.dart';
 import '../theme/app_theme.dart';
 
 typedef VetUiTranslate = String Function(String en, String ar, String nl);
@@ -178,7 +179,9 @@ class _VetAnalysisReportCardState extends State<VetAnalysisReportCard>
         );
         if (_muted || !mounted) return;
         if (natural != null && natural.isNotEmpty) {
+          await VetBackend.instance.logVoiceClientEvent(stage: 'audio_player_start', route: 'audioplayers', detail: 'audio_bytes=${natural.length}', appVersion: '0.6.21');
           await _audio.play(BytesSource(natural));
+          await VetBackend.instance.logVoiceClientEvent(stage: 'audio_player_started', route: 'audioplayers', appVersion: '0.6.21');
           return;
         }
       } catch (_) {
