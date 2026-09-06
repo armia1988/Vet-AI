@@ -69,8 +69,10 @@ workflows:
               raise SystemExit('Supabase initialization is not wired to the pinned production config')
 
           workflow = Path('lib/services/vet_case_workflow.dart').read_text(encoding='utf-8')
-          if "'case-voice'" not in workflow:
-              raise SystemExit('Natural voice client is not wired to case-voice')
+          if '/functions/v1/case-voice' not in workflow:
+              raise SystemExit('Natural voice is not using the pinned direct Edge Function endpoint')
+          if 'HttpClient' not in workflow or 'vet-ai-ios-direct-voice-v32' not in workflow:
+              raise SystemExit('Direct production natural voice client guard is missing')
           if 'Duration(seconds: 70)' not in workflow:
               raise SystemExit('Natural voice client timeout regression detected')
 
@@ -101,7 +103,7 @@ workflows:
               raise SystemExit('Robotic device TTS fallback is still active')
 
           print(f'Vet AI production backend verified: {expected_ref}')
-          print('Natural cloud voice wiring and animal artwork verified')
+          print('Direct natural cloud voice wiring and animal artwork verified')
           PY
       - name: Install Flutter dependencies
         script: flutter pub get
