@@ -1,18 +1,20 @@
 class SupabaseConfig {
   const SupabaseConfig._();
 
-  // These are public client credentials by design. They identify the Supabase
-  // project but do not bypass Row Level Security. A build-time override is
-  // still supported for staging or future key rotation.
-  static const url = String.fromEnvironment(
-    'SUPABASE_URL',
-    defaultValue: 'https://mzqwjyantyvizwbzetwf.supabase.co',
-  );
+  /// Vet AI production backend. These are public client identifiers only;
+  /// database access remains protected by Supabase Auth and Row Level Security.
+  static const projectRef = 'mzqwjyantyvizwbzetwf';
+  static const url = 'https://mzqwjyantyvizwbzetwf.supabase.co';
+  static const publishableKey =
+      'sb_publishable_NKsKVNCISEZSx_zOetm2rA_LlzcIDXS';
 
-  static const publishableKey = String.fromEnvironment(
-    'SUPABASE_PUBLISHABLE_KEY',
-    defaultValue: 'sb_publishable_NKsKVNCISEZSx_zOetm2rA_LlzcIDXS',
-  );
+  static bool get isConfigured =>
+      url.isNotEmpty && publishableKey.isNotEmpty && pointsToProduction;
 
-  static bool get isConfigured => url.isNotEmpty && publishableKey.isNotEmpty;
+  static bool get pointsToProduction {
+    final uri = Uri.tryParse(url);
+    return uri != null &&
+        uri.scheme == 'https' &&
+        uri.host == '$projectRef.supabase.co';
+  }
 }

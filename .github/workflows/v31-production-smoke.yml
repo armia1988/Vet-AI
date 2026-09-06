@@ -1,0 +1,49 @@
+name: V31 production backend smoke test
+
+on:
+  push:
+    branches:
+      - fix/v31-pin-production-backend
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-production:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify pinned Vet AI backend
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          config = Path('lib/config/supabase_config.dart').read_text(encoding='utf-8')
+          assert "static const projectRef = 'mzqwjyantyvizwbzetwf'" in config
+          assert "https://mzqwjyantyvizwbzetwf.supabase.co" in config
+          assert 'String.fromEnvironment' not in config
+          workflow = Path('lib/services/vet_case_workflow.dart').read_text(encoding='utf-8')
+          assert "'case-voice'" in workflow
+          assert 'Duration(seconds: 70)' in workflow
+          print('Pinned production backend and voice client wiring: OK')
+          PY
+
+      - name: Test production natural voice providers
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --max-time 35 \
+            'https://mzqwjyantyvizwbzetwf.supabase.co/functions/v1/voice-health-v31' \
+            -o /tmp/voice-health.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d = json.loads(Path('/tmp/voice-health.json').read_text())
+          print(json.dumps(d, indent=2, ensure_ascii=False))
+          tests = d.get('tests') or {}
+          working = [name for name, result in tests.items() if isinstance(result, dict) and result.get('ok') is True]
+          if not working:
+              raise SystemExit('No production natural voice provider returned audio')
+          print('Working natural voice provider(s):', ', '.join(working))
+          PY
