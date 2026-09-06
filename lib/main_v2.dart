@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/supabase_config.dart';
+import 'services/alert_notification_service.dart';
 import 'v5_app.dart';
 
 Future<void> main() async {
@@ -18,6 +19,7 @@ Future<void> main() async {
     url: SupabaseConfig.url,
     publishableKey: SupabaseConfig.publishableKey,
   );
+  await VetAlertNotificationService.instance.initialize();
 
   runApp(const VetAIAppV5());
 }
