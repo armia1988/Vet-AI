@@ -7,8 +7,11 @@ import 'v5_app.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (!SupabaseConfig.isConfigured) {
-    throw StateError('Supabase configuration is missing.');
+  if (!SupabaseConfig.isConfigured || !SupabaseConfig.pointsToProduction) {
+    throw StateError(
+      'Vet AI production backend configuration is invalid. '
+      'Expected project ${SupabaseConfig.projectRef}.',
+    );
   }
 
   await Supabase.initialize(
