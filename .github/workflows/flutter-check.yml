@@ -13,6 +13,7 @@ on:
       - 'android/**'
       - 'supabase/functions/**'
       - 'codemagic.yaml'
+      - '.github/workflows/flutter-check.yml'
   pull_request:
     branches: [main]
     paths:
@@ -24,6 +25,7 @@ on:
       - 'android/**'
       - 'supabase/functions/**'
       - 'codemagic.yaml'
+      - '.github/workflows/flutter-check.yml'
 
 concurrency:
   group: flutter-check-${{ github.ref }}
