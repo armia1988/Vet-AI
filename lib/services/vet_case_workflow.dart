@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../config/supabase_config.dart';
 import 'vet_backend.dart';
 
 extension VetCaseWorkflow on VetBackend {
@@ -62,27 +64,67 @@ extension VetCaseWorkflow on VetBackend {
   }) async {
     final clean = text.trim();
     if (clean.isEmpty) return null;
-    try {
-      // The Edge Function already performs its own provider failover. Keep one
-      // client request alive long enough for Gemini TTS and Google Cloud TTS
-      // fallbacks to complete instead of cancelling the request at 18 seconds.
-      final response = await client.functions
-          .invoke(
-            'case-voice',
-            body: {
+
+    Future<Uint8List?> requestOnce(String accessToken) async {
+      final httpClient = HttpClient()..connectionTimeout = const Duration(seconds: 12);
+      try {
+        final uri = Uri.parse(
+          '${SupabaseConfig.url}/functions/v1/case-voice',
+        );
+        final request = await httpClient.postUrl(uri).timeout(
+          const Duration(seconds: 12),
+        );
+        request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $accessToken');
+        request.headers.set('apikey', SupabaseConfig.publishableKey);
+        request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
+        request.headers.set('x-client-info', 'vet-ai-ios-direct-voice-v32');
+        request.add(
+          utf8.encode(
+            jsonEncode({
               'text': clean.length > 1200 ? clean.substring(0, 1200) : clean,
               'language': language,
-            },
-          )
-          .timeout(const Duration(seconds: 70));
-      final data = response.data;
-      if (data is! Map) return null;
-      final encoded =
-          (data['audio_base64'] ?? data['audioContent'])?.toString().trim();
-      if (encoded == null || encoded.isEmpty) return null;
-      return Uint8List.fromList(base64Decode(encoded));
+            }),
+          ),
+        );
+
+        final response = await request.close().timeout(
+          const Duration(seconds: 70),
+        );
+        final raw = await utf8.decoder.bind(response).join().timeout(
+          const Duration(seconds: 70),
+        );
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          return null;
+        }
+        final decoded = jsonDecode(raw);
+        if (decoded is! Map) return null;
+        final encoded =
+            (decoded['audio_base64'] ?? decoded['audioContent'])?.toString().trim();
+        if (encoded == null || encoded.isEmpty) return null;
+        return Uint8List.fromList(base64Decode(encoded));
+      } catch (_) {
+        return null;
+      } finally {
+        httpClient.close(force: true);
+      }
+    }
+
+    var session = client.auth.currentSession;
+    if (session == null) return null;
+
+    var audio = await requestOnce(session.accessToken);
+    if (audio != null && audio.isNotEmpty) return audio;
+
+    try {
+      final refreshed = await client.auth.refreshSession();
+      session = refreshed.session;
+      if (session == null) return null;
+      audio = await requestOnce(session.accessToken);
+      if (audio != null && audio.isNotEmpty) return audio;
     } catch (_) {
       return null;
     }
+
+    return null;
   }
 }
