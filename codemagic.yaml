@@ -49,6 +49,7 @@ workflows:
       - name: Verify Vet AI production backend, assets, voice and diagnostic guardrails
         script: |
           python3 - <<'PY'
+          import re
           from pathlib import Path
 
           expected_ref = 'mzqwjyantyvizwbzetwf'
@@ -95,13 +96,30 @@ workflows:
               raise SystemExit('Speaker failure must return the UI to OFF')
 
           analyze = Path('supabase/functions/analyze-case/index.ts').read_text(encoding='utf-8')
-          for marker in ('speciesScopeMatches', 'species_scope_enforced:true', 'salivation alone is NOT enough', 'oralCrustPattern'):
+          for marker in ('speciesScopeMatches', 'species_scope_enforced:true', 'historyStrongFmdSupport', 'oralCrustPattern'):
               if marker not in analyze:
                   raise SystemExit(f'Diagnostic V33 guard missing: {marker}')
+          analyze_strong = re.search(r'const\s+strongFmd\s*=\s*([^;]+);', analyze)
+          if analyze_strong is None:
+              raise SystemExit('Diagnostic V33 strong-FMD expression is missing')
+          analyze_expr = analyze_strong.group(1).lower()
+          if 'salivation' in analyze_expr:
+              raise SystemExit('Diagnostic V33 regression: salivation must not raise FMD to HIGH')
+          if 'foot' not in analyze_expr or 'historysupport' not in analyze_expr:
+              raise SystemExit('Diagnostic V33 strong-FMD corroboration must use foot lesions or strong history')
+
           finalize = Path('supabase/functions/finalize-case-report/index.ts').read_text(encoding='utf-8')
-          for marker in ('REPORT_FORMAT_VERSION=5', 'speciesScopeMatches', 'salivation alone is not enough', 'allowedSlugs'):
+          for marker in ('REPORT_FORMAT_VERSION=5', 'speciesScopeMatches', 'followupStrongFmd', 'allowedSlugs'):
               if marker not in finalize:
                   raise SystemExit(f'Final report V33 guard missing: {marker}')
+          final_strong = re.search(r'const\s+strong\s*=\s*([^;]+);', finalize)
+          if final_strong is None:
+              raise SystemExit('Final report V33 strong-FMD expression is missing')
+          final_expr = final_strong.group(1).lower()
+          if 'salivation' in final_expr:
+              raise SystemExit('Final report V33 regression: salivation must not raise FMD to HIGH')
+          if 'foot' not in final_expr or 'followupstrongfmd' not in final_expr:
+              raise SystemExit('Final report V33 strong-FMD corroboration must use foot lesions or strong follow-up history')
 
           assets = [
               'assets/icons/livestock_section.webp',
@@ -126,7 +144,7 @@ workflows:
                   raise SystemExit(f'Old broken artwork reference still present: {old}')
 
           print(f'Vet AI production backend verified: {expected_ref}')
-          print('V33 natural voice, speaker state, species scope and FMD/Orf guards verified')
+          print('V33 natural voice, speaker state, species scope and FMD/Orf guards verified semantically')
           PY
       - name: Install Flutter dependencies
         script: flutter pub get
