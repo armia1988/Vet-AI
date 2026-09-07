@@ -48,14 +48,12 @@ workflows:
           PY
 
       - name: Apply Vet AI 0.6.24 hotfix
-        script: |
-          python3 -m pip install --quiet pillow
-          python3 tools/patch_v36_voice_artwork.py
-          python3 tools/patch_v37_egyptian_voice.py
-          python3 tools/force_voice_playback.py
-          python3 tools/patch_v40_voice_pipeline.py
-          python3 tools/patch_v41_instant_voice_prewarm.py
-          python3 tools/patch_v42_livestock_species_artwork.py
+  script: |
+    python3 -m pip install --quiet pillow
+    python3 tools/patch_v37_egyptian_voice.py
+    python3 tools/force_voice_playback.py
+    python3 tools/patch_v40_voice_pipeline.py
+    python3 tools/patch_v41_instant_voice_prewarm.py
 
       - name: Verify production backend and hotfix
         script: |
