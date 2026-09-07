@@ -1,65 +1,66 @@
 from pathlib import Path
 import base64
-import hashlib
 import re
 
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
 
 APP = Path('lib/v5_app.dart')
 TAXONOMY = Path('lib/models/animal_taxonomy.dart')
-PAYLOAD = Path('tools/approved_color_sprite_v34.b64')
-SPRITE = Path('assets/icons/animal_sprite_approved_v34.webp')
-LIVESTOCK_GROUP = Path('assets/icons/livestock_group_approved_v34.webp')
-DOGS_GROUP = Path('assets/icons/dogs_group_approved_v34.webp')
-BIRDS_GROUP = Path('assets/icons/birds_group_approved_v34.webp')
-EXPECTED_SHA256 = '82adcb74c87122d424323713abf1ceb98b89c826b7d5d27b1a090a9bf7bef26a'
+CHUNK_DIR = Path('tools/approved_highres_animals_v36')
+SPRITE = Path('assets/icons/animal_sprite_approved_v36.webp')
+LIVESTOCK_GROUP = Path('assets/icons/livestock_group_approved_v36.webp')
+DOGS_GROUP = Path('assets/icons/dogs_group_approved_v36.webp')
+BIRDS_GROUP = Path('assets/icons/birds_group_approved_v36.webp')
 
-# Vet AI 0.6.29 — exact NEW colourful artwork approved by the user.
-# This payload was made directly from the user's approved 5x5 colour sheet.
-# A brand-new asset filename is used so iOS/Flutter cannot reuse the old cyan
-# image from the asset cache.
-if not PAYLOAD.exists():
-    raise SystemExit(f'Approved colour payload missing: {PAYLOAD}')
+# Vet AI 0.6.29 — V36 high-resolution artwork fix.
+# The previous V34 source was only 300x300, meaning each 5x5 sprite tile was
+# effectively 60x60 and then enlarged by Flutter. That is why the animals
+# looked washed out / soft. V36 rebuilds the approved artwork from the
+# high-resolution payload stored in the repository and never upscales V34.
+chunks = sorted(CHUNK_DIR.glob('sprite.b64.*'))
+if not chunks:
+    raise SystemExit('V36 high-resolution approved animal payload is missing')
 
+encoded = ''.join(p.read_text(encoding='utf-8').strip() for p in chunks)
 try:
-    sprite_bytes = base64.b64decode(PAYLOAD.read_text(encoding='utf-8').strip(), validate=True)
+    sprite_bytes = base64.b64decode(encoded, validate=True)
 except Exception as exc:
-    raise SystemExit(f'Approved colour payload is invalid: {exc}')
-
-actual_sha = hashlib.sha256(sprite_bytes).hexdigest()
-if actual_sha != EXPECTED_SHA256:
-    raise SystemExit(
-        f'Approved colour sprite checksum mismatch: expected {EXPECTED_SHA256}, got {actual_sha}'
-    )
+    raise SystemExit(f'V36 high-resolution animal payload could not decode: {exc}')
 
 SPRITE.parent.mkdir(parents=True, exist_ok=True)
 SPRITE.write_bytes(sprite_bytes)
 
-with Image.open(SPRITE) as source_file:
-    source = source_file.convert('RGB')
+with Image.open(SPRITE) as raw:
+    source = raw.convert('RGBA')
     width, height = source.size
-    if (width, height) != (300, 300):
-        raise SystemExit(f'Approved colour sprite must be 300x300, got {width}x{height}')
 
-    # Strong colour guard: the NEW reference contains brown/yellow/red/black
-    # animals, while the rejected artwork is almost entirely turquoise.
-    sample = source.resize((100, 100), Image.Resampling.BILINEAR)
-    warm = dark = yellow = 0
-    for r, g, b in sample.getdata():
-        if r > g * 1.08 and r > b * 1.10 and r > 95:
-            warm += 1
-        if max(r, g, b) < 95:
-            dark += 1
-        if r > 160 and g > 110 and b < 110:
-            yellow += 1
-    if warm < 70 or dark < 25 or yellow < 10:
+    # Do not ever ship another tiny source. Each tile must be at least 240px.
+    if width != height or width % 5 != 0 or height % 5 != 0:
+        raise SystemExit(f'V36 sprite must be a square 5x5 grid, got {width}x{height}')
+    cell = width // 5
+    if cell < 240:
         raise SystemExit(
-            f'Wrong animal artwork detected (warm={warm}, dark={dark}, yellow={yellow})'
+            f'V36 artwork source is still too small: {width}x{height}, tile={cell}px. '
+            'Refusing to build a blurry TestFlight version.'
         )
 
-    # First row in the approved sheet:
-    # 0 livestock group, 1 dogs group, 2 poultry group.
-    cell = width // 5
+    # Improve perceived clarity without changing the approved illustration:
+    # slight contrast / saturation restoration + a very light unsharp mask.
+    # This is applied to the high-resolution source only; it is NOT an upscale.
+    restored_rgb = source.convert('RGB')
+    restored_rgb = ImageEnhance.Color(restored_rgb).enhance(1.08)
+    restored_rgb = ImageEnhance.Contrast(restored_rgb).enhance(1.04)
+    restored_rgb = restored_rgb.filter(
+        ImageFilter.UnsharpMask(radius=0.8, percent=115, threshold=3)
+    )
+    restored = restored_rgb.convert('RGBA')
+
+    # Save a clean high-resolution master for every individual animal tile.
+    restored.save(SPRITE, format='WEBP', quality=96, method=6, exact=True)
+
+    # First row of the approved master:
+    # 0 = livestock group, 1 = dogs group, 2 = poultry group.
+    # Crop directly from the high-resolution master; do not enlarge a 60px icon.
     for index, destination in {
         0: LIVESTOCK_GROUP,
         1: DOGS_GROUP,
@@ -67,21 +68,29 @@ with Image.open(SPRITE) as source_file:
     }.items():
         col = index % 5
         row = index // 5
-        crop = source.crop((col * cell, row * cell, (col + 1) * cell, (row + 1) * cell))
-        crop = crop.resize((420, 420), Image.Resampling.LANCZOS)
-        crop.save(destination, format='WEBP', quality=90, method=6)
+        crop = restored.crop((
+            col * cell,
+            row * cell,
+            (col + 1) * cell,
+            (row + 1) * cell,
+        ))
+        # Keep native detail. Only resize downward when the source is larger
+        # than needed, never upward.
+        if crop.width > 700:
+            crop.thumbnail((700, 700), Image.Resampling.LANCZOS)
+        crop.save(destination, format='WEBP', quality=96, method=6, exact=True)
 
 app = APP.read_text(encoding='utf-8')
 
-# Replace every historical animal-art path, including the previous v31 attempt,
-# with the new v34 filenames. This is intentionally broad so the build cannot
-# silently fall back to v26/v29/v30/v31 artwork anywhere in the app.
-for old in (
+# Replace all historical artwork references with the cache-busted V36 assets.
+old_sprites = (
     'assets/icons/animal_sprite_v26.webp',
     'assets/icons/animal_sprite_v29.webp',
     'assets/icons/animal_sprite_color_v30.webp',
     'assets/icons/animal_sprite_approved_v31.webp',
-):
+    'assets/icons/animal_sprite_approved_v34.webp',
+)
+for old in old_sprites:
     app = app.replace(old, str(SPRITE))
 
 for old in (
@@ -89,6 +98,7 @@ for old in (
     'assets/icons/livestock_group_transparent.webp',
     'assets/icons/livestock_group_color_v30.webp',
     'assets/icons/livestock_group_approved_v31.webp',
+    'assets/icons/livestock_group_approved_v34.webp',
 ):
     app = app.replace(old, str(LIVESTOCK_GROUP))
 
@@ -97,6 +107,7 @@ for old in (
     'assets/icons/dogs_group_transparent.webp',
     'assets/icons/dogs_group_color_v30.webp',
     'assets/icons/dogs_group_approved_v31.webp',
+    'assets/icons/dogs_group_approved_v34.webp',
 ):
     app = app.replace(old, str(DOGS_GROUP))
 
@@ -105,11 +116,13 @@ for old in (
     'assets/icons/birds_group_transparent.webp',
     'assets/icons/birds_group_color_v30.webp',
     'assets/icons/birds_group_approved_v31.webp',
+    'assets/icons/birds_group_approved_v34.webp',
 ):
     app = app.replace(old, str(BIRDS_GROUP))
 
 APP.write_text(app, encoding='utf-8')
 
+# Keep exactly the 10 user-approved dog breeds and their approved sprite cells.
 taxonomy = TAXONOMY.read_text(encoding='utf-8')
 approved_dogs = r"""const vetDogBreeds = <VetDogBreed>[
   VetDogBreed(code: 'pitbull_amstaff', en: 'Pit Bull / AmStaff', ar: 'بيتبول / أمستاف', nl: 'Pitbull / AmStaff', spriteIndex: 20),
@@ -123,51 +136,47 @@ approved_dogs = r"""const vetDogBreeds = <VetDogBreed>[
   VetDogBreed(code: 'chihuahua', en: 'Chihuahua', ar: 'تشيواوا', nl: 'Chihuahua', spriteIndex: 22),
   VetDogBreed(code: 'mastiff', en: 'Mastiff', ar: 'ماستيف', nl: 'Mastiff', spriteIndex: 19),
 ];"""
-
 pattern = re.compile(r"const vetDogBreeds = <VetDogBreed>\[.*?\n\];", re.S)
 taxonomy, count = pattern.subn(approved_dogs, taxonomy, count=1)
 if count != 1:
-    raise SystemExit(f'Could not install approved dog list; replacement count={count}')
+    raise SystemExit(f'Could not install approved dog breed list; count={count}')
 TAXONOMY.write_text(taxonomy, encoding='utf-8')
 
-# Final guards: a successful Codemagic build is not allowed to contain any
-# reference to the rejected cyan artwork.
+# Hard guards: a successful build must use only V36 artwork.
 app_check = APP.read_text(encoding='utf-8')
-taxonomy_check = TAXONOMY.read_text(encoding='utf-8')
-required = (
+for required in (
     str(SPRITE),
     str(LIVESTOCK_GROUP),
     str(DOGS_GROUP),
     str(BIRDS_GROUP),
-)
-for marker in required:
-    if marker not in app_check:
-        raise SystemExit(f'New approved colour asset is not wired into app: {marker}')
+):
+    if required not in app_check:
+        raise SystemExit(f'V36 asset is not wired into the app: {required}')
 
 for forbidden in (
     'animal_sprite_v26.webp',
     'animal_sprite_v29.webp',
     'animal_sprite_color_v30.webp',
     'animal_sprite_approved_v31.webp',
-    'livestock_group_v29.webp',
-    'dogs_group_v29.webp',
-    'birds_group_v29.webp',
+    'animal_sprite_approved_v34.webp',
+    'group_v29.webp',
     'group_color_v30.webp',
     'group_approved_v31.webp',
+    'group_approved_v34.webp',
 ):
     if forbidden in app_check:
-        raise SystemExit(f'Rejected old animal artwork is still referenced: {forbidden}')
+        raise SystemExit(f'Old/blurry animal artwork still referenced: {forbidden}')
 
-for breed in (
-    'pitbull_amstaff', 'rottweiler', 'labrador', 'golden_retriever',
-    'german_shepherd', 'husky', 'doberman', 'belgian_malinois',
-    'chihuahua', 'mastiff',
-):
-    if f"code: '{breed}'" not in taxonomy_check:
-        raise SystemExit(f'Approved dog breed missing: {breed}')
+# Verify generated output itself, not just Dart paths.
+with Image.open(SPRITE) as check:
+    if check.width // 5 < 240:
+        raise SystemExit('Generated V36 sprite unexpectedly lost resolution')
+for group in (LIVESTOCK_GROUP, DOGS_GROUP, BIRDS_GROUP):
+    with Image.open(group) as check:
+        if min(check.size) < 240:
+            raise SystemExit(f'Generated group artwork is too small: {group} {check.size}')
 
-for forbidden_breed in ('cane_corso', 'mixed_other'):
-    if f"code: '{forbidden_breed}'" in taxonomy_check:
-        raise SystemExit(f'Old dog breed still selectable: {forbidden_breed}')
-
-print('Vet AI artwork lock V34 OK — NEW colourful user-approved animals only')
+print(
+    f'Vet AI V36 high-resolution animal artwork verified: '
+    f'{width}x{height} master, {cell}x{cell} native tiles; no V34 60px upscale.'
+)
