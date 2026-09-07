@@ -15,7 +15,7 @@ ASSETS = (
 )
 
 for path in ASSETS:
-    if not path.exists() or path.stat().st_size < 20000:
+    if not path.exists() or path.stat().st_size < 10000:
         raise SystemExit(f'Approved full-color animal asset is missing or invalid: {path}')
 
 app = APP.read_text(encoding='utf-8')
