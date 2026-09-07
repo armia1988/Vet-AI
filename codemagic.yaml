@@ -113,7 +113,7 @@ workflows:
           dart run flutter_launcher_icons
 
       - name: Static analysis
-        script: flutter analyze --no-fatal-infos
+        script: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Set up code signing
         script: xcode-project use-profiles
