@@ -46,8 +46,7 @@ workflows:
           with open(path, 'wb') as f:
               plistlib.dump(data, f)
           PY
-
-      - name: Apply Vet AI 0.6.24 hotfix
+- name: Apply Vet AI 0.6.24 hotfix
   script: |
     python3 -m pip install --quiet pillow
     python3 tools/patch_v37_egyptian_voice.py
