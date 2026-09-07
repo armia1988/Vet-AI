@@ -4175,6 +4175,13 @@ class _AnimalSprite extends StatelessWidget {
       6 => 'assets/icons/livestock_goat.jpeg',
       7 => 'assets/icons/livestock_horse.jpeg',
 
+      // Birds
+      8 => 'assets/icons/bird_chicken.jpeg',
+      9 => 'assets/icons/bird_chick.jpeg',
+      10 => 'assets/icons/bird_duck.jpeg',
+      11 => 'assets/icons/bird_turkey.jpeg',
+      12 => 'assets/icons/bird_goose.jpeg',
+
       // Dogs
       13 => 'assets/icons/dog_german_shepherd.jpeg',
       14 => 'assets/icons/dog_belgian_malinois.jpeg',
@@ -4209,12 +4216,11 @@ class _AnimalSprite extends StatelessWidget {
       );
     }
 
-    // مؤقتًا للطيور لحد ما ندي لكل طائر صورة مستقلة
     return SizedBox.square(
       dimension: size,
       child: const Center(
         child: Icon(
-          Icons.flutter_dash_rounded,
+          Icons.pets_rounded,
           size: 48,
           color: VetColors.primary,
         ),
