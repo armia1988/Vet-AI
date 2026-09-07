@@ -1,5 +1,28 @@
 from pathlib import Path
 
+# Keep the current individual-animal image implementation valid even if an
+# old sprite block was accidentally left behind after _AnimalSprite.
+APP = Path('lib/v5_app.dart')
+app = APP.read_text(encoding='utf-8')
+animal_class = app.find('class _AnimalSprite extends StatelessWidget')
+stale_start = app.find(
+    '\n    const columns = 5;\n'
+    '    const rows = 5;\n\n'
+    '    final col = index % columns;\n'
+    '    final row = index ~/ columns;\n',
+    animal_class if animal_class >= 0 else 0,
+)
+group_marker = '\nString _animalGroupAssetFromSpriteIndex'
+if stale_start >= 0:
+    stale_end = app.find(group_marker, stale_start)
+    if stale_end < 0:
+        raise SystemExit('Animal sprite cleanup: group asset marker not found')
+    app = app[:stale_start] + app[stale_end:]
+    APP.write_text(app, encoding='utf-8')
+    print('Vet AI stale legacy animal sprite block removed')
+else:
+    print('Vet AI animal sprite source already clean')
+
 REPORT = Path('lib/analysis/vet_analysis_report.dart')
 report = REPORT.read_text(encoding='utf-8')
 
