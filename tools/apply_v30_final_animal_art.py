@@ -9,8 +9,8 @@ PUBSPEC = ROOT / 'pubspec.yaml'
 PARTS = ROOT / 'tools/v30_final_sprite_parts'
 OUT = ROOT / 'assets/icons/animal_sprite_v30.webp'
 
-EXPECTED_SIZE = 140582
-EXPECTED_SHA256 = '814df5b49ec3d37ef540fcf5527e1fca47876f62a4a6bfea462ca6961c271df4'
+EXPECTED_SIZE = 115268
+EXPECTED_SHA256 = '47a0e85bf084325af1a9e94c148da8b177890729563758dc25cd7a2fb859ce27'
 
 encoded = ''.join(p.read_text(encoding='utf-8').strip() for p in sorted(PARTS.glob('part*.txt')))
 if not encoded:
@@ -54,9 +54,9 @@ if old_group not in app:
     raise SystemExit('Animal group image widget did not match expected v29 code')
 app = app.replace(old_group, new_group, 1)
 
-# Keep the approved artwork at or below its native 160px cell size so it stays crisp.
-app = app.replace('size: 190,', 'size: 160,')
-app = app.replace('size: 170,', 'size: 160,')
+# The v30 sprite cell is 140 px. Never enlarge beyond native size so artwork stays sharp.
+app = app.replace('size: 190,', 'size: 140,')
+app = app.replace('size: 170,', 'size: 140,')
 APP.write_text(app, encoding='utf-8')
 
 tax = TAX.read_text(encoding='utf-8')
