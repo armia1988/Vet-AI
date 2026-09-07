@@ -1,0 +1,1 @@
+Vet AI 0.6.29 exact approved animal artwork payloads. Generated from the user-approved full-colour reference images in the 2026-09-07 project conversation. The build patch reconstructs these local assets before Flutter packaging. Do not replace with v26/v29 turquoise artwork.
