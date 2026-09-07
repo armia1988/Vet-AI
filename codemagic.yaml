@@ -46,13 +46,14 @@ workflows:
           with open(path, 'wb') as f:
               plistlib.dump(data, f)
           PY
-- name: Apply Vet AI 0.6.24 hotfix
-  script: |
-    python3 -m pip install --quiet pillow
-    python3 tools/patch_v37_egyptian_voice.py
-    python3 tools/force_voice_playback.py
-    python3 tools/patch_v40_voice_pipeline.py
-    python3 tools/patch_v41_instant_voice_prewarm.py
+
+      - name: Apply Vet AI 0.6.24 hotfix
+        script: |
+          python3 -m pip install --quiet pillow
+          python3 tools/patch_v37_egyptian_voice.py
+          python3 tools/force_voice_playback.py
+          python3 tools/patch_v40_voice_pipeline.py
+          python3 tools/patch_v41_instant_voice_prewarm.py
 
       - name: Verify production backend and hotfix
         script: |
