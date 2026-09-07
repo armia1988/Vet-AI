@@ -4168,11 +4168,25 @@ class _AnimalSprite extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String? directAsset = switch (index) {
+      // Livestock
       3 => 'assets/icons/livestock_cattle.jpeg',
       4 => 'assets/icons/livestock_buffalo.jpeg',
       5 => 'assets/icons/livestock_sheep.jpeg',
       6 => 'assets/icons/livestock_goat.jpeg',
       7 => 'assets/icons/livestock_horse.jpeg',
+
+      // Dogs
+      13 => 'assets/icons/dog_german_shepherd.jpeg',
+      14 => 'assets/icons/dog_belgian_malinois.jpeg',
+      15 => 'assets/icons/dog_rottweiler.jpeg',
+      16 => 'assets/icons/dog_labrador.jpeg',
+      17 => 'assets/icons/dog_golden_retriever.jpeg',
+      18 => 'assets/icons/dog_doberman.jpeg',
+      19 => 'assets/icons/dog_cane_corso.jpeg',
+      20 => 'assets/icons/dog_pitbull_amstaff.jpeg',
+      21 => 'assets/icons/dog_husky.jpeg',
+      22 => 'assets/icons/dog_chihuahua.jpeg',
+
       _ => null,
     };
 
@@ -4194,6 +4208,20 @@ class _AnimalSprite extends StatelessWidget {
         ),
       );
     }
+
+    // مؤقتًا للطيور لحد ما ندي لكل طائر صورة مستقلة
+    return SizedBox.square(
+      dimension: size,
+      child: const Center(
+        child: Icon(
+          Icons.flutter_dash_rounded,
+          size: 48,
+          color: VetColors.primary,
+        ),
+      ),
+    );
+  }
+}
 
     const columns = 5;
     const rows = 5;
