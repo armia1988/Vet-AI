@@ -4167,10 +4167,40 @@ class _AnimalSprite extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String? directAsset = switch (index) {
+      3 => 'assets/icons/livestock_cattle.jpeg',
+      4 => 'assets/icons/livestock_buffalo.jpeg',
+      5 => 'assets/icons/livestock_sheep.jpeg',
+      6 => 'assets/icons/livestock_goat.jpeg',
+      7 => 'assets/icons/livestock_horse.jpeg',
+      _ => null,
+    };
+
+    if (directAsset != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: SizedBox.square(
+          dimension: size,
+          child: Padding(
+            padding: EdgeInsets.all(size * .10),
+            child: Image.asset(
+              directAsset,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              isAntiAlias: true,
+              gaplessPlayback: true,
+            ),
+          ),
+        ),
+      );
+    }
+
     const columns = 5;
     const rows = 5;
+
     final col = index % columns;
     final row = index ~/ columns;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: SizedBox.square(
