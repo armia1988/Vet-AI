@@ -29,6 +29,13 @@ function truncate(value: unknown, max = 700): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`
 }
 
+function soundForRisk(risk: unknown): string {
+  const value = String(risk ?? '').trim().toLowerCase()
+  if (value === 'red') return 'vet_ai_red_trtr_alert.wav'
+  if (value === 'orange') return 'vet_ai_orange_alert.wav'
+  return 'default'
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'method_not_allowed' }), { status: 405, headers: jsonHeaders })
@@ -78,10 +85,11 @@ Deno.serve(async (req: Request) => {
 
     const title = truncate(alert.title || 'Vet AI health alert', 140)
     const details = truncate(alert.details || alert.threshold_text || 'A new Vet AI health alert needs your attention.', 700)
+    const alertSound = soundForRisk(alert.risk)
     const payload = JSON.stringify({
       aps: {
         alert: { title, body: details },
-        sound: 'default',
+        sound: alertSound,
         badge: 1,
       },
       vet_ai: {
@@ -91,6 +99,7 @@ Deno.serve(async (req: Request) => {
         risk: alert.risk,
         source: alert.source,
         metric: alert.metric,
+        sound: alertSound,
       },
     })
 
@@ -131,18 +140,18 @@ Deno.serve(async (req: Request) => {
 
       if (response.ok) {
         await supabase.from('push_deliveries').update({ status: 'sent', sent_at: new Date().toISOString(), apns_id: apnsId, error: null }).eq('id', delivery!.id)
-        results.push({ device: device.id, status: response.status, apns_id: apnsId })
+        results.push({ device: device.id, status: response.status, apns_id: apnsId, sound: alertSound })
       } else {
         const reason = String(responseBody?.reason ?? `HTTP_${response.status}`)
         await supabase.from('push_deliveries').update({ status: 'failed', error: reason, apns_id: apnsId }).eq('id', delivery!.id)
         if (['BadDeviceToken', 'DeviceTokenNotForTopic', 'Unregistered'].includes(reason)) {
           await supabase.from('push_devices').update({ enabled: false, updated_at: new Date().toISOString() }).eq('id', device.id)
         }
-        results.push({ device: device.id, status: response.status, reason })
+        results.push({ device: device.id, status: response.status, reason, sound: alertSound })
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, alert_id: alert.id, results }), { headers: jsonHeaders })
+    return new Response(JSON.stringify({ ok: true, alert_id: alert.id, sound: alertSound, results }), { headers: jsonHeaders })
   } catch (error) {
     console.error('vet-ai-apns-push failed', error)
     return new Response(JSON.stringify({ error: 'push_failed', message: String(error?.message ?? error) }), { status: 500, headers: jsonHeaders })
