@@ -9,6 +9,7 @@ imports = [
     "import 'admin_sensor_center.dart';\n",
     "import 'admin_notification_center.dart';\n",
     "import 'admin_company_center.dart';\n",
+    "import 'admin_support_center.dart';\n",
 ]
 anchor = "import 'admin_service.dart';\n"
 if anchor not in s:
@@ -33,6 +34,11 @@ routes = [
         """      case 6:\n        return VetAdminNotificationCenter(key: ValueKey('notifications-$refreshTick'));\n""",
         'VetAdminNotificationCenter',
     ),
+    (
+        """      case 7:\n        return _SupportPage(key: ValueKey('support-$refreshTick'));\n""",
+        """      case 7:\n        return VetAdminSupportCenter(key: ValueKey('support-$refreshTick'));\n""",
+        'VetAdminSupportCenter',
+    ),
 ]
 for old, new, marker in routes:
     if old in s:
@@ -52,4 +58,4 @@ if pattern.search(s):
     s = pattern.sub('\n\nString _animalGroupAssetFromSpriteIndex', s, count=1)
 v5.write_text(s, encoding='utf-8')
 
-print('Vet AI V49 admin cleanup and advanced company/sensor/notification centers applied')
+print('Vet AI V49 admin cleanup and advanced company/sensor/notification/support centers applied')
