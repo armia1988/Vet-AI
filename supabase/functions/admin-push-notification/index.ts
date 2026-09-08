@@ -163,7 +163,7 @@ Deno.serve(async (req: Request) => {
         sent++
       } else {
         failed++
-        const result = await response.json().catch(() => ({ reason: `HTTP_${response.status}` }))
+        const result: any = await response.json().catch(() => ({ reason: `HTTP_${response.status}` }))
         const reason = String(result?.reason ?? `HTTP_${response.status}`)
         failures.push({ device_id: device.id, reason })
         if (['BadDeviceToken', 'DeviceTokenNotForTopic', 'Unregistered'].includes(reason)) {
@@ -181,8 +181,9 @@ Deno.serve(async (req: Request) => {
     }).eq('id', notification.id)
 
     return new Response(JSON.stringify({ ok: failed === 0, notification_id: notification.id, sent, failed, status, sound, failures }), { headers: jsonHeaders })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('admin-push-notification failed', error)
-    return new Response(JSON.stringify({ error: 'admin_push_failed', message: String(error?.message ?? error) }), { status: 500, headers: jsonHeaders })
+    const message = error instanceof Error ? error.message : String(error)
+    return new Response(JSON.stringify({ error: 'admin_push_failed', message }), { status: 500, headers: jsonHeaders })
   }
 })
