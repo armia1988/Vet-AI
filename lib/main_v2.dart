@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'admin/admin_entry.dart';
 import 'config/supabase_config.dart';
 import 'services/alert_notification_service.dart';
-import 'v5_app.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,5 +21,5 @@ Future<void> main() async {
   );
   await VetAlertNotificationService.instance.initialize();
 
-  runApp(const VetAIAppV5());
+  runApp(const VetAIRoot());
 }
