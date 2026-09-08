@@ -60,3 +60,4 @@ jobs:
           deno check supabase/functions/finalize-case-report/index.ts
           deno check supabase/functions/case-voice/index.ts
           deno check supabase/functions/admin-push-notification/index.ts
+          deno check supabase/functions/admin-support-push/index.ts
