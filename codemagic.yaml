@@ -154,3 +154,23 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
+
+  web-admin:
+    name: Vet AI Admin Web Dashboard
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+    scripts:
+      - name: Generate Flutter web project
+        script: |
+          flutter create . --platforms=web --project-name app --org com.vetai
+          rm -f test/widget_test.dart
+      - name: Install Flutter dependencies
+        script: flutter pub get
+      - name: Static analysis
+        script: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Build Vet AI web admin
+        script: flutter build web --release -t lib/main_v2.dart
+    artifacts:
+      - build/web/**
