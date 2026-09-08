@@ -1,0 +1,43 @@
+name: Vet AI Admin Web Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'lib/admin/**'
+      - 'lib/main_v2.dart'
+      - 'lib/services/alert_notification_service.dart'
+      - 'lib/v5_app.dart'
+      - 'tools/patch_v49_admin_compile_cleanup.py'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/web-admin-check.yml'
+
+concurrency:
+  group: vet-ai-admin-web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate web project
+        run: flutter create . --platforms=web --project-name app --org com.vetai
+      - name: Apply Vet AI generated-source cleanup
+        run: python3 tools/patch_v49_admin_compile_cleanup.py
+      - name: Get dependencies
+        run: flutter pub get
+      - name: Build web admin
+        run: flutter build web --release -t lib/main_v2.dart
+      - name: Upload web admin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vet-ai-admin-web
+          path: build/web
+          retention-days: 7
