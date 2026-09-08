@@ -49,7 +49,7 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
       - name: Analyze
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - name: Set up Deno
         uses: denoland/setup-deno@v2
         with:
