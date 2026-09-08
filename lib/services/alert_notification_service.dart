@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -14,8 +12,14 @@ class VetAlertNotificationService {
   bool _ready = false;
   String? _remoteToken;
 
+  bool get _isIOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
   Future<void> initialize() async {
     if (_ready) return;
+    if (kIsWeb) {
+      _ready = true;
+      return;
+    }
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const ios = DarwinInitializationSettings(
       requestAlertPermission: true,
@@ -33,6 +37,7 @@ class VetAlertNotificationService {
   }
 
   Future<String?> _fetchApnsTokenWithRetry() async {
+    if (!_isIOS) return null;
     for (var attempt = 0; attempt < 8; attempt++) {
       try {
         final token = await _apnsChannel.invokeMethod<String>('getToken');
@@ -47,7 +52,7 @@ class VetAlertNotificationService {
   }
 
   Future<void> registerRemotePushForFarm(String farmId) async {
-    if (!Platform.isIOS || farmId.trim().isEmpty) return;
+    if (!_isIOS || farmId.trim().isEmpty) return;
     await initialize();
     try {
       final clean = await _fetchApnsTokenWithRetry();
@@ -71,7 +76,7 @@ class VetAlertNotificationService {
   }
 
   Future<void> unregisterRemotePush() async {
-    if (!Platform.isIOS) return;
+    if (!_isIOS) return;
     try {
       var token = _remoteToken;
       token ??= await _fetchApnsTokenWithRetry();
@@ -93,6 +98,7 @@ class VetAlertNotificationService {
     required String body,
     String? payload,
   }) async {
+    if (kIsWeb) return;
     await initialize();
     const details = NotificationDetails(
       android: AndroidNotificationDetails(
