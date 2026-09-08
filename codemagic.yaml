@@ -51,6 +51,7 @@ workflows:
           python3 tools/patch_v45_apns_bridge_reliability.py
           python3 tools/patch_v46_apns_uiscene_bridge.py
           python3 tools/patch_v47_custom_alert_sounds.py
+          python3 tools/patch_v48_verified_custom_alert_sounds.py
 
       - name: Verify production backend and hotfix
         script: |
@@ -132,6 +133,21 @@ workflows:
             --build-name="${APP_VERSION}" \
             --build-number="${IOS_BUILD_NUMBER}" \
             --export-options-plist=$HOME/export_options.plist
+
+          IPA_PATH=$(ls build/ios/ipa/*.ipa | head -n 1)
+          VERIFY_DIR=$(mktemp -d)
+          unzip -q "$IPA_PATH" -d "$VERIFY_DIR"
+          APP_PATH=$(find "$VERIFY_DIR/Payload" -maxdepth 1 -type d -name '*.app' | head -n 1)
+          for SOUND in vet_ai_orange_alert.caf vet_ai_red_trtr_alert.caf; do
+            if [ ! -f "$APP_PATH/$SOUND" ]; then
+              echo "ERROR: $SOUND is missing from signed app bundle root"
+              find "$APP_PATH" -maxdepth 2 -iname '*vet_ai*alert*' -print || true
+              exit 1
+            fi
+            echo "Verified signed bundle sound: $APP_PATH/$SOUND"
+            afinfo "$APP_PATH/$SOUND" | head -n 12 || true
+          done
+          rm -rf "$VERIFY_DIR"
     artifacts:
       - build/ios/ipa/*.ipa
       - flutter_drive.log
