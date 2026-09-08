@@ -50,6 +50,7 @@ workflows:
           python3 tools/patch_v44_apns_push.py
           python3 tools/patch_v45_apns_bridge_reliability.py
           python3 tools/patch_v46_apns_uiscene_bridge.py
+          python3 tools/patch_v47_custom_alert_sounds.py
 
       - name: Verify production backend and hotfix
         script: |
