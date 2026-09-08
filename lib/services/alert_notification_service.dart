@@ -11,6 +11,7 @@ class VetAlertNotificationService {
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   bool _ready = false;
   String? _remoteToken;
+  String? _adminRemoteToken;
 
   bool get _isIOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
@@ -75,18 +76,50 @@ class VetAlertNotificationService {
     }
   }
 
+  Future<void> registerRemotePushForAdmin() async {
+    if (!_isIOS) return;
+    await initialize();
+    try {
+      final clean = await _fetchApnsTokenWithRetry();
+      if (clean == null || clean.isEmpty) {
+        debugPrint('Vet AI admin APNs token unavailable after retry window');
+        return;
+      }
+      await Supabase.instance.client.rpc(
+        'register_admin_push_device',
+        params: {
+          'p_device_token': clean,
+          'p_environment': 'production',
+        },
+      );
+      _adminRemoteToken = clean;
+      debugPrint('Vet AI admin APNs device registered');
+    } catch (e) {
+      debugPrint('Vet AI admin APNs registration failed: $e');
+    }
+  }
+
   Future<void> unregisterRemotePush() async {
     if (!_isIOS) return;
     try {
-      var token = _remoteToken;
+      var token = _remoteToken ?? _adminRemoteToken;
       token ??= await _fetchApnsTokenWithRetry();
       final clean = token?.trim().toLowerCase() ?? '';
       if (clean.isEmpty || Supabase.instance.client.auth.currentUser == null) return;
-      await Supabase.instance.client.rpc(
-        'disable_push_device',
-        params: {'p_device_token': clean},
-      );
+      if (_remoteToken != null) {
+        await Supabase.instance.client.rpc(
+          'disable_push_device',
+          params: {'p_device_token': clean},
+        );
+      }
+      if (_adminRemoteToken != null) {
+        await Supabase.instance.client.rpc(
+          'disable_admin_push_device',
+          params: {'p_device_token': clean},
+        );
+      }
       _remoteToken = null;
+      _adminRemoteToken = null;
     } catch (e) {
       debugPrint('Vet AI APNs unregister failed: $e');
     }
