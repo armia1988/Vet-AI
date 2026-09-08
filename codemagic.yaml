@@ -46,6 +46,7 @@ workflows:
           python3 tools/force_voice_playback.py
           python3 tools/patch_v40_voice_pipeline.py
           python3 tools/patch_v41_instant_voice_prewarm.py
+          python3 tools/patch_v43_eu_legal_pages.py
 
       - name: Verify production backend and hotfix
         script: |
