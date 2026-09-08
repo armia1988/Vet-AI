@@ -32,13 +32,29 @@ class VetAlertNotificationService {
     _ready = true;
   }
 
+  Future<String?> _fetchApnsTokenWithRetry() async {
+    for (var attempt = 0; attempt < 8; attempt++) {
+      try {
+        final token = await _apnsChannel.invokeMethod<String>('getToken');
+        final clean = token?.trim().toLowerCase() ?? '';
+        if (clean.length >= 64) return clean;
+      } catch (e) {
+        debugPrint('Vet AI APNs token attempt ${attempt + 1} failed: $e');
+      }
+      await Future<void>.delayed(Duration(milliseconds: 700 + (attempt * 500)));
+    }
+    return null;
+  }
+
   Future<void> registerRemotePushForFarm(String farmId) async {
     if (!Platform.isIOS || farmId.trim().isEmpty) return;
     await initialize();
     try {
-      final token = await _apnsChannel.invokeMethod<String>('getToken');
-      final clean = token?.trim().toLowerCase() ?? '';
-      if (clean.isEmpty) return;
+      final clean = await _fetchApnsTokenWithRetry();
+      if (clean == null || clean.isEmpty) {
+        debugPrint('Vet AI APNs token unavailable after retry window');
+        return;
+      }
       await Supabase.instance.client.rpc(
         'register_push_device',
         params: {
@@ -58,7 +74,7 @@ class VetAlertNotificationService {
     if (!Platform.isIOS) return;
     try {
       var token = _remoteToken;
-      token ??= await _apnsChannel.invokeMethod<String>('getToken');
+      token ??= await _fetchApnsTokenWithRetry();
       final clean = token?.trim().toLowerCase() ?? '';
       if (clean.isEmpty || Supabase.instance.client.auth.currentUser == null) return;
       await Supabase.instance.client.rpc(
