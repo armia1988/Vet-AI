@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../i18n/vet_locale.dart';
+import '../services/alert_notification_service.dart';
 import '../theme/app_theme.dart';
 import '../v5_app.dart';
 import 'admin_dashboard.dart';
@@ -85,6 +86,7 @@ class _VetAdminAppState extends State<VetAdminApp> {
     translator.addListener(_refresh);
     localeController.load();
     translator.load();
+    unawaited(VetAlertNotificationService.instance.registerRemotePushForAdmin());
   }
 
   void _refresh() {
