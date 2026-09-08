@@ -31,8 +31,8 @@ function truncate(value: unknown, max = 700): string {
 
 function soundForRisk(risk: unknown): string {
   const value = String(risk ?? '').trim().toLowerCase()
-  if (value === 'red') return 'vet_ai_red_trtr_alert.wav'
-  if (value === 'orange') return 'vet_ai_orange_alert.wav'
+  if (value === 'red') return 'vet_ai_red_trtr_alert.caf'
+  if (value === 'orange') return 'vet_ai_orange_alert.caf'
   return 'default'
 }
 
