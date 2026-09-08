@@ -25,18 +25,14 @@ function adminKey(): string {
 }
 
 function cleanText(value: unknown, max = 500): string {
-  const text = String(value ?? '')
-    .replace(/[\r\n\t]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+  const text = String(value ?? '').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim()
   if (!text) return '—'
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`
 }
 
 function normalizeWhatsAppPhone(value: unknown): string | null {
-  let raw = String(value ?? '').trim()
+  let raw = String(value ?? '').trim().replace(/[()\-\.\s]/g, '')
   if (!raw) return null
-  raw = raw.replace(/[()\-\.\s]/g, '')
   if (raw.startsWith('00')) raw = `+${raw.slice(2)}`
   if (!/^\+[1-9][0-9]{7,14}$/.test(raw)) return null
   return raw.slice(1)
@@ -44,16 +40,14 @@ function normalizeWhatsAppPhone(value: unknown): string | null {
 
 function preferredTemplateLanguage(language: unknown): string | null {
   const code = String(language ?? 'en').trim().toLowerCase().split(/[-_]/)[0]
-  const perLanguage = optionalEnv(`WHATSAPP_TEMPLATE_LANGUAGE_${code.toUpperCase()}`)
-  return perLanguage ?? optionalEnv('WHATSAPP_TEMPLATE_LANGUAGE')
+  return optionalEnv(`WHATSAPP_TEMPLATE_LANGUAGE_${code.toUpperCase()}`) ?? optionalEnv('WHATSAPP_TEMPLATE_LANGUAGE')
 }
 
 function riskAllowsAlert(minimumRisk: unknown, risk: unknown): boolean {
   const minimum = String(minimumRisk ?? 'orange').toLowerCase()
   const actual = String(risk ?? '').toLowerCase()
-  if (actual !== 'orange' && actual !== 'red') return false
-  if (minimum === 'red') return actual === 'red'
-  return true
+  if (!['orange', 'red'].includes(actual)) return false
+  return minimum === 'red' ? actual === 'red' : true
 }
 
 async function updateDelivery(
@@ -62,117 +56,75 @@ async function updateDelivery(
   recipientUserId: string,
   values: Record<string, unknown>,
 ) {
-  const payload = {
+  return await supabase.from('whatsapp_deliveries').upsert({
     alert_id: alert.id,
     farm_id: alert.farm_id,
     recipient_user_id: recipientUserId,
     provider: 'meta_cloud_api',
     updated_at: new Date().toISOString(),
     ...values,
-  }
-  return await supabase
-    .from('whatsapp_deliveries')
-    .upsert(payload, { onConflict: 'alert_id,recipient_user_id' })
-    .select('id,status')
-    .maybeSingle()
+  }, { onConflict: 'alert_id,recipient_user_id' }).select('id,status').maybeSingle()
 }
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'method_not_allowed' }), {
-      status: 405,
-      headers: jsonHeaders,
-    })
+    return new Response(JSON.stringify({ error: 'method_not_allowed' }), { status: 405, headers: jsonHeaders })
+  }
+
+  const internalSecret = optionalEnv('WHATSAPP_INTERNAL_DISPATCH_SECRET')
+  if (!internalSecret || req.headers.get('x-vet-ai-internal') !== internalSecret) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: jsonHeaders })
   }
 
   try {
     const body = await req.json().catch(() => ({}))
     const alertId = String(body?.alert_id ?? '').trim()
     if (!/^[0-9a-f-]{36}$/i.test(alertId)) {
-      return new Response(JSON.stringify({ error: 'invalid_alert_id' }), {
-        status: 400,
-        headers: jsonHeaders,
-      })
+      return new Response(JSON.stringify({ error: 'invalid_alert_id' }), { status: 400, headers: jsonHeaders })
     }
 
     const supabase = createClient(env('SUPABASE_URL'), adminKey(), {
       auth: { persistSession: false, autoRefreshToken: false },
     })
 
-    const { data: alert, error: alertError } = await supabase
-      .from('alerts')
+    const { data: alert, error: alertError } = await supabase.from('alerts')
       .select('id,farm_id,animal_id,risk,title,details,source,metric,value_numeric,threshold_text,created_at')
-      .eq('id', alertId)
-      .maybeSingle()
-
+      .eq('id', alertId).maybeSingle()
     if (alertError) throw alertError
-    if (!alert) {
-      return new Response(JSON.stringify({ ok: true, skipped: 'alert_not_found' }), {
-        headers: jsonHeaders,
-      })
-    }
-
+    if (!alert) return new Response(JSON.stringify({ ok: true, skipped: 'alert_not_found' }), { headers: jsonHeaders })
     if (!['orange', 'red'].includes(String(alert.risk).toLowerCase())) {
-      return new Response(JSON.stringify({ ok: true, skipped: 'risk_not_whatsapp_eligible' }), {
-        headers: jsonHeaders,
-      })
+      return new Response(JSON.stringify({ ok: true, skipped: 'risk_not_whatsapp_eligible' }), { headers: jsonHeaders })
     }
 
-    const { data: preferences, error: prefError } = await supabase
-      .from('whatsapp_alert_preferences')
-      .select('id,recipient_user_id,enabled,minimum_risk,phone_e164,language')
-      .eq('farm_id', alert.farm_id)
-      .eq('enabled', true)
-
+    const { data: preferences, error: prefError } = await supabase.from('whatsapp_alert_preferences')
+      .select('id,recipient_user_id,minimum_risk,phone_e164,language')
+      .eq('farm_id', alert.farm_id).eq('enabled', true)
     if (prefError) throw prefError
     if (!preferences?.length) {
-      return new Response(JSON.stringify({ ok: true, sent: 0, reason: 'whatsapp_disabled' }), {
-        headers: jsonHeaders,
-      })
+      return new Response(JSON.stringify({ ok: true, sent: 0, reason: 'whatsapp_disabled' }), { headers: jsonHeaders })
     }
 
     const graphVersion = optionalEnv('WHATSAPP_GRAPH_VERSION')
     const accessToken = optionalEnv('WHATSAPP_ACCESS_TOKEN')
     const phoneNumberId = optionalEnv('WHATSAPP_PHONE_NUMBER_ID')
     const templateName = optionalEnv('WHATSAPP_TEMPLATE_NAME')
-
     if (!graphVersion || !accessToken || !phoneNumberId || !templateName) {
-      return new Response(
-        JSON.stringify({
-          ok: true,
-          sent: 0,
-          reason: 'provider_not_configured',
-          missing: [
-            !graphVersion ? 'WHATSAPP_GRAPH_VERSION' : null,
-            !accessToken ? 'WHATSAPP_ACCESS_TOKEN' : null,
-            !phoneNumberId ? 'WHATSAPP_PHONE_NUMBER_ID' : null,
-            !templateName ? 'WHATSAPP_TEMPLATE_NAME' : null,
-          ].filter(Boolean),
-        }),
-        { headers: jsonHeaders },
-      )
+      return new Response(JSON.stringify({ ok: true, sent: 0, reason: 'provider_not_configured' }), { headers: jsonHeaders })
     }
 
-    const { data: farm, error: farmError } = await supabase
-      .from('farms')
-      .select('farm_name')
-      .eq('id', alert.farm_id)
-      .maybeSingle()
+    const { data: farm, error: farmError } = await supabase.from('farms')
+      .select('farm_name').eq('id', alert.farm_id).maybeSingle()
     if (farmError) throw farmError
 
     const results: Array<Record<string, unknown>> = []
-
     for (const pref of preferences) {
       if (!riskAllowsAlert(pref.minimum_risk, alert.risk)) {
         results.push({ recipient_user_id: pref.recipient_user_id, skipped: 'below_preference_threshold' })
         continue
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('phone,preferred_language')
-        .eq('id', pref.recipient_user_id)
-        .maybeSingle()
+      const { data: profile, error: profileError } = await supabase.from('profiles')
+        .select('phone,preferred_language').eq('id', pref.recipient_user_id).maybeSingle()
       if (profileError) throw profileError
       if (!profile) {
         results.push({ recipient_user_id: pref.recipient_user_id, skipped: 'profile_not_found' })
@@ -181,58 +133,33 @@ Deno.serve(async (req: Request) => {
 
       const phone = normalizeWhatsAppPhone(pref.phone_e164 || profile.phone)
       const language = preferredTemplateLanguage(pref.language || profile.preferred_language)
-
       if (!phone) {
         await updateDelivery(supabase, alert, pref.recipient_user_id, {
-          status: 'failed',
-          template_name: templateName,
-          error: 'invalid_phone_e164',
+          status: 'failed', template_name: templateName, error: 'invalid_phone_e164',
         })
-        results.push({ recipient_user_id: pref.recipient_user_id, failed: 'invalid_phone_e164' })
+        results.push({ recipient_user_id: pref.recipient_user_id, status: 'failed', error: 'invalid_phone_e164' })
         continue
       }
-
       if (!language) {
         await updateDelivery(supabase, alert, pref.recipient_user_id, {
-          status: 'failed',
-          template_name: templateName,
-          error: 'template_language_not_configured',
+          status: 'failed', template_name: templateName, error: 'template_language_not_configured',
         })
-        results.push({ recipient_user_id: pref.recipient_user_id, failed: 'template_language_not_configured' })
+        results.push({ recipient_user_id: pref.recipient_user_id, status: 'failed', error: 'template_language_not_configured' })
         continue
       }
 
-      const { data: existing } = await supabase
-        .from('whatsapp_deliveries')
-        .select('id,status,provider_message_id')
-        .eq('alert_id', alert.id)
-        .eq('recipient_user_id', pref.recipient_user_id)
-        .maybeSingle()
-
+      const { data: existing } = await supabase.from('whatsapp_deliveries').select('status')
+        .eq('alert_id', alert.id).eq('recipient_user_id', pref.recipient_user_id).maybeSingle()
       if (existing?.status === 'sent') {
         results.push({ recipient_user_id: pref.recipient_user_id, skipped: 'already_sent' })
         continue
       }
 
       const sending = await updateDelivery(supabase, alert, pref.recipient_user_id, {
-        status: 'sending',
-        template_name: templateName,
-        error: null,
+        status: 'sending', template_name: templateName, error: null,
       })
       if (sending.error) throw sending.error
 
-      const riskLabel = String(alert.risk).toUpperCase()
-      const reading = alert.value_numeric == null ? '—' : String(alert.value_numeric)
-      const metric = cleanText(alert.metric || alert.source || 'health alert', 120)
-      const threshold = cleanText(alert.threshold_text, 160)
-      const details = cleanText(alert.details || alert.title, 480)
-      const createdAt = alert.created_at
-        ? `${new Date(alert.created_at).toISOString().replace('T', ' ').replace('.000Z', 'Z')}`
-        : new Date().toISOString()
-
-      // Approved template body must contain seven text variables in this order:
-      // {{1}} farm, {{2}} risk, {{3}} metric, {{4}} reading,
-      // {{5}} threshold, {{6}} details, {{7}} event time.
       const payload = {
         messaging_product: 'whatsapp',
         recipient_type: 'individual',
@@ -241,20 +168,18 @@ Deno.serve(async (req: Request) => {
         template: {
           name: templateName,
           language: { code: language },
-          components: [
-            {
-              type: 'body',
-              parameters: [
-                { type: 'text', text: cleanText(farm?.farm_name || 'Vet AI farm', 120) },
-                { type: 'text', text: riskLabel },
-                { type: 'text', text: metric },
-                { type: 'text', text: reading },
-                { type: 'text', text: threshold },
-                { type: 'text', text: details },
-                { type: 'text', text: createdAt },
-              ],
-            },
-          ],
+          components: [{
+            type: 'body',
+            parameters: [
+              { type: 'text', text: cleanText(farm?.farm_name || 'Vet AI farm', 120) },
+              { type: 'text', text: String(alert.risk).toUpperCase() },
+              { type: 'text', text: cleanText(alert.metric || alert.source || 'health alert', 120) },
+              { type: 'text', text: alert.value_numeric == null ? '—' : String(alert.value_numeric) },
+              { type: 'text', text: cleanText(alert.threshold_text, 160) },
+              { type: 'text', text: cleanText(alert.details || alert.title, 480) },
+              { type: 'text', text: alert.created_at ? new Date(alert.created_at).toISOString() : new Date().toISOString() },
+            ],
+          }],
         },
       }
 
@@ -262,24 +187,17 @@ Deno.serve(async (req: Request) => {
         `https://graph.facebook.com/${encodeURIComponent(graphVersion)}/${encodeURIComponent(phoneNumberId)}/messages`,
         {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         },
       )
-
       const responseBody: any = await response.json().catch(() => ({}))
       const providerMessageId = String(responseBody?.messages?.[0]?.id ?? '').trim() || null
 
       if (response.ok && providerMessageId) {
         await updateDelivery(supabase, alert, pref.recipient_user_id, {
-          status: 'sent',
-          provider_message_id: providerMessageId,
-          template_name: templateName,
-          error: null,
-          sent_at: new Date().toISOString(),
+          status: 'sent', provider_message_id: providerMessageId, template_name: templateName,
+          error: null, sent_at: new Date().toISOString(),
         })
         results.push({ recipient_user_id: pref.recipient_user_id, status: 'sent' })
       } else {
@@ -288,17 +206,13 @@ Deno.serve(async (req: Request) => {
           500,
         )
         await updateDelivery(supabase, alert, pref.recipient_user_id, {
-          status: 'failed',
-          template_name: templateName,
-          error: providerError,
+          status: 'failed', template_name: templateName, error: providerError,
         })
         results.push({ recipient_user_id: pref.recipient_user_id, status: 'failed', error: providerError })
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, alert_id: alert.id, results }), {
-      headers: jsonHeaders,
-    })
+    return new Response(JSON.stringify({ ok: true, alert_id: alert.id, results }), { headers: jsonHeaders })
   } catch (error) {
     console.error('vet-ai-whatsapp-alert failed', error)
     return new Response(
