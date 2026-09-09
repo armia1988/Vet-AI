@@ -57,6 +57,12 @@ jobs:
           python3 tools/patch_v57_camera_switch_drag_preview.py
           python3 tools/patch_v58_ios_safari_camera_flip.py
           python3 tools/patch_v59_call_smoothing_whatsapp_icons.py
+          python3 tools/patch_v60_instant_camera_flip_black_off.py
+          python3 tools/patch_v61b_admin_instant_navigation.py
+          python3 tools/patch_v62b_admin_accounts_animals_sensors.py
+          python3 tools/patch_v62c_company_manager_routes.py
+          python3 tools/patch_v63d_admin_mobile_accounts_profile_reports.py
+          python3 tools/patch_v63e_profile_metadata_nullsafe.py
       - name: Get dependencies
         run: flutter pub get
       - name: Analyze
