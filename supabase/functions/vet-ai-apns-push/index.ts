@@ -52,6 +52,15 @@ Deno.serve(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     })
 
+    const { data: pushSetting } = await supabase
+      .from('admin_system_settings')
+      .select('value')
+      .eq('key', 'sensor_alert_push_enabled')
+      .maybeSingle()
+    if (pushSetting?.value === false) {
+      return new Response(JSON.stringify({ ok: true, sent: 0, reason: 'sensor_alert_push_disabled' }), { headers: jsonHeaders })
+    }
+
     const { data: alert, error: alertError } = await supabase
       .from('alerts')
       .select('id,farm_id,animal_id,risk,title,details,source,metric,threshold_text,value_numeric,created_at')
@@ -152,8 +161,9 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(JSON.stringify({ ok: true, alert_id: alert.id, sound: alertSound, results }), { headers: jsonHeaders })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('vet-ai-apns-push failed', error)
-    return new Response(JSON.stringify({ error: 'push_failed', message: String(error?.message ?? error) }), { status: 500, headers: jsonHeaders })
+    const message = error instanceof Error ? error.message : String(error)
+    return new Response(JSON.stringify({ error: 'push_failed', message }), { status: 500, headers: jsonHeaders })
   }
 })
