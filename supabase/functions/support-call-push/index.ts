@@ -102,6 +102,19 @@ Deno.serve(async (req: Request) => {
       environment: string
       scope: 'admin' | 'farm'
     }> = []
+    const seenTokens = new Set<string>()
+    const addDevice = (device: any, scope: 'admin' | 'farm') => {
+      const token = String(device?.device_token ?? '').trim().toLowerCase()
+      if (!token || seenTokens.has(token)) return
+      seenTokens.add(token)
+      recipientDevices.push({
+        id: String(device.id),
+        user_id: String(device.user_id),
+        device_token: token,
+        environment: String(device.environment ?? 'production'),
+        scope,
+      })
+    }
 
     if (call.caller_role === 'user') {
       const { data: accounts, error: accountsError } = await admin
@@ -119,16 +132,28 @@ Deno.serve(async (req: Request) => {
         .filter((id: string) => id && id !== String(call.initiated_by))
 
       if (supportIds.length) {
-        const { data: devices, error: devicesError } = await admin
-          .from('admin_push_devices')
-          .select('id,user_id,device_token,environment')
-          .in('user_id', supportIds)
-          .eq('enabled', true)
-          .eq('platform', 'ios')
-        if (devicesError) throw devicesError
-        for (const device of devices ?? []) {
-          recipientDevices.push({ ...device, scope: 'admin' })
-        }
+        const [adminResult, existingAppResult] = await Promise.all([
+          admin
+            .from('admin_push_devices')
+            .select('id,user_id,device_token,environment')
+            .in('user_id', supportIds)
+            .eq('enabled', true)
+            .eq('platform', 'ios'),
+          // Some staff already use the normal Vet AI iPhone app and therefore
+          // have a valid token in push_devices before admin_push_devices was
+          // introduced. Reuse that real APNs token as a safe fallback so an
+          // incoming customer call can ring immediately.
+          admin
+            .from('push_devices')
+            .select('id,user_id,device_token,environment')
+            .in('user_id', supportIds)
+            .eq('enabled', true)
+            .eq('platform', 'ios'),
+        ])
+        if (adminResult.error) throw adminResult.error
+        if (existingAppResult.error) throw existingAppResult.error
+        for (const device of adminResult.data ?? []) addDevice(device, 'admin')
+        for (const device of existingAppResult.data ?? []) addDevice(device, 'farm')
       }
     } else {
       const { data: devices, error: devicesError } = await admin
@@ -139,9 +164,7 @@ Deno.serve(async (req: Request) => {
         .eq('platform', 'ios')
         .neq('user_id', call.initiated_by)
       if (devicesError) throw devicesError
-      for (const device of devices ?? []) {
-        recipientDevices.push({ ...device, scope: 'farm' })
-      }
+      for (const device of devices ?? []) addDevice(device, 'farm')
     }
 
     if (!recipientDevices.length) {
