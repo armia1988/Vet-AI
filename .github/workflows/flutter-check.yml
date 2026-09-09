@@ -55,6 +55,7 @@ jobs:
           python3 tools/patch_v55_whatsapp_rich_chat_profiles.py
           python3 tools/patch_v56_webrtc_audio_hangup.py
           python3 tools/patch_v57_camera_switch_drag_preview.py
+          python3 tools/patch_v58_ios_safari_camera_flip.py
       - name: Get dependencies
         run: flutter pub get
       - name: Analyze
