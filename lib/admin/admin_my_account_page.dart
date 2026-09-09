@@ -146,6 +146,8 @@ class _VetAdminMyAccountPageState extends State<VetAdminMyAccountPage> {
       );
     }
     final user = admin.client.auth.currentUser;
+    final cleanName = name.text.trim();
+    final initial = cleanName.isEmpty ? 'A' : cleanName.substring(0, 1).toUpperCase();
     return Scaffold(
       appBar: AppBar(
         title: Text(_pt(context, 'My Vet AI account', 'حسابي في Vet AI', 'Mijn Vet AI-account')),
@@ -163,12 +165,12 @@ class _VetAdminMyAccountPageState extends State<VetAdminMyAccountPage> {
                   radius: 42,
                   backgroundColor: VetColors.softGreen,
                   child: Text(
-                    name.text.trim().isEmpty ? 'A' : name.text.trim().characters.first.toUpperCase(),
+                    initial,
                     style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: VetColors.green),
                   ),
                 ),
                 const SizedBox(height: 10),
-                Text(name.text.trim().isEmpty ? _pt(context, 'Administrator', 'مدير النظام', 'Beheerder') : name.text.trim(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+                Text(cleanName.isEmpty ? _pt(context, 'Administrator', 'مدير النظام', 'Beheerder') : cleanName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 4),
                 Wrap(spacing: 7, runSpacing: 7, alignment: WrapAlignment.center, children: [
                   Chip(avatar: const Icon(Icons.verified_user_rounded, size: 16, color: VetColors.green), label: Text(role)),
