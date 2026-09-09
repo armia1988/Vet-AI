@@ -14,14 +14,14 @@ if "import 'support_call_tone.dart';" not in s:
 
 empty_old = """          if (active.isEmpty) return const SizedBox.shrink();
           final call = active.first;
-          final incoming = call['caller_role'] != role;
+          final incoming = '${call['caller_role']}' != role;
 """
 empty_new = """          if (active.isEmpty) {
             unawaited(VetSupportCallTone.stopIncoming());
             return const SizedBox.shrink();
           }
           final call = active.first;
-          final incoming = call['caller_role'] != role;
+          final incoming = '${call['caller_role']}' != role;
           if (incoming) {
             unawaited(VetSupportCallTone.startIncoming(call['id'].toString()));
           } else {
