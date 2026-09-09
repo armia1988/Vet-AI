@@ -27,6 +27,8 @@ on:
       - 'tools/patch_v62c_company_manager_routes.py'
       - 'tools/patch_v63d_admin_mobile_accounts_profile_reports.py'
       - 'tools/patch_v63e_profile_metadata_nullsafe.py'
+      - 'tools/patch_v64*.py'
+      - 'tools/patch_v65*.py'
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - '.github/workflows/web-admin-check.yml'
