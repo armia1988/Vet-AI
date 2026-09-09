@@ -62,6 +62,13 @@ workflows:
           python3 tools/patch_v55_whatsapp_rich_chat_profiles.py
           python3 tools/patch_v56_webrtc_audio_hangup.py
           python3 tools/patch_v57_camera_switch_drag_preview.py
+          python3 tools/patch_v58_ios_safari_camera_flip.py
+          python3 tools/patch_v59_call_smoothing_whatsapp_icons.py
+          python3 tools/patch_v60_instant_camera_flip_black_off.py
+          python3 tools/patch_v61b_admin_instant_navigation.py
+          python3 tools/patch_v62b_admin_accounts_animals_sensors.py
+          python3 tools/patch_v62c_company_manager_routes.py
+          python3 tools/patch_v63d_admin_mobile_accounts_profile_reports.py
 
       - name: Verify production backend and hotfix
         script: |
@@ -101,7 +108,17 @@ workflows:
           for marker in ['createPeerConnection', 'getUserMedia', 'RTCVideoView', 'V56 remote audio renderer', '_startRingback()', 'allowPop = true', 'Helper.cameras', 'previewOffset']:
               if marker not in call_page:
                   raise SystemExit(f'Vet AI WebRTC call UI missing: {marker}')
-          print('Vet AI voice, APNs and internal WebRTC support-call pipeline verified')
+          admin_markers = {
+              'lib/admin/admin_dashboard.dart': ['VetAdminMyAccountPage', '_AdminProfileTile'],
+              'lib/admin/admin_reports_center.dart': ['latest_sensor_telemetry', 'Telemetry quality & credibility'],
+              'lib/admin/admin_account_control_v2.dart': ['softWrap: false'],
+          }
+          for path, markers in admin_markers.items():
+              text = Path(path).read_text(encoding='utf-8')
+              for marker in markers:
+                  if marker not in text:
+                      raise SystemExit(f'Vet AI admin V63 missing: {path} / {marker}')
+          print('Vet AI voice, APNs, WebRTC and V63 admin pipeline verified')
           PY
 
       - name: Install Flutter dependencies
@@ -191,6 +208,13 @@ workflows:
           python3 tools/patch_v55_whatsapp_rich_chat_profiles.py
           python3 tools/patch_v56_webrtc_audio_hangup.py
           python3 tools/patch_v57_camera_switch_drag_preview.py
+          python3 tools/patch_v58_ios_safari_camera_flip.py
+          python3 tools/patch_v59_call_smoothing_whatsapp_icons.py
+          python3 tools/patch_v60_instant_camera_flip_black_off.py
+          python3 tools/patch_v61b_admin_instant_navigation.py
+          python3 tools/patch_v62b_admin_accounts_animals_sensors.py
+          python3 tools/patch_v62c_company_manager_routes.py
+          python3 tools/patch_v63d_admin_mobile_accounts_profile_reports.py
       - name: Install Flutter dependencies
         script: flutter pub get
       - name: Static analysis
