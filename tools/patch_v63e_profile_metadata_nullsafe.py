@@ -1,4 +1,5 @@
 from pathlib import Path
+import runpy
 
 p = Path('lib/admin/admin_dashboard.dart')
 s = p.read_text(encoding='utf-8')
@@ -90,3 +91,7 @@ for required in [
 
 p.write_text(s, encoding='utf-8')
 print('Vet AI V63e applied: null-safe profile metadata and persistent current admin section after refresh')
+
+# V64 is chained here because every production web/TestFlight build already
+# runs V63e. This keeps the support call reliability fix in all generated builds.
+runpy.run_path('tools/patch_v64_reliable_support_calls.py', run_name='__main__')
