@@ -69,6 +69,7 @@ workflows:
           python3 tools/patch_v62b_admin_accounts_animals_sensors.py
           python3 tools/patch_v62c_company_manager_routes.py
           python3 tools/patch_v63d_admin_mobile_accounts_profile_reports.py
+          python3 tools/patch_v63e_profile_metadata_nullsafe.py
 
       - name: Verify production backend and hotfix
         script: |
@@ -215,6 +216,7 @@ workflows:
           python3 tools/patch_v62b_admin_accounts_animals_sensors.py
           python3 tools/patch_v62c_company_manager_routes.py
           python3 tools/patch_v63d_admin_mobile_accounts_profile_reports.py
+          python3 tools/patch_v63e_profile_metadata_nullsafe.py
       - name: Install Flutter dependencies
         script: flutter pub get
       - name: Static analysis
