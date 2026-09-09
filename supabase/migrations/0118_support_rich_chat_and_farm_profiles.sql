@@ -53,6 +53,18 @@ with check (
   )
 );
 
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'support_poll_votes'
+  ) then
+    alter publication supabase_realtime add table public.support_poll_votes;
+  end if;
+end $$;
+
 insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types)
 values (
   'farm-profile',
