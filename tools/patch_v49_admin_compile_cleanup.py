@@ -7,6 +7,8 @@ s = s.replace('Icons.command_rounded', 'Icons.dashboard_customize_rounded')
 
 imports = [
     "import 'admin_operations_center.dart';\n",
+    "import 'admin_search_center.dart';\n",
+    "import 'admin_reports_center.dart';\n",
     "import 'admin_sensor_center.dart';\n",
     "import 'admin_notification_center.dart';\n",
     "import 'admin_company_center.dart';\n",
@@ -25,6 +27,18 @@ if anchor not in s:
 for item in imports:
     if item not in s:
         s = s.replace(anchor, anchor + item, 1)
+
+# Add the cross-entity search and analytics destinations before System.
+if "'Global search'" not in s:
+    system_destination = "        _AdminDestination(Icons.settings_rounded, _at(context, 'System', 'النظام', 'Systeem')),\n"
+    if system_destination not in s:
+        raise SystemExit('V49 admin destination anchor not found')
+    extra_destinations = (
+        "        _AdminDestination(Icons.manage_search_rounded, _at(context, 'Global search', 'البحث الشامل', 'Globaal zoeken')),\n"
+        "        _AdminDestination(Icons.analytics_rounded, _at(context, 'Reports & analytics', 'التقارير والتحليلات', 'Rapporten & analyse')),\n"
+        + system_destination
+    )
+    s = s.replace(system_destination, extra_destinations, 1)
 
 routes = [
     (
@@ -93,6 +107,15 @@ for old, new, marker in routes:
         s = s.replace(old, new, 1)
     elif f'return {marker}(' not in s:
         raise SystemExit(f'V49 admin route missing: {marker}')
+
+if 'return VetAdminGlobalSearchCenter(' not in s:
+    default_anchor = """      default:\n        return const _SystemPage();\n"""
+    if default_anchor not in s:
+        default_anchor = """      default:\n        return const VetAdminSystemCenter();\n"""
+    if default_anchor not in s:
+        raise SystemExit('V49 search/reports route anchor not found')
+    new_tail = """      case 12:\n        return VetAdminGlobalSearchCenter(key: ValueKey('search-$refreshTick'));\n      case 13:\n        return VetAdminReportsCenter(key: ValueKey('reports-$refreshTick'));\n      default:\n        return const VetAdminSystemCenter();\n"""
+    s = s.replace(default_anchor, new_tail, 1)
 
 old_system = """      default:\n        return const _SystemPage();\n"""
 new_system = """      default:\n        return const VetAdminSystemCenter();\n"""
@@ -215,4 +238,4 @@ if pattern.search(s):
     s = pattern.sub('\n\nString _animalGroupAssetFromSpriteIndex', s, count=1)
 v5.write_text(s, encoding='utf-8')
 
-print('Vet AI V49 admin A-Z centers wired; global operations, billing compile and signup controls verified')
+print('Vet AI V49 admin A-Z centers wired; operations, global search, reports, billing, signup controls verified')
