@@ -50,6 +50,7 @@ jobs:
           python3 tools/patch_v50_admin_chat_accounts_sensors.py
           python3 tools/patch_v51_file_picker_compile.py
           python3 tools/patch_v52_web_chat_company_scroll.py
+          python3 tools/patch_v53_support_operations_import.py
       - name: Get dependencies
         run: flutter pub get
       - name: Analyze
