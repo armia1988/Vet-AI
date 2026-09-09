@@ -61,3 +61,5 @@ jobs:
           deno check supabase/functions/case-voice/index.ts
           deno check supabase/functions/admin-push-notification/index.ts
           deno check supabase/functions/admin-support-push/index.ts
+          deno check supabase/functions/ingest-sensor-reading/index.ts
+          deno check supabase/functions/vet-ai-apns-push/index.ts
