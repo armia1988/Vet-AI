@@ -38,9 +38,8 @@ s = replace_once(s, old, new, 'clear previous ringing calls')
 p.write_text(s, encoding='utf-8')
 
 
-# Helper block used by both call surfaces: only a fresh call can ring, and the
-# newest call always wins even if Supabase stream row order changes after a
-# realtime update.
+# Only a fresh call can ring, and the newest call always wins even if Supabase
+# changes row order after realtime updates.
 fresh_block_old = """          final active = (snapshot.data ?? const <Map<String, dynamic>>[])
               .where((c) => c['status'] == 'ringing')
               .toList();
@@ -64,7 +63,7 @@ fresh_block_new = """          final cutoff = DateTime.now().toUtc().subtract(co
           final call = active.first;
 """
 
-# 2) Customer call bar.
+# 2) Customer incoming call bar.
 p = Path('lib/support/support_call_bar.dart')
 s = p.read_text(encoding='utf-8')
 s = replace_once(s, fresh_block_old, fresh_block_new, 'customer newest/fresh ringing call')
@@ -99,75 +98,14 @@ agent_new = """              final cutoff = DateTime.now().toUtc().subtract(cons
 s = replace_once(s, agent_old, agent_new, 'support newest/fresh ringing call')
 p.write_text(s, encoding='utf-8')
 
-
-# 4) Caller no-answer timeout: a call that nobody answers is ended automatically
-# instead of remaining poisonous in the realtime feed forever.
-p = Path('lib/support/support_webrtc_call_page.dart')
-s = p.read_text(encoding='utf-8')
-if 'Timer? noAnswerTimer;' not in s:
-    s = replace_once(
-        s,
-        "  StreamSubscription<List<Map<String, dynamic>>>? callSubscription;\n",
-        "  StreamSubscription<List<Map<String, dynamic>>>? callSubscription;\n  Timer? noAnswerTimer;\n",
-        'no-answer timer field',
-    )
-
-old_listener = """        final status = '${current.first['status']}';
-        if ((status == 'ended' || status == 'declined') && mounted && !ending) {
-          Navigator.of(context).maybePop();
-        }
-"""
-new_listener = """        final status = '${current.first['status']}';
-        if (status == 'accepted') {
-          noAnswerTimer?.cancel();
-          noAnswerTimer = null;
-        }
-        if ((status == 'ended' || status == 'declined') && mounted && !ending) {
-          noAnswerTimer?.cancel();
-          noAnswerTimer = null;
-          Navigator.of(context).maybePop();
-        }
-"""
-s = replace_once(s, old_listener, new_listener, 'cancel timeout on accept/end')
-
-offer_anchor = """        await calls.sendSignal(
-          callId: callId,
-          type: 'offer',
-          payload: {'sdp': offer.sdp, 'type': offer.type},
-        );
-"""
-offer_new = offer_anchor + """        noAnswerTimer?.cancel();
-        noAnswerTimer = Timer(const Duration(seconds: 45), () async {
-          if (ending) return;
-          try {
-            await calls.end(callId);
-          } catch (_) {}
-          if (mounted) {
-            ending = true;
-            Navigator.of(context).maybePop();
-          }
-        });
-"""
-s = replace_once(s, offer_anchor, offer_new, 'caller timeout start')
-
-if 'noAnswerTimer?.cancel();\n    signalSubscription?.cancel();' not in s:
-    s = replace_once(
-        s,
-        "  void dispose() {\n    signalSubscription?.cancel();\n",
-        "  void dispose() {\n    noAnswerTimer?.cancel();\n    signalSubscription?.cancel();\n",
-        'dispose timeout',
-    )
-p.write_text(s, encoding='utf-8')
-
 for path, markers in {
     'lib/support/support_call_service.dart': [".eq('status', 'ringing')"],
     'lib/support/support_call_bar.dart': ['Duration(seconds: 90)', 'bt.compareTo(at)'],
     'lib/support/support_agent_thread_v2.dart': ['Duration(seconds: 90)', 'bt.compareTo(at)'],
-    'lib/support/support_webrtc_call_page.dart': ['Timer? noAnswerTimer;', 'Duration(seconds: 45)'],
 }.items():
     text = Path(path).read_text(encoding='utf-8')
     for marker in markers:
         if marker not in text:
             raise SystemExit(f'V64 verification missing: {path} / {marker}')
 
-print('Vet AI V64 applied: latest call always wins, stale ringing calls are ignored/cleared, and unanswered calls auto-end')
+print('Vet AI V64 applied: latest incoming call always wins and stale ringing calls are ignored/cleared')
