@@ -86,6 +86,16 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'notification_not_found' }), { status: 404, headers: jsonHeaders })
     }
 
+    const { data: broadcastSetting } = await admin
+      .from('admin_system_settings')
+      .select('value')
+      .eq('key', 'admin_broadcast_push_enabled')
+      .maybeSingle()
+    if (broadcastSetting?.value === false) {
+      await admin.from('admin_notifications').update({ status: 'failed', failed_count: 0 }).eq('id', notification.id)
+      return new Response(JSON.stringify({ ok: false, sent: 0, failed: 0, reason: 'admin_broadcast_push_disabled' }), { status: 409, headers: jsonHeaders })
+    }
+
     let devicesQuery = admin
       .from('push_devices')
       .select('id,user_id,farm_id,device_token,environment')
