@@ -88,7 +88,7 @@ class _VetAdminOperationsCenterState extends State<VetAdminOperationsCenter> {
             if (red > 0) _AttentionItem(Icons.crisis_alert_rounded, '$red', _ot(context, 'Open red alerts', 'إنذارات حمراء مفتوحة', 'Open rode alarmen'), VetColors.red),
             if (offline > 0) _AttentionItem(Icons.sensors_off_rounded, '$offline', _ot(context, 'Sensors offline', 'حساسات غير متصلة', 'Sensoren offline'), VetColors.red),
             if (urgentSupport > 0) _AttentionItem(Icons.support_agent_rounded, '$urgentSupport', _ot(context, 'Urgent support threads', 'رسائل دعم عاجلة', 'Urgente supportgesprekken'), VetColors.history),
-            if (pastDue > 0) _AttentionItem(Icons.money_off_csred_rounded, '$pastDue', _ot(context, 'Past-due subscriptions', 'اشتراكات متأخرة', 'Achterstallige abonnementen'), VetColors.red),
+            if (pastDue > 0) _AttentionItem(Icons.money_off_rounded, '$pastDue', _ot(context, 'Past-due subscriptions', 'اشتراكات متأخرة', 'Achterstallige abonnementen'), VetColors.red),
             if (failedPayments > 0) _AttentionItem(Icons.payment_rounded, '$failedPayments', _ot(context, 'Failed payments', 'مدفوعات فاشلة', 'Mislukte betalingen'), VetColors.red),
             if (pushFailures > 0) _AttentionItem(Icons.notifications_off_rounded, '$pushFailures', _ot(context, 'Push failures in 24h', 'فشل Push خلال 24 ساعة', 'Push-fouten in 24u'), VetColors.history),
           ];
