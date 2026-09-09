@@ -98,3 +98,4 @@ runpy.run_path('tools/patch_v64d_support_chat_compile_guard.py', run_name='__mai
 runpy.run_path('tools/patch_v64e_support_agent_async_import.py', run_name='__main__')
 runpy.run_path('tools/patch_v65a_admin_scaffold_compat.py', run_name='__main__')
 runpy.run_path('tools/patch_v65_support_call_ringing.py', run_name='__main__')
+runpy.run_path('tools/patch_v65b_chat_route_call_tones.py', run_name='__main__')
