@@ -95,3 +95,4 @@ print('Vet AI V63e applied: null-safe profile metadata and persistent current ad
 runpy.run_path('tools/patch_v64_reliable_support_calls.py', run_name='__main__')
 runpy.run_path('tools/patch_v64c_support_chat_whatsapp_behavior.py', run_name='__main__')
 runpy.run_path('tools/patch_v64d_support_chat_compile_guard.py', run_name='__main__')
+runpy.run_path('tools/patch_v64e_support_agent_async_import.py', run_name='__main__')
