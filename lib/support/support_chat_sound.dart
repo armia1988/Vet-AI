@@ -93,7 +93,8 @@ class VetSupportChatSound {
               math.sin(2 * math.pi * second * t) * secondWeight;
       final sample = (32767 * amplitude * attack * decay * wave)
           .round()
-          .clamp(-32767, 32767);
+          .clamp(-32767, 32767)
+          .toInt();
       data.setInt16(44 + i * 2, sample, Endian.little);
     }
     return data.buffer.asUint8List();
