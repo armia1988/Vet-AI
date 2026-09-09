@@ -180,7 +180,7 @@ workflows:
           VERIFY_DIR=$(mktemp -d)
           unzip -q "$IPA_PATH" -d "$VERIFY_DIR"
           APP_PATH=$(find "$VERIFY_DIR/Payload" -maxdepth 1 -type d -name '*.app' | head -n 1)
-          for SOUND in vet_ai_orange_alert.caf vet_ai_red_trtr_alert.caf; do
+          for SOUND in vet_ai_orange_alert.caf vet_ai_red_trtr_alert.caf vet_ai_incoming_call.caf; do
             if [ ! -f "$APP_PATH/$SOUND" ]; then
               echo "ERROR: $SOUND is missing from signed app bundle root"
               find "$APP_PATH" -maxdepth 2 -iname '*vet_ai*alert*' -print || true
