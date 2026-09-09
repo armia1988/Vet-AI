@@ -46,6 +46,15 @@ Deno.serve(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     })
 
+    const { data: supportSetting } = await admin
+      .from('admin_system_settings')
+      .select('value')
+      .eq('key', 'support_push_enabled')
+      .maybeSingle()
+    if (supportSetting?.value === false) {
+      return new Response(JSON.stringify({ ok: true, sent: 0, reason: 'support_push_disabled' }), { headers: jsonHeaders })
+    }
+
     const { data: message, error: messageError } = await admin
       .from('support_messages')
       .select('id,thread_id,sender_id,sender_role,message,attachment_name,created_at')
