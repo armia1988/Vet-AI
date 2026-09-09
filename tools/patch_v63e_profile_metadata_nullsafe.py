@@ -90,5 +90,7 @@ for required in [
 p.write_text(s, encoding='utf-8')
 print('Vet AI V63e applied: null-safe profile metadata and persistent current admin section after refresh')
 
-# V64b reliable-call lifecycle is chained here so web and TestFlight generated builds use it.
+# Later cross-platform support fixes are chained here so both GitHub Pages and
+# Codemagic generated builds receive the exact same chat/call behavior.
 runpy.run_path('tools/patch_v64_reliable_support_calls.py', run_name='__main__')
+runpy.run_path('tools/patch_v64_support_chat_whatsapp_behavior.py', run_name='__main__')
