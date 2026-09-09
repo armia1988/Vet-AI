@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/vet_backend.dart';
+import 'support_chat_sound.dart';
 
 class VetSupportRichService {
   VetSupportRichService._();
@@ -55,7 +56,9 @@ class VetSupportRichService {
     final user = client.auth.currentUser;
     if (user == null) throw StateError('Sign in required.');
     const allowed = {'text', 'location', 'poll', 'event', 'system'};
-    if (!allowed.contains(messageType)) throw ArgumentError('Unsupported support message type.');
+    if (!allowed.contains(messageType)) {
+      throw ArgumentError('Unsupported support message type.');
+    }
     await client.from('support_messages').insert({
       'thread_id': threadId,
       'sender_id': user.id,
@@ -68,6 +71,15 @@ class VetSupportRichService {
       'status': 'open',
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     }).eq('id', threadId);
+    await VetSupportChatSound.playSend();
+  }
+
+  Future<void> markThreadRead(String threadId) async {
+    if (threadId.trim().isEmpty || client.auth.currentUser == null) return;
+    await client.rpc(
+      'mark_support_thread_read',
+      params: {'p_thread_id': threadId},
+    );
   }
 
   Stream<List<Map<String, dynamic>>> pollVotesStream(String messageId) => client
