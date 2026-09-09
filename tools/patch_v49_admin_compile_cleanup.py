@@ -124,6 +124,30 @@ if old_system in s:
 elif 'return const VetAdminSystemCenter();' not in s:
     raise SystemExit('V49 admin route missing: VetAdminSystemCenter')
 
+# Load the server-issued capability matrix and block pages that the current
+# admin/support/billing/operations role is not allowed to open. Database RLS
+# remains the final enforcement layer; this guard keeps the UI consistent.
+if 'Map<String, bool> capabilities' not in s:
+    state_anchor = """  String? role;\n  Timer? refreshTimer;\n"""
+    state_replacement = """  String? role;\n  Map<String, bool> capabilities = const {'overview': true};\n  Timer? refreshTimer;\n"""
+    if state_anchor not in s:
+        raise SystemExit('V49 RBAC state anchor not found')
+    s = s.replace(state_anchor, state_replacement, 1)
+
+old_load_role = """  Future<void> _loadRole() async {\n    final value = await admin.role();\n    if (mounted) setState(() => role = value);\n  }\n"""
+new_load_role = """  Future<void> _loadRole() async {\n    try {\n      final raw = await admin.client.rpc('my_admin_access');\n      if (raw is Map) {\n        final access = Map<String, dynamic>.from(raw);\n        final rawCapabilities = access['capabilities'];\n        final nextCapabilities = <String, bool>{'overview': true};\n        if (rawCapabilities is Map) {\n          for (final entry in rawCapabilities.entries) {\n            nextCapabilities['${entry.key}'] = entry.value == true;\n          }\n        }\n        if (mounted) {\n          setState(() {\n            role = access['role']?.toString();\n            capabilities = nextCapabilities;\n          });\n        }\n        return;\n      }\n    } catch (_) {}\n    final value = await admin.role();\n    if (mounted) setState(() => role = value);\n  }\n"""
+if old_load_role in s:
+    s = s.replace(old_load_role, new_load_role, 1)
+elif "client.rpc('my_admin_access')" not in s:
+    raise SystemExit('V49 RBAC role loader anchor not found')
+
+if 'String _permissionForPage(int page)' not in s:
+    page_anchor = """  Widget _page() {\n    switch (index) {\n"""
+    page_replacement = """  String _permissionForPage(int page) => switch (page) {\n        0 => 'overview',\n        1 => 'farms',\n        2 => 'customers',\n        3 => 'animals',\n        4 => 'sensors',\n        5 => 'alerts',\n        6 => 'notifications',\n        7 => 'support',\n        8 || 9 => 'billing',\n        10 => 'manage_admins',\n        11 => 'audit',\n        12 => 'global_search',\n        13 => 'reports',\n        _ => 'system',\n      };\n\n  bool _canOpenPage(int page) => capabilities[_permissionForPage(page)] == true;\n\n  Widget _page() {\n    if (!_canOpenPage(index)) {\n      return Center(\n        child: Padding(\n          padding: const EdgeInsets.all(28),\n          child: Column(mainAxisSize: MainAxisSize.min, children: [\n            const Icon(Icons.lock_rounded, size: 54, color: VetColors.muted),\n            const SizedBox(height: 12),\n            Text(_at(context, 'Permission required', 'مطلوب صلاحية إضافية', 'Extra rechten vereist'), style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),\n            const SizedBox(height: 6),\n            Text(_at(context, 'Your Vet AI administrator role does not allow this section.', 'صلاحية حساب الإدارة الحالي لا تسمح بفتح القسم ده.', 'Je Vet AI-beheerrol geeft geen toegang tot dit onderdeel.'), textAlign: TextAlign.center, style: const TextStyle(color: VetColors.muted)),\n          ]),\n        ),\n      );\n    }\n    switch (index) {\n"""
+    if page_anchor not in s:
+        raise SystemExit('V49 RBAC page anchor not found')
+    s = s.replace(page_anchor, page_replacement, 1)
+
 admin.write_text(s, encoding='utf-8')
 
 # Supabase PostgREST builders are awaitable but are not Future<T>. Keep the
@@ -238,4 +262,4 @@ if pattern.search(s):
     s = pattern.sub('\n\nString _animalGroupAssetFromSpriteIndex', s, count=1)
 v5.write_text(s, encoding='utf-8')
 
-print('Vet AI V49 admin A-Z centers wired; operations, global search, reports, billing, signup controls verified')
+print('Vet AI V49 admin A-Z centers wired; operations, global search, reports, RBAC, billing, signup controls verified')
