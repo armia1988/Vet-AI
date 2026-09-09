@@ -97,6 +97,108 @@ elif 'return const VetAdminSystemCenter();' not in s:
 
 admin.write_text(s, encoding='utf-8')
 
+# Supabase PostgREST builders are awaitable but are not Future<T>. Keep the
+# billing summary RPC outside Future.wait so Dart can infer the list type.
+billing = Path('lib/admin/admin_billing_center.dart')
+s = billing.read_text(encoding='utf-8')
+old_billing = """  Future<_BillingData> _load() async {
+    final values = await Future.wait([
+      admin.plans(),
+      admin.subscriptions(),
+      admin.payments(),
+      admin.farms(),
+      admin.client.rpc('admin_billing_summary'),
+    ]);
+    return _BillingData(
+      plans: values[0] as List<Map<String, dynamic>>,
+      subscriptions: values[1] as List<Map<String, dynamic>>,
+      payments: values[2] as List<Map<String, dynamic>>,
+      farms: values[3] as List<Map<String, dynamic>>,
+      summary: values[4] is Map ? Map<String, dynamic>.from(values[4] as Map) : <String, dynamic>{},
+    );
+  }
+"""
+new_billing = """  Future<_BillingData> _load() async {
+    final values = await Future.wait<List<Map<String, dynamic>>>([
+      admin.plans(),
+      admin.subscriptions(),
+      admin.payments(),
+      admin.farms(),
+    ]);
+    final summaryValue = await admin.client.rpc('admin_billing_summary');
+    return _BillingData(
+      plans: values[0],
+      subscriptions: values[1],
+      payments: values[2],
+      farms: values[3],
+      summary: summaryValue is Map
+          ? Map<String, dynamic>.from(summaryValue)
+          : <String, dynamic>{},
+    );
+  }
+"""
+if old_billing in s:
+    s = s.replace(old_billing, new_billing, 1)
+elif "Future.wait<List<Map<String, dynamic>>>" not in s:
+    raise SystemExit('V49 billing Future.wait fix anchor not found')
+billing.write_text(s, encoding='utf-8')
+
+# Make the Admin "customer signup" and maintenance switches real for account
+# creation as well, not just dashboard decoration.
+backend = Path('lib/services/vet_backend.dart')
+s = backend.read_text(encoding='utf-8')
+old_signup_head = """  Future<AuthResponse> signUp({
+    required String email,
+    required String password,
+    required String fullName,
+    required String phone,
+    required String preferredLanguage,
+    String emailSubject = 'Vet AI — Confirm your account',
+    String emailHeading = 'Welcome to Vet AI',
+    String emailBody =
+        'Confirm your email address to finish creating your Vet AI account and securely access your farm data.',
+    String emailButton = 'Confirm Vet AI account',
+    String emailFooter =
+        'If you did not create this Vet AI account, you can ignore this email.',
+  }) {
+    return client.auth.signUp(
+"""
+new_signup_head = """  Future<AuthResponse> signUp({
+    required String email,
+    required String password,
+    required String fullName,
+    required String phone,
+    required String preferredLanguage,
+    String emailSubject = 'Vet AI — Confirm your account',
+    String emailHeading = 'Welcome to Vet AI',
+    String emailBody =
+        'Confirm your email address to finish creating your Vet AI account and securely access your farm data.',
+    String emailButton = 'Confirm Vet AI account',
+    String emailFooter =
+        'If you did not create this Vet AI account, you can ignore this email.',
+  }) async {
+    final stateValue = await client.rpc('public_signup_state');
+    if (stateValue is Map) {
+      final state = Map<String, dynamic>.from(stateValue);
+      if (state['maintenance_mode'] == true) {
+        throw const AuthException(
+          'Vet AI is temporarily under maintenance. Please try again later.',
+        );
+      }
+      if (state['signup_enabled'] == false) {
+        throw const AuthException(
+          'New Vet AI account registration is temporarily disabled.',
+        );
+      }
+    }
+    return client.auth.signUp(
+"""
+if old_signup_head in s:
+    s = s.replace(old_signup_head, new_signup_head, 1)
+elif "final stateValue = await client.rpc('public_signup_state');" not in s:
+    raise SystemExit('V49 signup gate anchor not found')
+backend.write_text(s, encoding='utf-8')
+
 v5 = Path('lib/v5_app.dart')
 s = v5.read_text(encoding='utf-8')
 pattern = re.compile(
@@ -107,4 +209,4 @@ if pattern.search(s):
     s = pattern.sub('\n\nString _animalGroupAssetFromSpriteIndex', s, count=1)
 v5.write_text(s, encoding='utf-8')
 
-print('Vet AI V49 admin A-Z centers wired: company/customer/animals/sensor/alerts/notifications/support/billing/staff/audit/system')
+print('Vet AI V49 admin A-Z centers wired; billing compile and signup controls verified')
