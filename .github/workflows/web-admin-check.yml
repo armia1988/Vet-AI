@@ -15,6 +15,7 @@ on:
       - 'tools/patch_v51_file_picker_compile.py'
       - 'tools/patch_v52_web_chat_company_scroll.py'
       - 'tools/patch_v53_support_operations_import.py'
+      - 'tools/patch_v54_native_webrtc_calls.py'
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - '.github/workflows/web-admin-check.yml'
@@ -41,6 +42,7 @@ jobs:
           python3 tools/patch_v51_file_picker_compile.py
           python3 tools/patch_v52_web_chat_company_scroll.py
           python3 tools/patch_v53_support_operations_import.py
+          python3 tools/patch_v54_native_webrtc_calls.py
       - name: Get dependencies
         run: flutter pub get
       - name: Build web admin
