@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin/admin_entry.dart';
+import 'admin/admin_web_root.dart';
 import 'config/supabase_config.dart';
 import 'services/alert_notification_service.dart';
 
@@ -21,5 +23,5 @@ Future<void> main() async {
   );
   await VetAlertNotificationService.instance.initialize();
 
-  runApp(const VetAIRoot());
+  runApp(kIsWeb ? const VetAdminWebRoot() : const VetAIRoot());
 }
