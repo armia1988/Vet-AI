@@ -6,6 +6,7 @@ s = admin.read_text(encoding='utf-8')
 s = s.replace('Icons.command_rounded', 'Icons.dashboard_customize_rounded')
 
 imports = [
+    "import 'admin_operations_center.dart';\n",
     "import 'admin_sensor_center.dart';\n",
     "import 'admin_notification_center.dart';\n",
     "import 'admin_company_center.dart';\n",
@@ -26,6 +27,11 @@ for item in imports:
         s = s.replace(anchor, anchor + item, 1)
 
 routes = [
+    (
+        """      case 0:\n        return _OverviewPage(key: ValueKey('overview-$refreshTick'));\n""",
+        """      case 0:\n        return VetAdminOperationsCenter(key: ValueKey('overview-$refreshTick'));\n""",
+        'VetAdminOperationsCenter',
+    ),
     (
         """      case 1:\n        return _FarmsPage(key: ValueKey('farms-$refreshTick'));\n""",
         """      case 1:\n        return VetAdminCompanyCenter(key: ValueKey('farms-$refreshTick'));\n""",
@@ -209,4 +215,4 @@ if pattern.search(s):
     s = pattern.sub('\n\nString _animalGroupAssetFromSpriteIndex', s, count=1)
 v5.write_text(s, encoding='utf-8')
 
-print('Vet AI V49 admin A-Z centers wired; billing compile and signup controls verified')
+print('Vet AI V49 admin A-Z centers wired; global operations, billing compile and signup controls verified')
