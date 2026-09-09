@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../i18n/vet_locale.dart';
@@ -13,6 +14,98 @@ String _rt(BuildContext context, String en, String ar, String nl) =>
       nl: nl,
     );
 
+class VetSupportAvatar extends StatelessWidget {
+  const VetSupportAvatar({super.key, this.radius = 19});
+
+  final double radius;
+
+  Future<void> _open(BuildContext context) => showDialog<void>(
+        context: context,
+        useRootNavigator: true,
+        barrierColor: Colors.black87,
+        builder: (dialogContext) => Dialog.fullscreen(
+          backgroundColor: Colors.black,
+          child: SafeArea(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 190,
+                          height: 190,
+                          padding: const EdgeInsets.all(18),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: SvgPicture.asset(
+                            'assets/vet_ai_app_icon.svg',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          _rt(context, 'Vet AI Support', 'دعم Vet AI', 'Vet AI Support'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _rt(
+                            context,
+                            'Official support account',
+                            'حساب الدعم الرسمي',
+                            'Officieel supportaccount',
+                          ),
+                          style: const TextStyle(
+                            color: Color(0xFFB6BEC4),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                PositionedDirectional(
+                  top: 8,
+                  start: 8,
+                  child: IconButton.filled(
+                    style: IconButton.styleFrom(backgroundColor: Colors.black54),
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    icon: const Icon(Icons.close_rounded, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _open(context),
+        child: Padding(
+          padding: const EdgeInsets.all(3),
+          child: CircleAvatar(
+            radius: radius,
+            backgroundColor: const Color(0xFFD9FDD3),
+            child: Icon(
+              Icons.support_agent_rounded,
+              color: const Color(0xFF00A884),
+              size: radius * 1.22,
+            ),
+          ),
+        ),
+      );
+}
+
 class VetFarmAvatar extends StatelessWidget {
   const VetFarmAvatar({
     super.key,
@@ -25,6 +118,39 @@ class VetFarmAvatar extends StatelessWidget {
   final double radius;
   final IconData fallbackIcon;
 
+  Future<void> _openPhoto(BuildContext context, String url) => showDialog<void>(
+        context: context,
+        useRootNavigator: true,
+        barrierColor: Colors.black87,
+        builder: (dialogContext) => Dialog.fullscreen(
+          backgroundColor: Colors.black,
+          child: SafeArea(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: InteractiveViewer(
+                    minScale: .8,
+                    maxScale: 5,
+                    child: Center(
+                      child: Image.network(url, fit: BoxFit.contain),
+                    ),
+                  ),
+                ),
+                PositionedDirectional(
+                  top: 8,
+                  start: 8,
+                  child: IconButton.filled(
+                    style: IconButton.styleFrom(backgroundColor: Colors.black54),
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    icon: const Icon(Icons.close_rounded, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<String?>(
@@ -36,43 +162,20 @@ class VetFarmAvatar extends StatelessWidget {
           backgroundColor: const Color(0xFFD9FDD3),
           backgroundImage: url == null ? null : NetworkImage(url),
           child: url == null
-              ? Icon(fallbackIcon, color: const Color(0xFF00A884), size: radius * 1.08)
+              ? Icon(
+                  fallbackIcon,
+                  color: const Color(0xFF00A884),
+                  size: radius * 1.08,
+                )
               : null,
         );
-        if (url == null) return avatar;
         return GestureDetector(
-          onTap: () => showDialog<void>(
-            context: context,
-            barrierColor: Colors.black87,
-            builder: (dialogContext) => Dialog.fullscreen(
-              backgroundColor: Colors.black,
-              child: SafeArea(
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: InteractiveViewer(
-                        minScale: .8,
-                        maxScale: 5,
-                        child: Center(
-                          child: Image.network(url, fit: BoxFit.contain),
-                        ),
-                      ),
-                    ),
-                    PositionedDirectional(
-                      top: 8,
-                      start: 8,
-                      child: IconButton.filled(
-                        style: IconButton.styleFrom(backgroundColor: Colors.black54),
-                        onPressed: () => Navigator.pop(dialogContext),
-                        icon: const Icon(Icons.close_rounded, color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          behavior: HitTestBehavior.opaque,
+          onTap: url == null ? null : () => _openPhoto(context, url),
+          child: Padding(
+            padding: const EdgeInsets.all(3),
+            child: avatar,
           ),
-          child: avatar,
         );
       },
     );
