@@ -1,0 +1,64 @@
+name: Deploy Vet AI Admin Web
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'lib/admin/**'
+      - 'lib/main_v2.dart'
+      - 'lib/admin/admin_entry.dart'
+      - 'lib/services/alert_notification_service.dart'
+      - 'lib/services/vet_backend.dart'
+      - 'lib/i18n/**'
+      - 'lib/v5_app.dart'
+      - 'tools/patch_v49_admin_compile_cleanup.py'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/admin-pages.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: vet-ai-admin-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate web project
+        run: flutter create . --platforms=web --project-name app --org com.vetai
+      - name: Apply Vet AI generated-source cleanup
+        run: python3 tools/patch_v49_admin_compile_cleanup.py
+      - name: Get dependencies
+        run: flutter pub get
+      - name: Build production admin web
+        run: flutter build web --release -t lib/main_v2.dart --base-href '/Vet-AI/'
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
