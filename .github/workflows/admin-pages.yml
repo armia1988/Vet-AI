@@ -24,6 +24,7 @@ on:
       - 'tools/patch_v59_call_smoothing_whatsapp_icons.py'
       - 'tools/patch_v60_instant_camera_flip_black_off.py'
       - 'tools/patch_v61b_admin_instant_navigation.py'
+      - 'tools/patch_v62b_admin_accounts_animals_sensors.py'
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - '.github/workflows/admin-pages.yml'
@@ -63,6 +64,7 @@ jobs:
           python3 tools/patch_v59_call_smoothing_whatsapp_icons.py
           python3 tools/patch_v60_instant_camera_flip_black_off.py
           python3 tools/patch_v61b_admin_instant_navigation.py
+          python3 tools/patch_v62b_admin_accounts_animals_sensors.py
       - name: Get dependencies
         run: flutter pub get
       - name: Build production admin web
