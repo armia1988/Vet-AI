@@ -19,6 +19,7 @@ workflows:
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Vet AI" ios/Runner/Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Vet AI uses the camera to capture animal health images for veterinary assessment.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Vet AI uses the camera to capture animal health images for veterinary assessment.'" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Vet AI uses selected photos to create veterinary assessment cases.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'Vet AI uses selected photos to create veterinary assessment cases.'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Vet AI uses the microphone only when you choose to join a support voice or video call.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Vet AI uses the microphone only when you choose to join a support voice or video call.'" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Vet AI uses your location, after your approval, while you use the app to apply the correct local veterinary guidance and animal-health rules.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Vet AI uses your location, after your approval, while you use the app to apply the correct local veterinary guidance and animal-health rules.'" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Vet AI uses location only after your approval to apply the correct local veterinary guidance and animal-health rules. Vet AI does not continuously track your location in the background.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysAndWhenInUseUsageDescription 'Vet AI uses location only after your approval to apply the correct local veterinary guidance and animal-health rules. Vet AI does not continuously track your location in the background.'" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Vet AI uses location only after your approval to apply the correct local veterinary guidance and animal-health rules. Vet AI does not continuously track your location in the background.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSLocationAlwaysUsageDescription 'Vet AI uses location only after your approval to apply the correct local veterinary guidance and animal-health rules. Vet AI does not continuously track your location in the background.'" ios/Runner/Info.plist
@@ -53,6 +54,7 @@ workflows:
           python3 tools/patch_v47_custom_alert_sounds.py
           python3 tools/patch_v48_verified_custom_alert_sounds.py
           python3 tools/patch_v49_admin_compile_cleanup.py
+          python3 tools/patch_v50_admin_chat_accounts_sensors.py
 
       - name: Verify production backend and hotfix
         script: |
@@ -168,7 +170,9 @@ workflows:
           flutter create . --platforms=web --project-name app --org com.vetai
           rm -f test/widget_test.dart
       - name: Apply admin web source cleanup
-        script: python3 tools/patch_v49_admin_compile_cleanup.py
+        script: |
+          python3 tools/patch_v49_admin_compile_cleanup.py
+          python3 tools/patch_v50_admin_chat_accounts_sensors.py
       - name: Install Flutter dependencies
         script: flutter pub get
       - name: Static analysis
