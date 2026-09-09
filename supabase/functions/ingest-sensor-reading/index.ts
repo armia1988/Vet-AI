@@ -6,6 +6,14 @@ const hex=(bytes:Uint8Array)=>Array.from(bytes).map(b=>b.toString(16).padStart(2
 async function sha256(value:string){return hex(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value))))}
 const num=(v:any)=>typeof v==="number"&&Number.isFinite(v)?v:null;
 
+function serviceKey():string{
+  const modern=Deno.env.get("SUPABASE_SECRET_KEYS");
+  if(modern){try{const keys=JSON.parse(modern);if(keys?.default)return keys.default;}catch(_){}}
+  const legacy=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+  if(!legacy) throw new Error("Missing SUPABASE service key");
+  return legacy;
+}
+
 Deno.serve(async(req)=>{
   if(req.method!=="POST") return json({error:"POST only"},405);
   const body=await req.json().catch(()=>({}));
@@ -13,7 +21,11 @@ Deno.serve(async(req)=>{
   const token=String(body?.device_token??"").trim();
   const reading=body?.reading&&typeof body.reading==="object"?body.reading:{};
   if(!deviceUid||!token) return json({error:"device_uid and device_token are required"},401);
-  const admin=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{auth:{persistSession:false,autoRefreshToken:false}});
+  const admin=createClient(Deno.env.get("SUPABASE_URL")!,serviceKey(),{auth:{persistSession:false,autoRefreshToken:false}});
+
+  const {data:ingestSetting}=await admin.from("admin_system_settings").select("value").eq("key","sensor_ingest_enabled").maybeSingle();
+  if(ingestSetting?.value===false) return json({error:"sensor_ingest_paused",message:"Sensor ingestion is temporarily disabled by Vet AI administration."},503);
+
   const {data:device,error:deviceError}=await admin.from("sensor_devices").select("id,farm_id,animal_id,active,device_secret_hash").eq("device_uid",deviceUid).maybeSingle();
   if(deviceError||!device||device.active!==true) return json({error:"Unknown or inactive device"},401);
   if((await sha256(token))!==device.device_secret_hash) return json({error:"Invalid device token"},401);
