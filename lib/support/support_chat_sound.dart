@@ -4,44 +4,74 @@ import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart';
 
-/// Small original Vet AI chat cues generated in memory.
+/// Short original Vet AI chat cues.
 ///
-/// They intentionally avoid shipping/copying any third-party messenger sound.
-/// The cues are short enough to feel immediate while a support conversation is
-/// open, and fall back to the platform click if an audio backend is unavailable.
+/// The send cue is intentionally started synchronously from the Send tap, so
+/// iOS Safari treats it as user-initiated audio. The receive cue is distinct
+/// and can be primed by [unlock] when the composer is first touched.
 class VetSupportChatSound {
   VetSupportChatSound._();
 
   static final AudioPlayer _sendPlayer = AudioPlayer();
   static final AudioPlayer _receivePlayer = AudioPlayer();
+  static bool _unlocked = false;
 
   static final Uint8List _sendBytes = _wav(
-    durationMs: 72,
-    frequencies: const [1080.0, 1480.0],
-    secondWeight: .34,
-    amplitude: .22,
+    durationMs: 86,
+    frequencies: const [1030.0, 1510.0],
+    secondWeight: .29,
+    amplitude: .30,
+    tailPower: 3.1,
   );
 
   static final Uint8List _receiveBytes = _wav(
-    durationMs: 118,
-    frequencies: const [760.0, 1040.0],
-    secondWeight: .42,
-    amplitude: .20,
+    durationMs: 148,
+    frequencies: const [690.0, 1120.0],
+    secondWeight: .46,
+    amplitude: .24,
+    tailPower: 2.35,
   );
 
-  static Future<void> playSend() => _play(_sendPlayer, _sendBytes, .42);
+  static final Uint8List _silentUnlock = _wav(
+    durationMs: 18,
+    frequencies: const [800.0, 1000.0],
+    secondWeight: .3,
+    amplitude: 0,
+    tailPower: 2,
+  );
 
-  static Future<void> playReceive() =>
-      _play(_receivePlayer, _receiveBytes, .36);
-
-  static Future<void> _play(
-    AudioPlayer player,
-    Uint8List bytes,
-    double volume,
-  ) async {
+  /// Prime browser audio during an explicit user gesture. This is silent.
+  static Future<void> unlock() async {
+    if (_unlocked) return;
+    _unlocked = true;
     try {
-      await player.stop();
-      await player.play(BytesSource(bytes), volume: volume);
+      // Start both players while the tap gesture is still active. Awaiting is
+      // deliberately avoided until both play calls have already been issued.
+      final first = _sendPlayer.play(BytesSource(_silentUnlock), volume: .001);
+      final second = _receivePlayer.play(BytesSource(_silentUnlock), volume: .001);
+      await Future.wait([first, second]);
+    } catch (_) {
+      // A later explicit Send tap gets another chance to unlock playback.
+      _unlocked = false;
+    }
+  }
+
+  static Future<void> playSend() async {
+    try {
+      // No preliminary await/stop here: on Safari the actual play request must
+      // happen inside the user's Send gesture.
+      await _sendPlayer.play(BytesSource(_sendBytes), volume: .58);
+      _unlocked = true;
+    } catch (_) {
+      try {
+        await SystemSound.play(SystemSoundType.click);
+      } catch (_) {}
+    }
+  }
+
+  static Future<void> playReceive() async {
+    try {
+      await _receivePlayer.play(BytesSource(_receiveBytes), volume: .46);
     } catch (_) {
       try {
         await SystemSound.play(SystemSoundType.click);
@@ -54,6 +84,7 @@ class VetSupportChatSound {
     required List<double> frequencies,
     required double secondWeight,
     required double amplitude,
+    required double tailPower,
   }) {
     const sampleRate = 22050;
     const bytesPerSample = 2;
@@ -86,11 +117,14 @@ class VetSupportChatSound {
     for (var i = 0; i < sampleCount; i++) {
       final t = i / sampleRate;
       final progress = i / sampleCount;
-      final attack = math.min(1.0, i / (sampleRate * .003));
-      final decay = math.pow(1.0 - progress, 2.4).toDouble();
+      final attack = math.min(1.0, i / (sampleRate * .0025));
+      final decay = math.pow(1.0 - progress, tailPower).toDouble();
+      // A tiny upward movement keeps the cue crisp without copying any
+      // third-party messenger sound file.
+      final drift = 1.0 + (.055 * progress);
       final wave =
-          math.sin(2 * math.pi * first * t) * (1 - secondWeight) +
-              math.sin(2 * math.pi * second * t) * secondWeight;
+          math.sin(2 * math.pi * first * drift * t) * (1 - secondWeight) +
+              math.sin(2 * math.pi * second * drift * t) * secondWeight;
       final sample = (32767 * amplitude * attack * decay * wave)
           .round()
           .clamp(-32767, 32767)
