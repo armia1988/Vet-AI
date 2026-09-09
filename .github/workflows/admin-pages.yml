@@ -26,6 +26,7 @@ on:
       - 'tools/patch_v61b_admin_instant_navigation.py'
       - 'tools/patch_v62b_admin_accounts_animals_sensors.py'
       - 'tools/patch_v62c_company_manager_routes.py'
+      - 'tools/patch_v63_admin_mobile_accounts_profile_reports.py'
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - '.github/workflows/admin-pages.yml'
@@ -67,6 +68,7 @@ jobs:
           python3 tools/patch_v61b_admin_instant_navigation.py
           python3 tools/patch_v62b_admin_accounts_animals_sensors.py
           python3 tools/patch_v62c_company_manager_routes.py
+          python3 tools/patch_v63_admin_mobile_accounts_profile_reports.py
       - name: Get dependencies
         run: flutter pub get
       - name: Build production admin web
