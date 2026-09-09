@@ -6,13 +6,13 @@ on:
     branches: [main]
     paths:
       - 'lib/admin/**'
+      - 'lib/support/**'
       - 'lib/main_v2.dart'
-      - 'lib/admin/admin_entry.dart'
-      - 'lib/services/alert_notification_service.dart'
-      - 'lib/services/vet_backend.dart'
+      - 'lib/services/**'
       - 'lib/i18n/**'
       - 'lib/v5_app.dart'
       - 'tools/patch_v49_admin_compile_cleanup.py'
+      - 'tools/patch_v50_admin_chat_accounts_sensors.py'
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - '.github/workflows/admin-pages.yml'
@@ -38,7 +38,9 @@ jobs:
       - name: Generate web project
         run: flutter create . --platforms=web --project-name app --org com.vetai
       - name: Apply Vet AI generated-source cleanup
-        run: python3 tools/patch_v49_admin_compile_cleanup.py
+        run: |
+          python3 tools/patch_v49_admin_compile_cleanup.py
+          python3 tools/patch_v50_admin_chat_accounts_sensors.py
       - name: Get dependencies
         run: flutter pub get
       - name: Build production admin web
