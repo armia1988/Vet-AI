@@ -14,14 +14,20 @@ old_v51 = """    final picked = await FilePicker.pickFile(withData: true);
     final bytes = f.bytes;
     if (bytes == null) return;
 """
-new = """    final f = await FilePicker.pickFile();
+old_bad_read = """    final f = await FilePicker.pickFile();
     if (f == null) return;
     final bytes = await f.readBytes();
+"""
+new = """    final f = await FilePicker.pickFile();
+    if (f == null) return;
+    final bytes = await f.readAsBytes();
 """
 if old_v50 in s:
     s = s.replace(old_v50, new, 1)
 elif old_v51 in s:
     s = s.replace(old_v51, new, 1)
+elif old_bad_read in s:
+    s = s.replace(old_bad_read, new, 1)
 elif new not in s:
     raise SystemExit('V51: FilePicker block anchor not found')
 path.write_text(s, encoding='utf-8')
