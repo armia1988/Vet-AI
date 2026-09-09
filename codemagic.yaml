@@ -17,7 +17,7 @@ workflows:
           rm -f test/widget_test.dart
           /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Vet AI" ios/Runner/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Vet AI uses the camera to capture animal health images for veterinary assessment.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Vet AI uses the camera to capture animal health images for veterinary assessment.'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Vet AI uses the camera to capture animal health images for veterinary assessment and support video calls.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Vet AI uses the camera to capture animal health images for veterinary assessment and support video calls.'" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Vet AI uses selected photos to create veterinary assessment cases.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'Vet AI uses selected photos to create veterinary assessment cases.'" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Vet AI uses the microphone only when you choose to join a support voice or video call.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Vet AI uses the microphone only when you choose to join a support voice or video call.'" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Vet AI uses your location, after your approval, while you use the app to apply the correct local veterinary guidance and animal-health rules.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'Vet AI uses your location, after your approval, while you use the app to apply the correct local veterinary guidance and animal-health rules.'" ios/Runner/Info.plist
@@ -58,6 +58,7 @@ workflows:
           python3 tools/patch_v51_file_picker_compile.py
           python3 tools/patch_v52_web_chat_company_scroll.py
           python3 tools/patch_v53_support_operations_import.py
+          python3 tools/patch_v54_native_webrtc_calls.py
 
       - name: Verify production backend and hotfix
         script: |
@@ -93,7 +94,11 @@ workflows:
               raise SystemExit('Vet AI 0.6.24 old BytesSource playback is still active')
           if "String text = (_result['voice_summary']" in report:
               raise SystemExit('Vet AI 0.6.24 old partial voice_summary path is still active')
-          print('Vet AI 0.6.24 instant prewarmed Egyptian voice pipeline verified')
+          call_page = Path('lib/support/support_webrtc_call_page.dart').read_text(encoding='utf-8')
+          for marker in ['createPeerConnection', 'getUserMedia', 'support_webrtc_signals', 'RTCVideoView']:
+              if marker not in call_page and marker != 'support_webrtc_signals':
+                  raise SystemExit(f'Vet AI WebRTC call UI missing: {marker}')
+          print('Vet AI voice, APNs and internal WebRTC support-call pipeline verified')
           PY
 
       - name: Install Flutter dependencies
@@ -179,6 +184,7 @@ workflows:
           python3 tools/patch_v51_file_picker_compile.py
           python3 tools/patch_v52_web_chat_company_scroll.py
           python3 tools/patch_v53_support_operations_import.py
+          python3 tools/patch_v54_native_webrtc_calls.py
       - name: Install Flutter dependencies
         script: flutter pub get
       - name: Static analysis
