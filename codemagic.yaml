@@ -61,6 +61,7 @@ workflows:
           python3 tools/patch_v54_native_webrtc_calls.py
           python3 tools/patch_v55_whatsapp_rich_chat_profiles.py
           python3 tools/patch_v56_webrtc_audio_hangup.py
+          python3 tools/patch_v57_camera_switch_drag_preview.py
 
       - name: Verify production backend and hotfix
         script: |
@@ -97,7 +98,7 @@ workflows:
           if "String text = (_result['voice_summary']" in report:
               raise SystemExit('Vet AI 0.6.24 old partial voice_summary path is still active')
           call_page = Path('lib/support/support_webrtc_call_page.dart').read_text(encoding='utf-8')
-          for marker in ['createPeerConnection', 'getUserMedia', 'RTCVideoView', 'V56 remote audio renderer', '_startRingback()', 'allowPop = true']:
+          for marker in ['createPeerConnection', 'getUserMedia', 'RTCVideoView', 'V56 remote audio renderer', '_startRingback()', 'allowPop = true', 'Helper.cameras', 'previewOffset']:
               if marker not in call_page:
                   raise SystemExit(f'Vet AI WebRTC call UI missing: {marker}')
           print('Vet AI voice, APNs and internal WebRTC support-call pipeline verified')
@@ -189,6 +190,7 @@ workflows:
           python3 tools/patch_v54_native_webrtc_calls.py
           python3 tools/patch_v55_whatsapp_rich_chat_profiles.py
           python3 tools/patch_v56_webrtc_audio_hangup.py
+          python3 tools/patch_v57_camera_switch_drag_preview.py
       - name: Install Flutter dependencies
         script: flutter pub get
       - name: Static analysis
