@@ -48,6 +48,7 @@ jobs:
         run: |
           python3 tools/patch_v49_admin_compile_cleanup.py
           python3 tools/patch_v50_admin_chat_accounts_sensors.py
+          python3 tools/patch_v51_file_picker_compile.py
       - name: Get dependencies
         run: flutter pub get
       - name: Analyze
