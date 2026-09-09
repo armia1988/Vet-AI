@@ -20,6 +20,7 @@ on:
       - 'tools/patch_v56_webrtc_audio_hangup.py'
       - 'tools/patch_v57_camera_switch_drag_preview.py'
       - 'tools/patch_v58_ios_safari_camera_flip.py'
+      - 'tools/patch_v59_call_smoothing_whatsapp_icons.py'
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - '.github/workflows/web-admin-check.yml'
@@ -51,6 +52,7 @@ jobs:
           python3 tools/patch_v56_webrtc_audio_hangup.py
           python3 tools/patch_v57_camera_switch_drag_preview.py
           python3 tools/patch_v58_ios_safari_camera_flip.py
+          python3 tools/patch_v59_call_smoothing_whatsapp_icons.py
       - name: Get dependencies
         run: flutter pub get
       - name: Build web admin
