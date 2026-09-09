@@ -28,7 +28,6 @@ if '_restoreAdminSection();' not in s:
     unawaited(admin.prewarm());
 """
     if anchor not in s:
-        # Fallback for a dashboard before the prewarm patch.
         anchor = """    _loadRole();
 """
         if anchor not in s:
@@ -63,7 +62,6 @@ if 'Future<void> _restoreAdminSection()' not in s:
         raise SystemExit('V63e load-role method anchor missing')
     s = s.replace(marker, helper + marker, 1)
 
-# Mobile drawer and desktop sidebar both persist the selected section.
 s = s.replace(
     """                        setState(() => index = i);
                         Navigator.pop(context);
@@ -92,6 +90,5 @@ for required in [
 p.write_text(s, encoding='utf-8')
 print('Vet AI V63e applied: null-safe profile metadata and persistent current admin section after refresh')
 
-# V64 is chained here because every production web/TestFlight build already
-# runs V63e. This keeps the support call reliability fix in all generated builds.
+# V64b reliable-call lifecycle is chained here so web and TestFlight generated builds use it.
 runpy.run_path('tools/patch_v64_reliable_support_calls.py', run_name='__main__')
