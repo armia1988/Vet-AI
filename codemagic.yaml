@@ -55,6 +55,9 @@ workflows:
           python3 tools/patch_v48_verified_custom_alert_sounds.py
           python3 tools/patch_v49_admin_compile_cleanup.py
           python3 tools/patch_v50_admin_chat_accounts_sensors.py
+          python3 tools/patch_v51_file_picker_compile.py
+          python3 tools/patch_v52_web_chat_company_scroll.py
+          python3 tools/patch_v53_support_operations_import.py
 
       - name: Verify production backend and hotfix
         script: |
@@ -173,6 +176,9 @@ workflows:
         script: |
           python3 tools/patch_v49_admin_compile_cleanup.py
           python3 tools/patch_v50_admin_chat_accounts_sensors.py
+          python3 tools/patch_v51_file_picker_compile.py
+          python3 tools/patch_v52_web_chat_company_scroll.py
+          python3 tools/patch_v53_support_operations_import.py
       - name: Install Flutter dependencies
         script: flutter pub get
       - name: Static analysis
