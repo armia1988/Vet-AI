@@ -1,5 +1,4 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class VetSupportCallService {
   VetSupportCallService._();
@@ -14,6 +13,9 @@ class VetSupportCallService {
   }) async {
     final user = client.auth.currentUser;
     if (user == null) throw StateError('Sign in required.');
+    if (!{'voice', 'video'}.contains(callType)) {
+      throw ArgumentError('Unsupported call type.');
+    }
     final row = await client.from('support_calls').insert({
       'thread_id': threadId,
       'initiated_by': user.id,
@@ -30,6 +32,47 @@ class VetSupportCallService {
       .eq('thread_id', threadId)
       .order('created_at', ascending: false);
 
+  Stream<List<Map<String, dynamic>>> signalsStream(String callId) => client
+      .from('support_webrtc_signals')
+      .stream(primaryKey: ['id'])
+      .eq('call_id', callId)
+      .order('created_at');
+
+  Future<void> sendSignal({
+    required String callId,
+    required String type,
+    required Map<String, dynamic> payload,
+  }) async {
+    final user = client.auth.currentUser;
+    if (user == null) throw StateError('Sign in required.');
+    if (!{'offer', 'answer', 'candidate'}.contains(type)) {
+      throw ArgumentError('Unsupported WebRTC signal.');
+    }
+    await client.from('support_webrtc_signals').insert({
+      'call_id': callId,
+      'sender_id': user.id,
+      'signal_type': type,
+      'payload': payload,
+    });
+  }
+
+  Future<Map<String, dynamic>> iceConfiguration(String callId) async {
+    final value = await client.rpc(
+      'get_support_webrtc_ice',
+      params: {'p_call_id': callId},
+    );
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return {
+      'iceServers': [
+        {
+          'urls': ['stun:stun.l.google.com:19302'],
+        },
+      ],
+      'turnConfigured': false,
+    };
+  }
+
   Future<void> accept(String callId) => client.from('support_calls').update({
         'status': 'accepted',
         'answered_at': DateTime.now().toUtc().toIso8601String(),
@@ -44,17 +87,4 @@ class VetSupportCallService {
         'status': 'declined',
         'ended_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', callId);
-
-  /// Current transport uses a unique Jitsi Meet room so voice/video buttons are
-  /// functional on web and phone while Vet AI keeps the call lifecycle in its
-  /// own protected database. This can be replaced with native TURN/WebRTC later
-  /// without changing the support thread/call model.
-  Future<void> openMediaRoom(Map<String, dynamic> call) async {
-    final key = '${call['room_key'] ?? ''}'.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '');
-    if (key.isEmpty) throw StateError('Call room is missing.');
-    final type = '${call['call_type'] ?? 'video'}';
-    final uri = Uri.parse('https://meet.jit.si/VetAI-$key#config.prejoinPageEnabled=false&config.startWithVideoMuted=${type == 'voice' ? 'true' : 'false'}');
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok) throw StateError('Could not open call room.');
-  }
 }
