@@ -45,7 +45,9 @@ jobs:
       - name: Flutter version
         run: flutter --version
       - name: Apply generated-source cleanup
-        run: python3 tools/patch_v49_admin_compile_cleanup.py
+        run: |
+          python3 tools/patch_v49_admin_compile_cleanup.py
+          python3 tools/patch_v50_admin_chat_accounts_sensors.py
       - name: Get dependencies
         run: flutter pub get
       - name: Analyze
