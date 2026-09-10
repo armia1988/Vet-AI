@@ -38,6 +38,7 @@ on:
       - 'tools/patch_v72*.py'
       - 'tools/patch_v73*.py'
       - 'tools/patch_v74*.py'
+      - 'tools/patch_v75*.py'
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - '.github/workflows/web-admin-check.yml'
