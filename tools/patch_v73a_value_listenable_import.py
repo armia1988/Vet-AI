@@ -1,4 +1,5 @@
 from pathlib import Path
+import runpy
 
 # Final compile guard for the V73 live microphone waveform widget.
 p = Path('lib/support/support_voice_recorder_bar.dart')
@@ -14,3 +15,5 @@ p.write_text(s, encoding='utf-8')
 if "ValueListenable<double> level" not in s:
     raise SystemExit('V73a: voice recorder level contract missing')
 print('Vet AI V73a applied: ValueListenable foundation import fixed for web/iOS builds')
+
+runpy.run_path('tools/patch_v74_safari_audio_keyboard_live_wave.py', run_name='__main__')
