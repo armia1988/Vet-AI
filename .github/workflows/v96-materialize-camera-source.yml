@@ -1,0 +1,43 @@
+name: V96 Materialize Camera Source
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/v96-materialize-camera-source.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply production camera chain to source of truth
+        run: |
+          python3 tools/patch_v82_camera_live_digest.py
+          python3 tools/patch_v83_professional_camera_center.py
+          python3 tools/patch_v84_onvif_network_discovery.py
+          python3 tools/patch_v85_onvif_ptz_controls.py
+          python3 tools/patch_v87_camera_intelligence.py
+          python3 tools/patch_v90_camera_alert_persistence.py
+          python3 tools/patch_v91_camera_alert_hardening.py
+          python3 tools/patch_v92_camera_alert_center.py
+          python3 tools/patch_v93_camera_gateway.py
+          python3 tools/patch_v93a_camera_gateway_compile_fix.py
+          python3 tools/patch_v95_camera_wall_performance.py
+      - name: Commit materialized camera source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib/monitoring lib/v5_app.dart ios/Runner/Info.plist
+          if git diff --cached --quiet; then
+            echo 'Camera source already materialized.'
+            exit 0
+          fi
+          git commit -m 'Materialize V95 camera production source for V96'
+          git push origin HEAD:main
