@@ -19,6 +19,8 @@ on:
       - 'tools/patch_v77*.py'
       - 'tools/patch_v78*.py'
       - 'tools/patch_v79*.py'
+      - 'tools/patch_v80*.py'
+      - 'tools/patch_v81*.py'
       - 'assets/audio/**'
       - 'pubspec.yaml'
       - 'lib/services/callkit_service.dart'
