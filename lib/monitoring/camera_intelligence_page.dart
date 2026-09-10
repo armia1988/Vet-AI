@@ -3,12 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'camera_event_classifier.dart';
+import 'camera_alert_repository.dart';
 import 'camera_intelligence_service.dart';
 import 'onvif_analytics_events_service.dart';
 
 class CameraIntelligencePage extends StatefulWidget {
   const CameraIntelligencePage({
     super.key,
+    required this.farmId,
+    required this.deviceUid,
     required this.cameraName,
     required this.host,
     required this.httpPort,
@@ -17,6 +20,8 @@ class CameraIntelligencePage extends StatefulWidget {
     required this.vendor,
   });
 
+  final String farmId;
+  final String deviceUid;
   final String cameraName;
   final String host;
   final int httpPort;
@@ -31,6 +36,9 @@ class CameraIntelligencePage extends StatefulWidget {
 class _CameraIntelligencePageState extends State<CameraIntelligencePage> {
   late final CameraIntelligenceService service;
   late final OnvifAnalyticsEventsService analyticsService;
+  final CameraAlertRepository alertRepository = const CameraAlertRepository();
+  final Set<String> _savedFingerprints = <String>{};
+  double _thermalCriticalThresholdC = 41.0;
   CameraIntelligenceCapabilities? caps;
   ThermalRuleTemperature? thermal;
   List<OnvifAnalyticsModule> modules = const [];
@@ -67,6 +75,7 @@ class _CameraIntelligencePageState extends State<CameraIntelligencePage> {
       username: widget.username,
       password: widget.password,
     );
+    unawaited(_loadAlertSettings());
     _load();
   }
 
@@ -76,6 +85,58 @@ class _CameraIntelligencePageState extends State<CameraIntelligencePage> {
     eventsRunning = false;
     if (session != null) unawaited(analyticsService.unsubscribe(session));
     super.dispose();
+  }
+
+  Future<void> _loadAlertSettings() async {
+    try {
+      final value = await alertRepository.thermalCriticalThreshold(
+        farmId: widget.farmId,
+        cameraUid: widget.deviceUid,
+      );
+      if (mounted) setState(() => _thermalCriticalThresholdC = value);
+    } catch (_) {
+      // Keep safe default when this camera has no saved threshold yet.
+    }
+  }
+
+  Future<void> _editThermalThreshold() async {
+    final controller = TextEditingController(text: _thermalCriticalThresholdC.toStringAsFixed(1));
+    final value = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Critical thermal alert'),
+        content: TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Temperature °C', helperText: 'Allowed range: 30–60 °C'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final parsed = double.tryParse(controller.text.trim().replaceAll(',', '.'));
+              if (parsed == null || parsed < 30 || parsed > 60) return;
+              Navigator.pop(context, parsed);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null) return;
+    try {
+      await alertRepository.setThermalCriticalThreshold(
+        farmId: widget.farmId,
+        cameraUid: widget.deviceUid,
+        valueC: value,
+      );
+      if (!mounted) return;
+      setState(() => _thermalCriticalThresholdC = value);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Critical thermal alert set to ${value.toStringAsFixed(1)} °C')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save thermal threshold: $e')));
+    }
   }
 
   Future<void> _load() async {
@@ -218,14 +279,18 @@ class _CameraIntelligencePageState extends State<CameraIntelligencePage> {
         });
 
         while (mounted && eventsRunning && eventSession != null) {
-          if (session.shouldRenew()) {
-            session = await analyticsService.renewPullPointSubscription(session);
+          final activeSession = session;
+          if (activeSession == null) break;
+          if (activeSession.shouldRenew()) {
+            session = await analyticsService.renewPullPointSubscription(activeSession);
             eventSession = session;
             eventRenewals += 1;
             if (mounted) setState(() {});
           }
 
-          final rawPulled = await analyticsService.pullMessages(session);
+          final pullSession = session;
+          if (pullSession == null) break;
+          final rawPulled = await analyticsService.pullMessages(pullSession);
           final pulled = _dedupeLiveEvents(rawPulled);
           if (!mounted || !eventsRunning) break;
           if (pulled.isNotEmpty) {
@@ -234,6 +299,7 @@ class _CameraIntelligencePageState extends State<CameraIntelligencePage> {
               if (events.length > 100) events.removeRange(100, events.length);
             });
             _surfaceHighestPriorityAlert(pulled);
+            unawaited(_persistCameraAlerts(pulled));
           }
         }
       } catch (e) {
@@ -288,6 +354,116 @@ class _CameraIntelligencePageState extends State<CameraIntelligencePage> {
     );
   }
 
+  Future<void> _persistCameraAlerts(List<OnvifCameraEvent> pulled) async {
+    for (final event in pulled) {
+      final decision = CameraEventClassifier.classify(topic: event.topic, values: event.values, criticalTemperatureC: _thermalCriticalThresholdC);
+      if (!decision.shouldSurface) continue;
+      final fingerprint = '${event.utcTime?.toUtc().toIso8601String() ?? ''}|${event.topic}|${event.operation ?? ''}|${event.values.entries.map((e) => '${e.key}=${e.value}').join(';')}';
+      if (_savedFingerprints.contains(fingerprint)) continue;
+      _savedFingerprints.add(fingerprint);
+      if (_savedFingerprints.length > 300) _savedFingerprints.remove(_savedFingerprints.first);
+      try {
+        final row = await alertRepository.save(
+          farmId: widget.farmId,
+          cameraUid: widget.deviceUid,
+          cameraName: widget.cameraName,
+          event: event,
+          decision: decision,
+        );
+        final id = (row['id'] ?? '').toString();
+        final inserted = row['_inserted'] != false;
+        if (inserted && id.isNotEmpty) {
+          try {
+            await alertRepository.dispatchPush(id);
+          } catch (_) {
+            // Alert persistence must not fail just because APNs is unavailable.
+          }
+        }
+      } catch (e) {
+        if (mounted) setState(() => eventsError = 'Alert save: $e');
+      }
+    }
+  }
+
+  Future<void> _showSavedAlerts() async {
+    List<Map<String, dynamic>> rows = const [];
+    String? loadError;
+    try {
+      rows = await alertRepository.recentForCamera(
+        farmId: widget.farmId,
+        cameraUid: widget.deviceUid,
+      );
+    } catch (e) {
+      loadError = e.toString();
+    }
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF15191F),
+      builder: (context) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * .72,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(18, 2, 18, 12),
+                child: Row(children: [
+                  Icon(Icons.notifications_active_rounded, color: Colors.white),
+                  SizedBox(width: 10),
+                  Text('Saved camera alerts', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                ]),
+              ),
+              if (loadError != null)
+                Padding(padding: const EdgeInsets.all(18), child: Text(loadError!, style: const TextStyle(color: Colors.orangeAccent)))
+              else if (rows.isEmpty)
+                const Expanded(child: Center(child: Text('No saved alerts for this camera yet.', style: TextStyle(color: Colors.white60))))
+              else
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: rows.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.white10),
+                    itemBuilder: (context, index) {
+                      final row = rows[index];
+                      final risk = (row['risk'] ?? '').toString();
+                      final created = DateTime.tryParse((row['created_at'] ?? '').toString())?.toLocal();
+                      final color = risk == 'red' ? Colors.redAccent : risk == 'orange' ? Colors.orangeAccent : Colors.amberAccent;
+                      final acknowledged = row['acknowledged_at'] != null;
+                      return ListTile(
+                        leading: Icon(acknowledged ? Icons.check_circle_rounded : Icons.warning_amber_rounded, color: acknowledged ? Colors.greenAccent : color),
+                        title: Text((row['title'] ?? 'Camera alert').toString(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                        subtitle: Text('${created ?? ''}\n${(row['details'] ?? '').toString()}', maxLines: 4, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white60)),
+                        trailing: acknowledged
+                            ? const Tooltip(message: 'Acknowledged', child: Icon(Icons.done_all_rounded, color: Colors.greenAccent))
+                            : IconButton(
+                                tooltip: 'Acknowledge alert',
+                                icon: const Icon(Icons.check_rounded, color: Colors.white70),
+                                onPressed: () async {
+                                  final id = (row['id'] ?? '').toString();
+                                  if (id.isEmpty) return;
+                                  try {
+                                    await alertRepository.acknowledge(id);
+                                    if (!context.mounted) return;
+                                    Navigator.pop(context);
+                                    await _showSavedAlerts();
+                                  } catch (e) {
+                                    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not acknowledge alert: $e')));
+                                  }
+                                },
+                              ),
+                        isThreeLine: true,
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _stopEvents() async {
     final session = eventSession;
     eventsRunning = false;
@@ -323,6 +499,11 @@ class _CameraIntelligencePageState extends State<CameraIntelligencePage> {
         foregroundColor: Colors.white,
         title: Text('${widget.cameraName} Intelligence'),
         actions: [
+          IconButton(
+            onPressed: _showSavedAlerts,
+            icon: const Icon(Icons.notifications_active_outlined),
+            tooltip: 'Saved alerts',
+          ),
           IconButton(
             onPressed: loading ? null : _load,
             icon: const Icon(Icons.refresh_rounded),
@@ -368,6 +549,8 @@ class _CameraIntelligencePageState extends State<CameraIntelligencePage> {
                 _flag('Fire detection', c.fireDetection),
                 _flag('Click-to-thermometry', c.clickToThermometry),
                 if (c.thermalMode != null) _row('Mode', c.thermalMode!),
+            _row('Critical alert threshold', '${_thermalCriticalThresholdC.toStringAsFixed(1)} °C'),
+            Align(alignment: Alignment.centerLeft, child: TextButton.icon(onPressed: _editThermalThreshold, icon: const Icon(Icons.tune_rounded), label: const Text('Change thermal alert threshold'))),
                 const SizedBox(height: 10),
                 if (!c.thermalSupported)
                   const Text(

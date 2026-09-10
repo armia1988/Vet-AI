@@ -13,14 +13,23 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/vet_backend.dart';
 import 'services/vet_operations.dart';
 import 'services/alert_notification_service.dart';
+import 'services/callkit_service.dart';
+import 'support/callkit_coordinator.dart';
 import 'analysis/vet_analysis_report.dart';
 import 'support/support_chat_v6.dart';
 import 'support/support_console.dart';
+import 'support/support_incoming_call_overlay.dart';
+import 'support/farm_profile_photo_editor.dart';
 import 'theme/app_theme.dart';
 import 'i18n/vet_locale.dart';
 import 'startup/vet_startup_experience.dart';
 import 'monitoring/smart_home_vitals.dart';
 import 'monitoring/sensor_alert_rules.dart';
+import 'monitoring/camera_center_page.dart';
+import 'monitoring/camera_alert_center_page.dart';
+import 'monitoring/camera_gateway_page.dart';
+import 'monitoring/ble_sensor_onboarding_page.dart';
+import 'monitoring/dahua_thermal_camera_onboarding_page.dart';
 import 'models/animal_taxonomy.dart';
 import 'legal/vet_legal_pages.dart';
 
@@ -58,6 +67,7 @@ class _VetAIAppV5State extends State<VetAIAppV5> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: vetRootNavigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Vet AI',
       theme: buildVetTheme(),
@@ -1510,6 +1520,8 @@ class _V5DashboardState extends State<V5Dashboard> {
   void initState() {
     super.initState();
     farm = Map<String, dynamic>.from(widget.initialFarm);
+    unawaited(VetAlertNotificationService.instance.registerRemotePushForFarm(farm['id']?.toString() ?? ''));
+    unawaited(VetCallKitService.instance.registerForFarm(farm['id']?.toString() ?? ''));
     _alertListeningSince = DateTime.now().toUtc();
     final farmId = farm['id']?.toString();
     if (farmId != null && farmId.isNotEmpty) {
@@ -1574,11 +1586,13 @@ class _V5DashboardState extends State<V5Dashboard> {
       V5AlertsPanel(farmId: farmId),
       V5HistoryPanel(farmId: farmId),
     ];
-    return Scaffold(
-      body: SafeArea(
-        child: IndexedStack(index: index, children: pages),
-      ),
-      bottomNavigationBar: NavigationBar(
+    return VetIncomingSupportCallLayer(
+      role: 'user',
+      child: Scaffold(
+        body: SafeArea(
+          child: IndexedStack(index: index, children: pages),
+        ),
+        bottomNavigationBar: NavigationBar(
         height: 78,
         selectedIndex: index,
         onDestinationSelected: (v) => setState(() => index = v),
@@ -1613,7 +1627,8 @@ class _V5DashboardState extends State<V5Dashboard> {
             tr(context, 'History', 'السجل', 'Historie'),
             VetColors.history,
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2572,6 +2587,108 @@ class _V5SensorsPanelState extends State<V5SensorsPanel> {
               ),
             ),
             const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () async {
+                final connected = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => VetBleSensorOnboardingPage(
+                      farmId: farmId,
+                      onProvisioned: _retry,
+                    ),
+                  ),
+                );
+                if (connected == true && mounted) _retry();
+              },
+              icon: const Icon(Icons.bluetooth_searching_rounded, size: 29),
+              label: Text(
+                tr(
+                  context,
+                  'Connect sensor with Bluetooth',
+                  'ربط حساس بالبلوتوث',
+                  'Sensor koppelen via Bluetooth',
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final added = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => DahuaThermalCameraOnboardingPage(
+                      farmId: farmId,
+                      onSaved: _retry,
+                    ),
+                  ),
+                );
+                if (added == true && mounted) _retry();
+              },
+              icon: const Icon(Icons.videocam_rounded, size: 28),
+              label: Text(
+                tr(
+                  context,
+                  'Add camera',
+                  'إضافة كاميرا',
+                  'Camera toevoegen',
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CameraCenterPage(farmId: farmId),
+                ),
+              ),
+              icon: const Icon(Icons.video_camera_back_rounded, size: 27),
+              label: Text(
+                tr(
+                  context,
+                  'Camera Center',
+                  'مركز الكاميرات',
+                  'Cameracentrum',
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CameraAlertCenterPage(farmId: farmId),
+                ),
+              ),
+              icon: const Icon(Icons.notifications_active_rounded, size: 25),
+              label: Text(
+                tr(
+                  context,
+                  'Camera Alerts',
+                  'تنبيهات الكاميرات',
+                  'Camera-alarmen',
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CameraGatewayPage(farmId: farmId),
+                ),
+              ),
+              icon: const Icon(Icons.hub_rounded, size: 25),
+              label: Text(
+                tr(
+                  context,
+                  'Local Camera Gateway',
+                  'بوابة الكاميرات المحلية',
+                  'Lokale cameragateway',
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: () => Navigator.push(
                 context,
@@ -3339,6 +3456,8 @@ class _V5ProfileScreenState extends State<V5ProfileScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          VetFarmProfilePhotoEditor(farm: widget.farm),
+          const SizedBox(height: 18),
           _ProfileHeroCard(
             name: c['full_name']!.text,
             email: VetBackend.instance.currentUser?.email ?? '',
@@ -4229,38 +4348,6 @@ class _AnimalSprite extends StatelessWidget {
   }
 }
 
-    const columns = 5;
-    const rows = 5;
-
-    final col = index % columns;
-    final row = index ~/ columns;
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: SizedBox.square(
-        dimension: size,
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            Positioned(
-              left: -col * size,
-              top: -row * size,
-              width: size * columns,
-              height: size * rows,
-              child: Image.asset(
-                'assets/icons/animal_sprite_v29.webp',
-                fit: BoxFit.fill,
-                filterQuality: FilterQuality.high,
-                isAntiAlias: true,
-                gaplessPlayback: true,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 String _animalGroupAssetFromSpriteIndex(int spriteIndex) =>
     switch (spriteIndex) {

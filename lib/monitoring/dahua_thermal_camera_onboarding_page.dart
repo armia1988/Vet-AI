@@ -5,6 +5,9 @@ import '../i18n/vet_locale.dart';
 import '../services/vet_backend.dart';
 import '../theme/app_theme.dart';
 import 'camera_connection_service.dart';
+import 'camera_stream_profile_service.dart';
+import 'onvif_discovery_page.dart';
+import 'camera_live_view_page.dart';
 
 String _dt(BuildContext context, String en, String ar, String nl) =>
     VetTranslator.instance.text(
@@ -51,6 +54,8 @@ class _DahuaThermalCameraOnboardingPageState
   String cameraType = 'standard';
   String purpose = 'general_monitoring';
   String? discoveredStreamUri;
+  String? discoveredSubStreamUri;
+  int discoveredProfileCount = 0;
   String? testDetails;
 
   @override
@@ -67,6 +72,8 @@ class _DahuaThermalCameraOnboardingPageState
     setState(() {
       testedSuccessfully = false;
       discoveredStreamUri = null;
+      discoveredSubStreamUri = null;
+      discoveredProfileCount = 0;
       testDetails = null;
     });
   }
@@ -134,6 +141,30 @@ class _DahuaThermalCameraOnboardingPageState
     return (host: cameraHost, httpPort: httpPort, rtspPort: streamPort);
   }
 
+  Future<void> _discoverCamera() async {
+    FocusScope.of(context).unfocus();
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(builder: (_) => const OnvifDiscoveryPage()),
+    );
+    if (!mounted || result == null) return;
+    final discoveredHost = (result['host'] ?? '').toString().trim();
+    final discoveredPort = result['httpPort'];
+    final discoveredName = (result['name'] ?? '').toString().trim();
+    final discoveredHardware = (result['hardware'] ?? '').toString().trim();
+    setState(() {
+      if (discoveredHost.isNotEmpty) host.text = discoveredHost;
+      if (discoveredPort is int && discoveredPort > 0) port.text = '$discoveredPort';
+      if (discoveredName.isNotEmpty && name.text.trim() == 'IP Camera') name.text = discoveredName;
+      if (discoveredHardware.isNotEmpty && model.text.trim().isEmpty) model.text = discoveredHardware;
+      testedSuccessfully = false;
+      discoveredStreamUri = null;
+      discoveredSubStreamUri = null;
+      discoveredProfileCount = 0;
+      testDetails = null;
+    });
+  }
+
   Future<void> _testConnection() async {
     FocusScope.of(context).unfocus();
     final endpoint = _validatedEndpoint();
@@ -143,6 +174,8 @@ class _DahuaThermalCameraOnboardingPageState
       busy = true;
       testedSuccessfully = false;
       discoveredStreamUri = null;
+      discoveredSubStreamUri = null;
+      discoveredProfileCount = 0;
       testDetails = null;
     });
 
@@ -158,6 +191,21 @@ class _DahuaThermalCameraOnboardingPageState
       );
       if (!mounted) return;
 
+      CameraStreamProfiles? discoveredProfiles;
+      if (result.success && protocol.contains('ONVIF')) {
+        try {
+          discoveredProfiles = await CameraStreamProfileService(
+            host: endpoint.host,
+            httpPort: endpoint.httpPort,
+            username: username.text.trim(),
+            password: password.text,
+          ).discover();
+        } catch (_) {
+          // A verified camera remains usable even when it exposes only one
+          // stream or refuses optional profile enumeration.
+        }
+      }
+
       final info = result.deviceInformation ?? const <String, String>{};
       if (manufacturer.text.trim().isEmpty && (info['Manufacturer'] ?? '').isNotEmpty) {
         manufacturer.text = info['Manufacturer']!;
@@ -171,7 +219,9 @@ class _DahuaThermalCameraOnboardingPageState
 
       setState(() {
         testedSuccessfully = result.success;
-        discoveredStreamUri = result.streamUri;
+        discoveredStreamUri = discoveredProfiles?.mainStreamUri ?? result.streamUri;
+        discoveredSubStreamUri = discoveredProfiles?.subStreamUri;
+        discoveredProfileCount = discoveredProfiles?.profiles.length ?? 0;
         testDetails = result.message;
       });
 
@@ -269,6 +319,9 @@ class _DahuaThermalCameraOnboardingPageState
             'rtsp': protocol.contains('RTSP'),
             'connection_verified': true,
             'stream_uri': discoveredStreamUri,
+            'substream_uri': discoveredSubStreamUri,
+            'stream_profile_count': discoveredProfileCount,
+            'adaptive_wall_streams': discoveredSubStreamUri != null,
             'credentials_storage': 'platform_secure_storage',
             'credential_key': secureKey,
           },
@@ -333,6 +386,25 @@ class _DahuaThermalCameraOnboardingPageState
       appBar: AppBar(
         title: Text(_dt(context, 'Add camera', 'إضافة كاميرا', 'Camera toevoegen')),
       ),
+      floatingActionButton: testedSuccessfully && discoveredStreamUri != null
+          ? FloatingActionButton.extended(
+              onPressed: busy
+                  ? null
+                  : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CameraLiveViewPage(
+                            streamUri: discoveredStreamUri!,
+                            username: username.text.trim(),
+                            password: password.text,
+                            cameraName: name.text.trim().isEmpty ? 'IP Camera' : name.text.trim(),
+                          ),
+                        ),
+                      ),
+              icon: const Icon(Icons.play_circle_fill_rounded),
+              label: Text(_dt(context, 'Live view', 'عرض مباشر', 'Livebeeld')),
+            )
+          : null,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
@@ -394,6 +466,15 @@ class _DahuaThermalCameraOnboardingPageState
                 DropdownMenuItem(value: 'thermal', child: Text(_dt(context, 'Thermal camera', 'كاميرا حرارية', 'Thermische camera'))),
               ],
               onChanged: busy ? null : (v) => setState(() => cameraType = v ?? cameraType),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: busy ? null : _discoverCamera,
+                icon: const Icon(Icons.radar_rounded),
+                label: Text(_dt(context, 'Find cameras', 'البحث عن الكاميرات', 'Camera\'s zoeken')),
+              ),
             ),
             const SizedBox(height: 12),
             _field(host, _dt(context, 'IP address / hostname', 'IP / اسم الشبكة', 'IP-adres / hostnaam'), Icons.lan_outlined, keyboardType: TextInputType.url, hintText: '192.168.1.120'),

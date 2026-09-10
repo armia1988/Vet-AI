@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../config/supabase_config.dart';
 import '../i18n/vet_locale.dart';
 import '../services/ble_sensor_models.dart';
 import '../services/ble_sensor_provisioning.dart';
@@ -172,7 +173,7 @@ class _VetBleSensorOnboardingPageState
       final config = VetBleCloudConfig(
         farmId: widget.farmId,
         deviceToken: token,
-        supabaseUrl: VetBackend.instance.client.rest.url,
+        supabaseUrl: SupabaseConfig.url,
         wifiSsid: ssid.text.trim(),
         wifiPassword: password.text,
       );

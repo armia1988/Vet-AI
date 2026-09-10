@@ -188,25 +188,105 @@ class CameraConnectionService {
     String username,
     String password,
   ) async {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
-    client.authenticate = (url, scheme, realm) async {
-      client.addCredentials(url, realm ?? '', HttpClientBasicCredentials(username, password));
-      return true;
-    };
-    try {
-      final request = await client.postUrl(uri).timeout(const Duration(seconds: 7));
-      request.headers.contentType = ContentType('application', 'soap+xml', charset: 'utf-8');
-      request.headers.set('SOAPAction', soapAction);
-      request.write(body);
-      final response = await request.close().timeout(const Duration(seconds: 8));
-      final text = await utf8.decoder.bind(response).join();
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw HttpException('HTTP ${response.statusCode}', uri: uri);
+    Future<_HttpSoapResponse> send(String? authorization) async {
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+      try {
+        final request = await client.postUrl(uri).timeout(const Duration(seconds: 7));
+        request.headers.contentType = ContentType('application', 'soap+xml', charset: 'utf-8');
+        request.headers.set('SOAPAction', soapAction);
+        if (authorization != null) {
+          request.headers.set(HttpHeaders.authorizationHeader, authorization);
+        }
+        request.write(body);
+        final response = await request.close().timeout(const Duration(seconds: 8));
+        final text = await utf8.decoder.bind(response).join();
+        return _HttpSoapResponse(
+          response.statusCode,
+          text,
+          response.headers.value(HttpHeaders.wwwAuthenticateHeader),
+        );
+      } finally {
+        client.close(force: true);
       }
-      return text;
-    } finally {
-      client.close(force: true);
     }
+
+    var response = await send(null);
+    if (response.statusCode == HttpStatus.unauthorized) {
+      final challenge = response.wwwAuthenticate;
+      if (challenge == null || challenge.isEmpty) {
+        throw HttpException('HTTP 401 authentication challenge missing', uri: uri);
+      }
+
+      final lower = challenge.toLowerCase();
+      String authorization;
+      if (lower.startsWith('digest')) {
+        final digestUri = uri.path.isEmpty
+            ? '/'
+            : (uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path);
+        authorization = _httpDigestAuthorization(
+          challenge: challenge,
+          username: username,
+          password: password,
+          method: 'POST',
+          uri: digestUri,
+        );
+      } else if (lower.startsWith('basic')) {
+        authorization = 'Basic ${base64Encode(utf8.encode('$username:$password'))}';
+      } else {
+        throw HttpException('Unsupported HTTP authentication scheme', uri: uri);
+      }
+      response = await send(authorization);
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw HttpException('HTTP ${response.statusCode}', uri: uri);
+    }
+    return response.body;
+  }
+
+  String _httpDigestAuthorization({
+    required String challenge,
+    required String username,
+    required String password,
+    required String method,
+    required String uri,
+  }) {
+    final params = <String, String>{};
+    for (final match in RegExp(r'(\w+)=(?:"([^"]*)"|([^,\s]+))').allMatches(challenge)) {
+      params[match.group(1)!.toLowerCase()] = match.group(2) ?? match.group(3) ?? '';
+    }
+    final realm = params['realm'] ?? '';
+    final nonce = params['nonce'];
+    if (nonce == null || nonce.isEmpty) {
+      throw const HttpException('HTTP digest nonce missing');
+    }
+    final algorithm = (params['algorithm'] ?? 'MD5').toUpperCase();
+    if (algorithm != 'MD5') {
+      throw HttpException('Unsupported HTTP digest algorithm: $algorithm');
+    }
+
+    final ha1 = md5.convert(utf8.encode('$username:$realm:$password')).toString();
+    final ha2 = md5.convert(utf8.encode('$method:$uri')).toString();
+    final qopRaw = params['qop'];
+    final qops = qopRaw
+        ?.split(',')
+        .map((e) => e.trim().toLowerCase())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    if (qops != null && qops.contains('auth')) {
+      const nc = '00000001';
+      final cnonce = List<int>.generate(8, (_) => Random.secure().nextInt(256))
+          .map((e) => e.toRadixString(16).padLeft(2, '0'))
+          .join();
+      final digest = md5
+          .convert(utf8.encode('$ha1:$nonce:$nc:$cnonce:auth:$ha2'))
+          .toString();
+      return 'Digest username="$username", realm="$realm", nonce="$nonce", uri="$uri", response="$digest", qop=auth, nc=$nc, cnonce="$cnonce"';
+    }
+
+    final digest = md5.convert(utf8.encode('$ha1:$nonce:$ha2')).toString();
+    return 'Digest username="$username", realm="$realm", nonce="$nonce", uri="$uri", response="$digest"';
   }
 
   Future<void> _probeRtsp({
@@ -377,4 +457,12 @@ class _RtspResponse {
   const _RtspResponse(this.statusCode, this.headers);
   final int statusCode;
   final Map<String, String> headers;
+}
+
+
+class _HttpSoapResponse {
+  const _HttpSoapResponse(this.statusCode, this.body, this.wwwAuthenticate);
+  final int statusCode;
+  final String body;
+  final String? wwwAuthenticate;
 }

@@ -5,6 +5,11 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_vlc_player/flutter_vlc_player.dart';
 
 import '../services/vet_backend.dart';
+import 'camera_stream_profile_service.dart';
+import 'camera_alert_center_page.dart';
+import 'camera_gateway_page.dart';
+import 'camera_control_page.dart';
+import 'camera_intelligence_page.dart';
 
 class CameraCenterPage extends StatefulWidget {
   const CameraCenterPage({super.key, required this.farmId});
@@ -15,7 +20,7 @@ class CameraCenterPage extends StatefulWidget {
   State<CameraCenterPage> createState() => _CameraCenterPageState();
 }
 
-class _CameraCenterPageState extends State<CameraCenterPage> {
+class _CameraCenterPageState extends State<CameraCenterPage> with WidgetsBindingObserver {
   static const _secureStorage = FlutterSecureStorage();
   static const _layouts = <int>[1, 4, 6, 8, 12, 16, 32];
 
@@ -25,6 +30,9 @@ class _CameraCenterPageState extends State<CameraCenterPage> {
   int page = 0;
   int? selectedIndex;
   bool audioEnabled = false;
+  String qualityMode = 'auto';
+  bool wallActive = true;
+  bool appActive = true;
   List<_CameraDevice> cameras = const [];
 
   int get pageCount => cameras.isEmpty ? 1 : ((cameras.length + layout - 1) ~/ layout);
@@ -32,7 +40,21 @@ class _CameraCenterPageState extends State<CameraCenterPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final active = state == AppLifecycleState.resumed;
+    if (appActive == active || !mounted) return;
+    setState(() => appActive = active);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -53,11 +75,13 @@ class _CameraCenterPageState extends State<CameraCenterPage> {
         final caps = Map<String, dynamic>.from(row['capabilities'] as Map? ?? const {});
         final stream = (caps['stream_uri'] ?? '').toString().trim();
         if (stream.isEmpty) continue;
-        final key = (caps['credential_key'] ?? '').toString().trim();
-        final password = key.isEmpty ? '' : (await _secureStorage.read(key: key) ?? '');
+        final uid = (row['device_uid'] ?? '').toString();
+        final configuredKey = (caps['credential_key'] ?? '').toString().trim();
+        final key = configuredKey.isEmpty ? 'vetai.camera.$uid.password' : configuredKey;
+        final password = await _secureStorage.read(key: key) ?? '';
         result.add(
           _CameraDevice(
-            uid: (row['device_uid'] ?? '').toString(),
+            uid: uid,
             name: (caps['camera_name'] ?? row['controller_model'] ?? 'IP Camera').toString(),
             vendor: (caps['vendor'] ?? 'IP Camera').toString(),
             model: (row['controller_model'] ?? '').toString(),
@@ -66,6 +90,10 @@ class _CameraCenterPageState extends State<CameraCenterPage> {
             password: password,
             thermal: type == 'thermal_camera' || caps['thermal'] == true,
             host: (caps['host'] ?? '').toString(),
+            httpPort: int.tryParse((caps['http_port'] ?? '80').toString()) ?? 80,
+            subStreamUri: (caps['substream_uri'] ?? '').toString().trim(),
+            onvif: caps['onvif'] == true,
+            capabilities: caps,
           ),
         );
       }
@@ -76,12 +104,68 @@ class _CameraCenterPageState extends State<CameraCenterPage> {
         page = 0;
         selectedIndex = result.isEmpty ? null : 0;
       });
+      unawaited(_discoverMissingStreamProfiles());
     } catch (e) {
       if (!mounted) return;
       setState(() {
         loading = false;
         loadError = e.toString();
       });
+    }
+  }
+
+  Future<void> _discoverMissingStreamProfiles() async {
+    final snapshot = List<_CameraDevice>.from(cameras);
+    for (final camera in snapshot) {
+      if (!mounted) return;
+      if (!camera.onvif ||
+          camera.subStreamUri.isNotEmpty ||
+          camera.host.isEmpty ||
+          camera.username.isEmpty) {
+        continue;
+      }
+      try {
+        final profiles = await CameraStreamProfileService(
+          host: camera.host,
+          httpPort: camera.httpPort,
+          username: camera.username,
+          password: camera.password,
+        ).discover();
+        final sub = profiles.subStreamUri?.trim() ?? '';
+        if (sub.isEmpty || sub == profiles.mainStreamUri) continue;
+
+        final updatedCapabilities = <String, dynamic>{
+          ...camera.capabilities,
+          'stream_uri': profiles.mainStreamUri,
+          'substream_uri': sub,
+          'stream_profile_count': profiles.profiles.length,
+          'adaptive_wall_streams': true,
+        };
+        try {
+          await VetBackend.instance.client
+              .from('sensor_devices')
+              .update({'capabilities': updatedCapabilities})
+              .eq('farm_id', widget.farmId)
+              .eq('device_uid', camera.uid);
+        } catch (_) {
+          // The in-memory substream is still useful when this account cannot
+          // persist camera metadata.
+        }
+
+        if (!mounted) return;
+        final index = cameras.indexWhere((value) => value.uid == camera.uid);
+        if (index < 0) continue;
+        final updated = List<_CameraDevice>.from(cameras);
+        updated[index] = camera.copyWith(
+          streamUri: profiles.mainStreamUri,
+          subStreamUri: sub,
+          capabilities: updatedCapabilities,
+        );
+        setState(() => cameras = updated);
+      } catch (_) {
+        // Keep the verified main stream. AUTO mode truthfully falls back to
+        // MAIN when a camera does not expose a distinct ONVIF substream.
+      }
     }
   }
 
@@ -98,6 +182,35 @@ class _CameraCenterPageState extends State<CameraCenterPage> {
     if (count <= 9) return width > 760 ? 3 : 2;
     if (count <= 16) return width > 900 ? 4 : 3;
     return width > 1100 ? 6 : 4;
+  }
+
+  bool get _autoUsesSubstream => layout >= 6;
+
+  String _gridStreamFor(_CameraDevice camera) {
+    if (qualityMode == 'high') return camera.streamUri;
+    if (qualityMode == 'low') {
+      return camera.subStreamUri.isNotEmpty ? camera.subStreamUri : camera.streamUri;
+    }
+    if (_autoUsesSubstream && camera.subStreamUri.isNotEmpty) {
+      return camera.subStreamUri;
+    }
+    return camera.streamUri;
+  }
+
+  String _gridQualityLabel(_CameraDevice camera) {
+    final chosen = _gridStreamFor(camera);
+    if (chosen == camera.subStreamUri && camera.subStreamUri.isNotEmpty) return 'SUB';
+    if ((qualityMode == 'low' || _autoUsesSubstream) && camera.subStreamUri.isEmpty) {
+      return 'MAIN*';
+    }
+    return 'MAIN';
+  }
+
+  int get _gridCacheMs {
+    if (layout >= 32) return 180;
+    if (layout >= 12) return 220;
+    if (layout >= 6) return 260;
+    return 350;
   }
 
   void _chooseLayout() {
@@ -136,10 +249,62 @@ class _CameraCenterPageState extends State<CameraCenterPage> {
   }
 
   Future<void> _openFullscreen(_CameraDevice camera) async {
+    if (mounted) setState(() => wallActive = false);
+    try {
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => _FullscreenCameraPage(camera: camera),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => wallActive = true);
+    }
+  }
+
+  Future<void> _cameraIntelligence(_CameraDevice camera) async {
+    if (camera.host.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Camera host is missing. Verify this camera again.')),
+      );
+      return;
+    }
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
-        builder: (_) => _FullscreenCameraPage(camera: camera),
+        builder: (_) => CameraIntelligencePage(
+          farmId: widget.farmId,
+          deviceUid: camera.uid,
+          cameraName: camera.name,
+          host: camera.host,
+          httpPort: camera.httpPort,
+          username: camera.username,
+          password: camera.password,
+          vendor: camera.vendor,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _cameraControls(_CameraDevice camera) async {
+    if (camera.host.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Camera host is missing. Verify this camera again.')),
+      );
+      return;
+    }
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CameraControlPage(
+          cameraName: camera.name,
+          host: camera.host,
+          httpPort: camera.httpPort,
+          username: camera.username,
+          password: camera.password,
+        ),
       ),
     );
   }
@@ -161,7 +326,9 @@ class _CameraCenterPageState extends State<CameraCenterPage> {
               _infoRow('Model', camera.model.isEmpty ? '—' : camera.model),
               _infoRow('Address', camera.host.isEmpty ? '—' : camera.host),
               _infoRow('Thermal', camera.thermal ? 'Yes' : 'No'),
-              _infoRow('Stream', camera.streamUri),
+              _infoRow('Main stream', camera.streamUri),
+              _infoRow('Substream', camera.subStreamUri.isEmpty ? 'Not reported' : camera.subStreamUri),
+              _infoRow('Wall quality', _gridQualityLabel(camera)),
               const SizedBox(height: 12),
               const Text(
                 'Camera image, PTZ and thermal controls are exposed only when the connected model reports those capabilities. Vet AI does not simulate unsupported controls.',
@@ -193,6 +360,22 @@ class _CameraCenterPageState extends State<CameraCenterPage> {
         foregroundColor: Colors.white,
         title: const Text('Camera Center'),
         actions: [
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => CameraAlertCenterPage(farmId: widget.farmId)),
+            ),
+            icon: const Icon(Icons.notifications_active_rounded),
+            tooltip: 'Camera alerts',
+          ),
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => CameraGatewayPage(farmId: widget.farmId)),
+            ),
+            icon: const Icon(Icons.hub_rounded),
+            tooltip: 'Local camera gateway',
+          ),
           IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh'),
           IconButton(onPressed: _chooseLayout, icon: const Icon(Icons.grid_view_rounded), tooltip: 'Layout'),
         ],
@@ -213,6 +396,8 @@ class _CameraCenterPageState extends State<CameraCenterPage> {
                             Expanded(
                               child: GridView.builder(
                                 padding: const EdgeInsets.all(6),
+                                cacheExtent: 0,
+                                addAutomaticKeepAlives: false,
                                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: columns,
                                   crossAxisSpacing: 5,
@@ -224,14 +409,20 @@ class _CameraCenterPageState extends State<CameraCenterPage> {
                                   if (slot >= items.length) return _emptyTile(slot);
                                   final globalIndex = page * layout + slot;
                                   final selected = selectedIndex == globalIndex;
+                                  final camera = items[slot];
+                                  final wallStream = _gridStreamFor(camera);
                                   return _CameraTile(
-                                    key: ValueKey('${items[slot].uid}-$layout-$page'),
-                                    camera: items[slot],
+                                    key: ValueKey('${camera.uid}-$layout-$page-$qualityMode-$wallStream'),
+                                    camera: camera,
+                                    streamUri: wallStream,
+                                    qualityLabel: _gridQualityLabel(camera),
+                                    networkCachingMs: _gridCacheMs,
+                                    active: wallActive && appActive,
                                     selected: selected,
-                                    audioEnabled: selected && audioEnabled,
+                                    audioEnabled: selected && audioEnabled && wallActive && appActive,
                                     onTap: () => setState(() => selectedIndex = globalIndex),
-                                    onDoubleTap: () => _openFullscreen(items[slot]),
-                                    onInfo: () => _cameraInfo(items[slot]),
+                                    onDoubleTap: () => _openFullscreen(camera),
+                                    onInfo: () => _cameraInfo(camera),
                                   );
                                 },
                               ),
@@ -268,12 +459,31 @@ class _CameraCenterPageState extends State<CameraCenterPage> {
               tooltip: 'Fullscreen',
             ),
             IconButton(
-              onPressed: selected == null ? null : () => _cameraInfo(selected),
+              onPressed: selected == null ? null : () => _cameraControls(selected),
               color: Colors.white,
               disabledColor: Colors.white24,
-              icon: const Icon(Icons.tune_rounded),
-              tooltip: 'Camera settings',
+              icon: const Icon(Icons.control_camera_rounded),
+              tooltip: 'Camera controls',
             ),
+            IconButton(
+              onPressed: selected == null ? null : () => _cameraIntelligence(selected),
+              color: Colors.white,
+              disabledColor: Colors.white24,
+              icon: const Icon(Icons.psychology_alt_rounded),
+              tooltip: 'Capabilities / Thermal / AI',
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'Wall stream quality',
+              initialValue: qualityMode,
+              icon: const Icon(Icons.high_quality_rounded, color: Colors.white),
+              onSelected: (value) => setState(() => qualityMode = value),
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'auto', child: Text('Auto — main up to 4, substream from 6+')),
+                PopupMenuItem(value: 'high', child: Text('High — main stream')),
+                PopupMenuItem(value: 'low', child: Text('Low — substream when available')),
+              ],
+            ),
+            Text(qualityMode.toUpperCase(), style: const TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w800)),
             const Spacer(),
             Text('$layout view', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
             const SizedBox(width: 12),
@@ -360,6 +570,10 @@ class _CameraDevice {
     required this.password,
     required this.thermal,
     required this.host,
+    required this.httpPort,
+    required this.subStreamUri,
+    required this.onvif,
+    required this.capabilities,
   });
 
   final String uid;
@@ -371,10 +585,14 @@ class _CameraDevice {
   final String password;
   final bool thermal;
   final String host;
+  final int httpPort;
+  final String subStreamUri;
+  final bool onvif;
+  final Map<String, dynamic> capabilities;
 
-  String get authenticatedUri {
-    final parsed = Uri.parse(streamUri);
-    if (parsed.scheme.toLowerCase() != 'rtsp' || username.isEmpty) return streamUri;
+  String authenticated(String rawStreamUri) {
+    final parsed = Uri.parse(rawStreamUri);
+    if (parsed.scheme.toLowerCase() != 'rtsp' || username.isEmpty) return rawStreamUri;
     return Uri(
       scheme: parsed.scheme,
       userInfo: '${Uri.encodeComponent(username)}:${Uri.encodeComponent(password)}',
@@ -385,12 +603,39 @@ class _CameraDevice {
       fragment: parsed.hasFragment ? parsed.fragment : null,
     ).toString();
   }
+
+  String get authenticatedUri => authenticated(streamUri);
+
+  _CameraDevice copyWith({
+    String? streamUri,
+    String? subStreamUri,
+    Map<String, dynamic>? capabilities,
+  }) =>
+      _CameraDevice(
+        uid: uid,
+        name: name,
+        vendor: vendor,
+        model: model,
+        streamUri: streamUri ?? this.streamUri,
+        username: username,
+        password: password,
+        thermal: thermal,
+        host: host,
+        httpPort: httpPort,
+        subStreamUri: subStreamUri ?? this.subStreamUri,
+        onvif: onvif,
+        capabilities: capabilities ?? this.capabilities,
+      );
 }
 
 class _CameraTile extends StatefulWidget {
   const _CameraTile({
     super.key,
     required this.camera,
+    required this.streamUri,
+    required this.qualityLabel,
+    required this.networkCachingMs,
+    required this.active,
     required this.selected,
     required this.audioEnabled,
     required this.onTap,
@@ -399,6 +644,10 @@ class _CameraTile extends StatefulWidget {
   });
 
   final _CameraDevice camera;
+  final String streamUri;
+  final String qualityLabel;
+  final int networkCachingMs;
+  final bool active;
   final bool selected;
   final bool audioEnabled;
   final VoidCallback onTap;
@@ -419,15 +668,16 @@ class _CameraTileState extends State<_CameraTile> {
     super.initState();
     controller = _makeController();
     controller.addListener(_playerChanged);
+    unawaited(controller.setVolume(widget.audioEnabled ? 100 : 0));
   }
 
   VlcPlayerController _makeController() => VlcPlayerController.network(
-        widget.camera.authenticatedUri,
+        widget.camera.authenticated(widget.streamUri),
         hwAcc: HwAcc.full,
-        autoPlay: true,
+        autoPlay: widget.active,
         allowBackgroundPlayback: false,
         options: VlcPlayerOptions(
-          advanced: VlcAdvancedOptions([VlcAdvancedOptions.networkCaching(350)]),
+          advanced: VlcAdvancedOptions([VlcAdvancedOptions.networkCaching(widget.networkCachingMs)]),
           rtp: VlcRtpOptions([VlcRtpOptions.rtpOverRtsp(true)]),
         ),
       );
@@ -442,8 +692,15 @@ class _CameraTileState extends State<_CameraTile> {
   @override
   void didUpdateWidget(covariant _CameraTile oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.audioEnabled != widget.audioEnabled) {
-      controller.setVolume(widget.audioEnabled ? 100 : 0);
+    if (oldWidget.active != widget.active) {
+      if (widget.active) {
+        unawaited(controller.play());
+      } else {
+        unawaited(controller.stop());
+      }
+    }
+    if (oldWidget.audioEnabled != widget.audioEnabled || oldWidget.active != widget.active) {
+      unawaited(controller.setVolume(widget.active && widget.audioEnabled ? 100 : 0));
     }
   }
 
@@ -479,11 +736,14 @@ class _CameraTileState extends State<_CameraTile> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            VlcPlayer(
-              controller: controller,
-              aspectRatio: 16 / 9,
-              placeholder: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            ),
+            if (widget.active)
+              VlcPlayer(
+                controller: controller,
+                aspectRatio: 16 / 9,
+                placeholder: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              )
+            else
+              const Center(child: Icon(Icons.pause_circle_outline_rounded, color: Colors.white38, size: 34)),
             Positioned(
               left: 7,
               top: 6,
@@ -506,11 +766,20 @@ class _CameraTileState extends State<_CameraTile> {
             if (widget.camera.thermal)
               const Positioned(right: 7, top: 7, child: Icon(Icons.thermostat_rounded, color: Colors.orangeAccent, size: 20)),
             Positioned(
+              right: 7,
+              top: widget.camera.thermal ? 31 : 7,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(5)),
+                child: Text(widget.qualityLabel, style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w800)),
+              ),
+            ),
+            Positioned(
               right: 2,
               bottom: 1,
               child: Row(
                 children: [
-                  IconButton(onPressed: _reconnect, icon: reconnecting ? const SizedBox.square(dimension: 17, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.refresh_rounded), color: Colors.white, iconSize: 19),
+                  IconButton(onPressed: widget.active ? _reconnect : null, icon: reconnecting ? const SizedBox.square(dimension: 17, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.refresh_rounded), color: Colors.white, iconSize: 19),
                   IconButton(onPressed: widget.onInfo, icon: const Icon(Icons.more_vert_rounded), color: Colors.white, iconSize: 19),
                 ],
               ),
