@@ -21,6 +21,7 @@ on:
       - 'tools/patch_v79*.py'
       - 'tools/patch_v80*.py'
       - 'tools/patch_v81*.py'
+      - 'tools/patch_v82*.py'
       - 'assets/audio/**'
       - 'pubspec.yaml'
       - 'lib/services/callkit_service.dart'
@@ -28,6 +29,7 @@ on:
       - 'lib/support/**'
       - 'lib/monitoring/camera_connection_service.dart'
       - 'lib/monitoring/dahua_thermal_camera_onboarding_page.dart'
+      - 'lib/monitoring/camera_live_view_page.dart'
       - 'supabase/functions/support-call-*/**'
       - 'supabase/functions/customer-support-push/**'
       - '.github/workflows/ios-callkit-check.yml'
@@ -85,6 +87,7 @@ jobs:
           python3 tools/patch_v62c_company_manager_routes.py
           python3 tools/patch_v63d_admin_mobile_accounts_profile_reports.py
           python3 tools/patch_v63e_profile_metadata_nullsafe.py
+          python3 tools/patch_v82_camera_live_digest.py
       - name: Dependencies
         run: flutter pub get
       - name: Analyze
@@ -161,6 +164,13 @@ jobs:
               assert 'addPostFrameCallback' not in method
           print('V79 chat/voice/call verification passed')
           PY
+      - name: Verify V82 camera connectivity
+        run: |
+          grep -q "_httpDigestAuthorization" lib/monitoring/camera_connection_service.dart
+          grep -q "CameraLiveViewPage(" lib/monitoring/dahua_thermal_camera_onboarding_page.dart
+          grep -q "VlcPlayerController.network" lib/monitoring/camera_live_view_page.dart
+          /usr/libexec/PlistBuddy -c 'Print :NSLocalNetworkUsageDescription' ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c 'Print :NSAppTransportSecurity:NSAllowsArbitraryLoads' ios/Runner/Info.plist | grep -q true
       - name: Compile iOS without signing
         run: flutter build ios --release --no-codesign -t lib/main_v2.dart
       - name: Verify CallKit bundle configuration
