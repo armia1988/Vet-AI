@@ -16,6 +16,22 @@ class VetSupportCallService {
     if (!{'voice', 'video'}.contains(callType)) {
       throw ArgumentError('Unsupported call type.');
     }
+
+    // A browser tab can disappear without sending hang-up. Clear an older
+    // ringing row before starting another support call in the same thread.
+    try {
+      await client
+          .from('support_calls')
+          .update({
+            'status': 'ended',
+            'ended_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('thread_id', threadId)
+          .eq('status', 'ringing');
+    } catch (_) {
+      // Starting the requested call is more important than stale-row cleanup.
+    }
+
     final row = await client.from('support_calls').insert({
       'thread_id': threadId,
       'initiated_by': user.id,
@@ -30,6 +46,11 @@ class VetSupportCallService {
       .from('support_calls')
       .stream(primaryKey: ['id'])
       .eq('thread_id', threadId)
+      .order('created_at', ascending: false);
+
+  Stream<List<Map<String, dynamic>>> accessibleCallsStream() => client
+      .from('support_calls')
+      .stream(primaryKey: ['id'])
       .order('created_at', ascending: false);
 
   Stream<List<Map<String, dynamic>>> signalsStream(String callId) => client
