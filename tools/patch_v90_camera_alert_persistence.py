@@ -119,11 +119,33 @@ if new not in s:
     assert old in s, 'V90 event persistence anchor missing'
     s = s.replace(old, new, 1)
 
-old_actions = "        actions: [IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh_rounded))],\n"
-new_actions = "        actions: [\n          IconButton(onPressed: _showSavedAlerts, icon: const Icon(Icons.notifications_active_outlined), tooltip: 'Saved alerts'),\n          IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh_rounded)),\n        ],\n"
-if new_actions not in s:
-    assert old_actions in s, 'V90 appbar anchor missing'
-    s = s.replace(old_actions, new_actions, 1)
+if "tooltip: 'Saved alerts'" not in s:
+    compact_actions = "        actions: [IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh_rounded))],\n"
+    v94_actions = '''        actions: [
+          IconButton(
+            onPressed: loading ? null : _load,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+'''
+    replacement = '''        actions: [
+          IconButton(
+            onPressed: _showSavedAlerts,
+            icon: const Icon(Icons.notifications_active_outlined),
+            tooltip: 'Saved alerts',
+          ),
+          IconButton(
+            onPressed: loading ? null : _load,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+'''
+    if compact_actions in s:
+        s = s.replace(compact_actions, replacement, 1)
+    elif v94_actions in s:
+        s = s.replace(v94_actions, replacement, 1)
+    else:
+        raise AssertionError('V90 appbar anchor missing')
 
 assert "import 'camera_alert_repository.dart';" in s
 assert 'required this.farmId,' in s
