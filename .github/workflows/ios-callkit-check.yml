@@ -13,6 +13,7 @@ on:
       - 'tools/patch_v71*.py'
       - 'tools/patch_v72*.py'
       - 'tools/patch_v73*.py'
+      - 'tools/patch_v74*.py'
       - 'assets/audio/**'
       - 'pubspec.yaml'
       - 'lib/services/callkit_service.dart'
@@ -77,23 +78,24 @@ jobs:
         run: flutter pub get
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - name: Verify V67-V73 call and chat reliability fixes
+      - name: Verify V67-V74 call and chat reliability fixes
         run: |
           grep -q "senderClientId: endpointId" lib/support/support_webrtc_call_page.dart
           grep -q "await Helper.switchCamera(oldTracks.first);" lib/support/support_webrtc_call_page.dart
           ! grep -q "Camera switch was not completed" lib/support/support_webrtc_call_page.dart
           grep -q "_attachStreamlessRemoteTrack(event.track)" lib/support/support_webrtc_call_page.dart
           grep -q "remoteFallbackStream" lib/support/support_webrtc_call_page.dart
-          grep -q "BytesSource(_sendBytes)" lib/support/support_chat_sound.dart
-          grep -q "BytesSource(_receiveBytes)" lib/support/support_chat_sound.dart
-          grep -q "volume: .92" lib/support/support_chat_sound.dart
-          grep -q "volume: .90" lib/support/support_chat_sound.dart
-          ! grep -q "AssetSource('audio/vet_ai_chat_send.wav')" lib/support/support_chat_sound.dart
+          grep -q "dart.library.html" lib/support/support_chat_sound.dart
+          grep -q "BytesSource(_sendBytes)" lib/support/support_chat_sound_native.dart
+          grep -q "BytesSource(_receiveBytes)" lib/support/support_chat_sound_native.dart
+          grep -q "html.AudioElement" lib/support/support_chat_sound_web.dart
+          grep -q "data:audio/wav;base64" lib/support/support_chat_sound_web.dart
           grep -q "vet_ai_call_outgoing.wav" lib/support/support_call_tone.dart
           grep -q 'ringtoneSound = "vet_ai_incoming_call.caf"' ios/Runner/AppDelegate.swift
           grep -q "AudioRecorder" lib/support/support_voice_note.dart
           grep -q "message_type': 'audio'" lib/support/support_voice_note.dart
           grep -q "VOICE_RECORDING_TOO_SHORT" lib/support/support_voice_note.dart
+          grep -q "normalized \* 8.5" lib/support/support_voice_note.dart
           grep -q "ValueNotifier<double> level" lib/support/support_voice_note.dart
           grep -q "onPositionChanged" lib/support/support_voice_note.dart
           grep -q "onDurationChanged" lib/support/support_voice_note.dart
@@ -101,11 +103,14 @@ jobs:
           grep -q "Future<void> resume()" lib/support/support_voice_note.dart
           grep -q "ValueListenable<double> level" lib/support/support_voice_recorder_bar.dart
           grep -q "history.removeAt(0)" lib/support/support_voice_recorder_bar.dart
+          grep -q "history\[i\] \* 28.0" lib/support/support_voice_recorder_bar.dart
           grep -q "Icons.pause_rounded" lib/support/support_voice_recorder_bar.dart
           grep -q "Icons.delete_outline_rounded" lib/support/support_voice_recorder_bar.dart
           grep -q "Icons.send_rounded" lib/support/support_voice_recorder_bar.dart
           grep -q "level: voiceRecorder.level" lib/support/support_chat_v6.dart
           grep -q "level: voiceRecorder.level" lib/support/support_agent_thread_v2.dart
+          grep -q "vet-support-agent-message-field" lib/support/support_agent_thread_v2.dart
+          grep -q "vet-support-customer-message-field" lib/support/support_chat_v6.dart
           grep -q "adminAccessResolved" lib/admin/admin_dashboard.dart
           grep -q "_fallbackCapabilitiesForRole" lib/admin/admin_dashboard.dart
           grep -q "Icons.mic_rounded" lib/support/support_agent_thread_v2.dart
@@ -126,7 +131,8 @@ jobs:
               assert 'sending = true' not in method
               assert 'setState(() => sending = true)' not in method
               assert 'await VetSupportChatSound.playSend();' in method
-          print('V73 chat voice/audio verification passed')
+              assert 'addPostFrameCallback' not in method
+          print('V74 chat sound/keyboard verification passed')
           PY
       - name: Compile iOS without signing
         run: flutter build ios --release --no-codesign -t lib/main_v2.dart
