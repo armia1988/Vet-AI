@@ -104,3 +104,4 @@ runpy.run_path('tools/patch_v65_chat_keyboard_audio_stability.py', run_name='__m
 runpy.run_path('tools/patch_v65d_restore_customer_read_helper.py', run_name='__main__')
 runpy.run_path('tools/patch_v66a_apns_anchor_compat.py', run_name='__main__')
 runpy.run_path('tools/patch_v66_ios_callkit_pushkit.py', run_name='__main__')
+runpy.run_path('tools/patch_v67_calls_audio_signaling_reliability.py', run_name='__main__')
