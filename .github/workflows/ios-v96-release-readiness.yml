@@ -61,7 +61,7 @@ jobs:
               plistlib.dump(data, f)
           PY
 
-      - name: Apply exact production patch chain through V95
+      - name: Apply exact production patch chain through V95a
         run: |
           python3 -m pip install --quiet --break-system-packages pillow
           python3 tools/patch_v37_egyptian_voice.py
@@ -102,6 +102,7 @@ jobs:
           python3 tools/patch_v93_camera_gateway.py
           python3 tools/patch_v93a_camera_gateway_compile_fix.py
           python3 tools/patch_v95_camera_wall_performance.py
+          python3 tools/patch_v95a_materialized_idempotency.py
 
       - name: V96 production release guard
         run: |
