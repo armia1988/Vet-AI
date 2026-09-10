@@ -1,5 +1,6 @@
 from pathlib import Path
 import plistlib
+import runpy
 
 # V80: Universal BLE-first sensor onboarding.
 # The mobile app discovers a Vet AI-compatible sensor locally, registers it
@@ -158,3 +159,6 @@ for path, markers in checks.items():
             raise SystemExit(f'V80 verification missing in {path}: {marker}')
 
 print('Vet AI V80 applied: universal BLE discovery, secure provisioning, Wi-Fi/cloud handoff and mobile permissions')
+
+# V81 extends the same Sensors panel with Dahua thermal cameras.
+runpy.run_path('tools/patch_v81_dahua_thermal_camera_onboarding.py', run_name='__main__')
