@@ -114,3 +114,4 @@ runpy.run_path('tools/patch_v70_chat_instant_send_sound.py', run_name='__main__'
 runpy.run_path('tools/patch_v71_support_voice_rbac_stability.py', run_name='__main__')
 runpy.run_path('tools/patch_v72_whatsapp_voice_recording_bar.py', run_name='__main__')
 runpy.run_path('tools/patch_v73_voice_player_live_wave_chat_cues.py', run_name='__main__')
+runpy.run_path('tools/patch_v73a_value_listenable_import.py', run_name='__main__')
