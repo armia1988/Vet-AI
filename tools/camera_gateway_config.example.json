@@ -4,6 +4,8 @@
   "gateway_device_token": "REPLACE_WITH_ONE_TIME_TOKEN_FROM_VET_AI",
   "heartbeat_seconds": 30,
   "pull_timeout_seconds": 20,
+  "renew_before_seconds": 90,
+  "event_dedupe_seconds": 120,
   "thermal_poll_seconds": 5,
   "cameras": [
     {
