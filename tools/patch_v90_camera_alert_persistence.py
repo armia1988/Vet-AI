@@ -93,7 +93,7 @@ if 'Future<void> _persistCameraAlerts(' not in s:
                       return ListTile(
                         leading: Icon(Icons.warning_amber_rounded, color: color),
                         title: Text((row['title'] ?? 'Camera alert').toString(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                        subtitle: Text('${created ?? ''}\n${(row['details'] ?? '').toString()}', maxLines: 4, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white60)),
+                        subtitle: Text('${created ?? ''}\\n${(row['details'] ?? '').toString()}', maxLines: 4, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white60)),
                         isThreeLine: true,
                       );
                     },
