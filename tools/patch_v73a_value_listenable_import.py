@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# Final compile guard for the V73 live microphone waveform widget.
 p = Path('lib/support/support_voice_recorder_bar.dart')
 s = p.read_text(encoding='utf-8')
 foundation = "import 'package:flutter/foundation.dart';\n"
