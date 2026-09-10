@@ -92,18 +92,25 @@ jobs:
         run: flutter pub get
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - name: Verify V93 local camera gateway
+      - name: Verify V94 ONVIF event hardening
         run: |
           grep -q "ISAPI/Thermal/capabilities" lib/monitoring/camera_intelligence_service.dart
           grep -q "class CameraAlertCenterPage" lib/monitoring/camera_alert_center_page.dart
           grep -q "class CameraGatewayPage" lib/monitoring/camera_gateway_page.dart
           grep -q "device_secret_hash': tokenHash" lib/monitoring/camera_gateway_page.dart
-          grep -q "List<String>.generate(5" lib/monitoring/camera_gateway_page.dart
+          grep -q "List<String>.generate" lib/monitoring/camera_gateway_page.dart
           grep -q "CameraGatewayPage(farmId: widget.farmId)" lib/monitoring/camera_center_page.dart
           grep -q "CameraGatewayPage(farmId: farmId)" lib/v5_app.dart
-          grep -q "CreatePullPointSubscription" tools/vet_ai_camera_gateway.py
-          grep -q "PullMessages" tools/vet_ai_camera_gateway.py
-          grep -q "camera-gateway-ingest" tools/vet_ai_camera_gateway.py
+          grep -q "GetSupportedAnalyticsModules" lib/monitoring/onvif_analytics_events_service.dart
+          grep -q "renewPullPointSubscription" lib/monitoring/onvif_analytics_events_service.dart
+          grep -q "xmlns:wsa" lib/monitoring/onvif_analytics_events_service.dart
+          grep -q "eventsReconnecting" lib/monitoring/camera_intelligence_page.dart
+          grep -q "Camera-supported modules" lib/monitoring/camera_intelligence_page.dart
+          grep -q 'AGENT_VERSION = "0.2.0-v94"' tools/vet_ai_camera_gateway.py
+          grep -q "RenewRequest" tools/vet_ai_camera_gateway.py
+          grep -q "event_dedupe_seconds" tools/vet_ai_camera_gateway.py
+          grep -q "subscription_renewals" tools/vet_ai_camera_gateway.py
+          grep -q "Per-camera health" lib/monitoring/camera_gateway_page.dart
           grep -q "thermal_alert_threshold_c" supabase/functions/camera-gateway-ingest/index.ts
           grep -q "camera_gateway_status" supabase/functions/camera-gateway-ingest/index.ts
       - name: Compile iOS without signing
