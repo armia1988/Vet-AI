@@ -29,7 +29,8 @@ class DahuaThermalCameraOnboardingPage extends StatefulWidget {
 
 class _DahuaThermalCameraOnboardingPageState
     extends State<DahuaThermalCameraOnboardingPage> {
-  final name = TextEditingController(text: 'Dahua Thermal Camera');
+  final name = TextEditingController(text: 'IP Camera');
+  final manufacturer = TextEditingController();
   final host = TextEditingController();
   final port = TextEditingController(text: '80');
   final rtspPort = TextEditingController(text: '554');
@@ -41,11 +42,13 @@ class _DahuaThermalCameraOnboardingPageState
   bool passwordVisible = false;
   bool busy = false;
   String protocol = 'ONVIF + RTSP';
-  String purpose = 'animal_temperature';
+  String cameraType = 'standard';
+  String purpose = 'general_monitoring';
 
   @override
   void dispose() {
     name.dispose();
+    manufacturer.dispose();
     host.dispose();
     port.dispose();
     rtspPort.dispose();
@@ -110,26 +113,32 @@ class _DahuaThermalCameraOnboardingPageState
           ? serial.text.trim()
           : '$cameraHost:$httpPort';
       final safeFarmId = widget.farmId.toLowerCase();
-      final deviceUid = 'dahua-thermal-$safeFarmId-${idPart.toLowerCase()}';
+      final vendor = manufacturer.text.trim().isEmpty
+          ? 'Generic'
+          : manufacturer.text.trim();
+      final deviceUid = 'camera-$safeFarmId-${idPart.toLowerCase()}';
+      final isThermal = cameraType == 'thermal';
+
       await VetBackend.instance.client.from('sensor_devices').upsert(
         {
           'farm_id': widget.farmId,
           'device_uid': deviceUid,
-          'device_type': 'thermal_camera',
+          'device_type': isThermal ? 'thermal_camera' : 'ip_camera',
           'controller_model': model.text.trim().isEmpty
-              ? 'Dahua Thermal Camera'
+              ? '$vendor ${isThermal ? 'Thermal Camera' : 'IP Camera'}'
               : model.text.trim(),
           'active': true,
           'capabilities': {
-            'vendor': 'Dahua',
+            'vendor': vendor,
             'camera_name': name.text.trim(),
+            'camera_type': cameraType,
             'host': cameraHost,
             'http_port': httpPort,
             'rtsp_port': streamPort,
             'username': username.text.trim(),
             'protocol': protocol,
             'purpose': purpose,
-            'thermal': true,
+            'thermal': isThermal,
             'onvif': protocol.contains('ONVIF'),
             'rtsp': protocol.contains('RTSP'),
             'credentials_storage': 'password_not_stored',
@@ -142,21 +151,21 @@ class _DahuaThermalCameraOnboardingPageState
       _snack(
         _dt(
           context,
-          'Thermal camera added to Vet AI.',
-          'تمت إضافة الكاميرا الحرارية إلى Vet AI.',
-          'Thermische camera is toegevoegd aan Vet AI.',
+          'Camera added to Vet AI.',
+          'تمت إضافة الكاميرا إلى Vet AI.',
+          'Camera is toegevoegd aan Vet AI.',
         ),
         false,
       );
       Navigator.pop(context, true);
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       _snack(
         _dt(
           context,
-          'Could not save the thermal camera. Check your farm permissions and try again.',
-          'تعذر حفظ الكاميرا الحرارية. تأكد من صلاحيات المزرعة وحاول مرة أخرى.',
-          'De thermische camera kon niet worden opgeslagen. Controleer de boerderijrechten en probeer opnieuw.',
+          'Could not save the camera. Check your farm permissions and try again.',
+          'تعذر حفظ الكاميرا. تأكد من صلاحيات المزرعة وحاول مرة أخرى.',
+          'De camera kon niet worden opgeslagen. Controleer de boerderijrechten en probeer opnieuw.',
         ),
         true,
       );
@@ -179,12 +188,7 @@ class _DahuaThermalCameraOnboardingPageState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_dt(
-          context,
-          'Dahua thermal camera',
-          'كاميرا داهوا الحرارية',
-          'Dahua thermische camera',
-        )),
+        title: Text(_dt(context, 'Add camera', 'إضافة كاميرا', 'Camera toevoegen')),
       ),
       body: SafeArea(
         child: ListView(
@@ -198,7 +202,7 @@ class _DahuaThermalCameraOnboardingPageState
                   children: [
                     const CircleAvatar(
                       backgroundColor: VetColors.softGreen,
-                      child: Icon(Icons.thermostat_rounded, color: VetColors.green),
+                      child: Icon(Icons.videocam_rounded, color: VetColors.green),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -206,16 +210,16 @@ class _DahuaThermalCameraOnboardingPageState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _dt(context, 'Thermal Camera', 'كاميرا حرارية', 'Thermische camera'),
+                            _dt(context, 'IP Camera', 'كاميرا IP', 'IP-camera'),
                             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                           ),
                           const SizedBox(height: 5),
                           Text(
                             _dt(
                               context,
-                              'Dahua / ONVIF / RTSP. Add the camera to the farm monitoring system without storing its password in Vet AI.',
-                              'Dahua / ONVIF / RTSP. أضف الكاميرا لنظام مراقبة المزرعة بدون تخزين كلمة مرورها داخل Vet AI.',
-                              'Dahua / ONVIF / RTSP. Voeg de camera toe zonder het camerawachtwoord in Vet AI op te slaan.',
+                              'Works with compatible cameras using ONVIF and/or RTSP, including Dahua, Hikvision and other IP camera brands.',
+                              'تعمل مع الكاميرات المتوافقة عبر ONVIF و/أو RTSP، بما فيها Dahua وHikvision وغيرها من كاميرات IP.',
+                              'Werkt met compatibele camera’s via ONVIF en/of RTSP, waaronder Dahua, Hikvision en andere IP-cameramerken.',
                             ),
                             style: const TextStyle(color: VetColors.muted, height: 1.4),
                           ),
@@ -234,6 +238,35 @@ class _DahuaThermalCameraOnboardingPageState
                 labelText: _dt(context, 'Camera name', 'اسم الكاميرا', 'Cameranaam'),
                 prefixIcon: const Icon(Icons.videocam_outlined),
               ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: manufacturer,
+              enabled: !busy,
+              decoration: InputDecoration(
+                labelText: _dt(context, 'Manufacturer (optional)', 'الشركة المصنعة (اختياري)', 'Fabrikant (optioneel)'),
+                hintText: 'Dahua, Hikvision, Uniview, Axis…',
+                prefixIcon: const Icon(Icons.factory_outlined),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: cameraType,
+              decoration: InputDecoration(
+                labelText: _dt(context, 'Camera type', 'نوع الكاميرا', 'Cameratype'),
+                prefixIcon: const Icon(Icons.category_outlined),
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: 'standard',
+                  child: Text(_dt(context, 'Standard IP camera', 'كاميرا IP عادية', 'Standaard IP-camera')),
+                ),
+                DropdownMenuItem(
+                  value: 'thermal',
+                  child: Text(_dt(context, 'Thermal camera', 'كاميرا حرارية', 'Thermische camera')),
+                ),
+              ],
+              onChanged: busy ? null : (v) => setState(() => cameraType = v ?? cameraType),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -300,7 +333,7 @@ class _DahuaThermalCameraOnboardingPageState
               controller: model,
               enabled: !busy,
               decoration: InputDecoration(
-                labelText: _dt(context, 'Dahua model (optional)', 'موديل Dahua (اختياري)', 'Dahua-model (optioneel)'),
+                labelText: _dt(context, 'Model (optional)', 'الموديل (اختياري)', 'Model (optioneel)'),
                 prefixIcon: const Icon(Icons.memory_rounded),
               ),
             ),
@@ -336,16 +369,20 @@ class _DahuaThermalCameraOnboardingPageState
               ),
               items: [
                 DropdownMenuItem(
-                  value: 'animal_temperature',
-                  child: Text(_dt(context, 'Animal temperature', 'حرارة الحيوان', 'Diertemperatuur')),
+                  value: 'general_monitoring',
+                  child: Text(_dt(context, 'General monitoring', 'مراقبة عامة', 'Algemene monitoring')),
                 ),
                 DropdownMenuItem(
-                  value: 'barn_temperature',
-                  child: Text(_dt(context, 'Barn / area temperature', 'حرارة الحظيرة / المكان', 'Stal / ruimtetemperatuur')),
+                  value: 'animal_monitoring',
+                  child: Text(_dt(context, 'Animal monitoring', 'مراقبة الحيوانات', 'Diermonitoring')),
                 ),
                 DropdownMenuItem(
-                  value: 'both',
-                  child: Text(_dt(context, 'Both', 'الاثنين', 'Beide')),
+                  value: 'barn_monitoring',
+                  child: Text(_dt(context, 'Barn / area monitoring', 'مراقبة الحظيرة / المكان', 'Stal / ruimtemonitoring')),
+                ),
+                DropdownMenuItem(
+                  value: 'temperature_monitoring',
+                  child: Text(_dt(context, 'Temperature monitoring', 'مراقبة الحرارة', 'Temperatuurmonitoring')),
                 ),
               ],
               onChanged: busy ? null : (v) => setState(() => purpose = v ?? purpose),
@@ -361,18 +398,18 @@ class _DahuaThermalCameraOnboardingPageState
                   : const Icon(Icons.add_link_rounded),
               label: Text(_dt(
                 context,
-                busy ? 'Adding camera…' : 'Add thermal camera',
-                busy ? 'جاري إضافة الكاميرا…' : 'إضافة الكاميرا الحرارية',
-                busy ? 'Camera toevoegen…' : 'Thermische camera toevoegen',
+                busy ? 'Adding camera…' : 'Add camera',
+                busy ? 'جاري إضافة الكاميرا…' : 'إضافة كاميرا',
+                busy ? 'Camera toevoegen…' : 'Camera toevoegen',
               )),
             ),
             const SizedBox(height: 10),
             Text(
               _dt(
                 context,
-                'The camera password is used only on this screen and is not written to the Vet AI database.',
-                'كلمة مرور الكاميرا تُستخدم داخل هذه الصفحة فقط ولا يتم حفظها في قاعدة بيانات Vet AI.',
-                'Het camerawachtwoord wordt alleen op dit scherm gebruikt en niet in de Vet AI-database opgeslagen.',
+                'Compatibility depends on the camera exposing ONVIF and/or RTSP. The camera password is not written to the Vet AI database.',
+                'التوافق يعتمد على دعم الكاميرا لـ ONVIF و/أو RTSP. كلمة مرور الكاميرا لا يتم حفظها في قاعدة بيانات Vet AI.',
+                'Compatibiliteit hangt af van ONVIF- en/of RTSP-ondersteuning. Het camerawachtwoord wordt niet in de Vet AI-database opgeslagen.',
               ),
               textAlign: TextAlign.center,
               style: const TextStyle(color: VetColors.muted, fontSize: 12.5),
