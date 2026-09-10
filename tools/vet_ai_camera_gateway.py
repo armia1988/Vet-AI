@@ -2,7 +2,8 @@
 """Vet AI local camera gateway.
 
 Runs on an always-on machine inside the farm LAN. It keeps ONVIF PullPoint
-subscriptions alive, polls supported Hikvision/HIKMICRO thermometry rules, and
+subscriptions alive, renews them before expiry, polls supported Hikvision /
+HIKMICRO thermometry rules, reconnects after camera/network failures, and
 forwards only normalized camera events/threshold crossings to the authenticated
 Vet AI camera-gateway-ingest Edge Function.
 
@@ -17,6 +18,7 @@ import hashlib
 import json
 import os
 import platform
+import random
 import signal
 import socket
 import sys
@@ -24,7 +26,6 @@ import threading
 import time
 import uuid
 import urllib.error
-import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
@@ -32,7 +33,7 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
-AGENT_VERSION = "0.1.0-v93"
+AGENT_VERSION = "0.2.0-v94"
 DEFAULT_CONFIG = "camera_gateway_config.json"
 STOP = threading.Event()
 LOCK = threading.Lock()
@@ -43,14 +44,35 @@ WSSE_NS = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-se
 WSU_NS = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"
 TEV_NS = "http://www.onvif.org/ver10/events/wsdl"
 TDS_NS = "http://www.onvif.org/ver10/device/wsdl"
+WSNT_NS = "http://docs.oasis-open.org/wsn/b-2"
 
 
 def iso_now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
+def parse_datetime(value: str | None) -> dt.datetime | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=dt.timezone.utc)
+        return parsed.astimezone(dt.timezone.utc)
+    except ValueError:
+        return None
+
+
 def local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1] if "}" in tag else tag
+
+
+def first_text(root: ET.Element, name: str) -> str | None:
+    for node in root.iter():
+        if local_name(node.tag) == name and (node.text or "").strip():
+            return (node.text or "").strip()
+    return None
 
 
 def wsse_security(username: str, password: str) -> str:
@@ -75,7 +97,7 @@ def wsse_security(username: str, password: str) -> str:
 def envelope(to: str, action: str, username: str, password: str, body: str) -> bytes:
     message_id = f"urn:uuid:{uuid.uuid4()}"
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<soap:Envelope xmlns:soap="{SOAP_NS}" xmlns:wsa="{WSA_NS}" xmlns:wsse="{WSSE_NS}" xmlns:wsu="{WSU_NS}" xmlns:tds="{TDS_NS}" xmlns:tev="{TEV_NS}">
+<soap:Envelope xmlns:soap="{SOAP_NS}" xmlns:wsa="{WSA_NS}" xmlns:wsse="{WSSE_NS}" xmlns:wsu="{WSU_NS}" xmlns:tds="{TDS_NS}" xmlns:tev="{TEV_NS}" xmlns:wsnt="{WSNT_NS}">
   <soap:Header>
     <wsa:Action soap:mustUnderstand="true">{escape(action)}</wsa:Action>
     <wsa:MessageID>{message_id}</wsa:MessageID>
@@ -113,12 +135,47 @@ def http_json(url: str, payload: dict[str, Any], timeout: float = 10.0) -> dict[
 
 
 @dataclass
+class SubscriptionSession:
+    url: str
+    current_time: dt.datetime | None
+    termination_time: dt.datetime | None
+    created_monotonic: float = field(default_factory=time.monotonic)
+
+    def should_renew(self, renew_before_seconds: float) -> bool:
+        if self.termination_time is not None:
+            threshold = self.termination_time - dt.timedelta(seconds=max(30.0, renew_before_seconds))
+            return dt.datetime.now(dt.timezone.utc) >= threshold
+        return time.monotonic() - self.created_monotonic >= 8 * 60
+
+
+@dataclass
 class CameraState:
-    online: bool = False
-    last_error: str = ""
+    events_enabled: bool = False
+    thermal_enabled: bool = False
+    events_ok: bool = False
+    thermal_ok: bool = False
+    last_event_error: str = ""
+    last_thermal_error: str = ""
     last_event_at: str | None = None
+    last_success_at: str | None = None
     events: int = 0
     thermal_samples: int = 0
+    reconnects: int = 0
+    subscription_renewals: int = 0
+    deduped_events: int = 0
+
+    @property
+    def online(self) -> bool:
+        checks: list[bool] = []
+        if self.events_enabled:
+            checks.append(self.events_ok)
+        if self.thermal_enabled:
+            checks.append(self.thermal_ok)
+        return any(checks) if checks else False
+
+    @property
+    def last_error(self) -> str:
+        return self.last_event_error or self.last_thermal_error
 
 
 @dataclass
@@ -131,21 +188,33 @@ class RuntimeState:
     def snapshot(self) -> dict[str, Any]:
         with LOCK:
             online = sum(1 for value in self.cameras.values() if value.online)
+            current_errors = [value.last_error for value in self.cameras.values() if value.last_error]
+            last_error = current_errors[-1] if current_errors else self.last_error
             return {
                 "cameras_configured": len(self.cameras),
                 "cameras_online": online,
                 "events_forwarded": self.events_forwarded,
                 "thermal_samples": self.thermal_samples,
-                "last_error": self.last_error,
+                "last_error": last_error,
                 "runtime": {
                     uid: {
-                        "online": state.online,
-                        "last_error": state.last_error,
-                        "last_event_at": state.last_event_at,
-                        "events": state.events,
-                        "thermal_samples": state.thermal_samples,
+                        "online": camera.online,
+                        "events_enabled": camera.events_enabled,
+                        "events_ok": camera.events_ok,
+                        "thermal_enabled": camera.thermal_enabled,
+                        "thermal_ok": camera.thermal_ok,
+                        "last_error": camera.last_error,
+                        "last_event_error": camera.last_event_error,
+                        "last_thermal_error": camera.last_thermal_error,
+                        "last_event_at": camera.last_event_at,
+                        "last_success_at": camera.last_success_at,
+                        "events": camera.events,
+                        "thermal_samples": camera.thermal_samples,
+                        "reconnects": camera.reconnects,
+                        "subscription_renewals": camera.subscription_renewals,
+                        "deduped_events": camera.deduped_events,
                     }
-                    for uid, state in self.cameras.items()
+                    for uid, camera in self.cameras.items()
                 },
             }
 
@@ -214,7 +283,11 @@ class OnvifCamera:
         if self.events_url:
             return self.events_url
         action = "http://www.onvif.org/ver10/device/wsdl/GetCapabilities"
-        root = self.soap(self.device_url, action, "<tds:GetCapabilities><tds:Category>All</tds:Category></tds:GetCapabilities>")
+        root = self.soap(
+            self.device_url,
+            action,
+            "<tds:GetCapabilities><tds:Category>All</tds:Category></tds:GetCapabilities>",
+        )
         for node in root.iter():
             if local_name(node.tag) != "Events":
                 continue
@@ -224,22 +297,47 @@ class OnvifCamera:
                     return self.events_url
         raise RuntimeError("Camera did not report an ONVIF Events XAddr")
 
-    def create_pullpoint(self) -> str:
+    def create_pullpoint(self) -> SubscriptionSession:
         events_url = self.discover_events_url()
         action = "http://www.onvif.org/ver10/events/wsdl/EventPortType/CreatePullPointSubscriptionRequest"
         body = "<tev:CreatePullPointSubscription><tev:InitialTerminationTime>PT10M</tev:InitialTerminationTime></tev:CreatePullPointSubscription>"
         root = self.soap(events_url, action, body)
+        subscription_url = ""
         for node in root.iter():
-            if local_name(node.tag) == "SubscriptionReference":
-                for child in node.iter():
-                    if local_name(child.tag) == "Address" and (child.text or "").strip():
-                        return (child.text or "").strip()
-        raise RuntimeError("ONVIF CreatePullPointSubscription returned no subscription address")
+            if local_name(node.tag) != "SubscriptionReference":
+                continue
+            for child in node.iter():
+                if local_name(child.tag) == "Address" and (child.text or "").strip():
+                    subscription_url = (child.text or "").strip()
+                    break
+        if not subscription_url:
+            raise RuntimeError("ONVIF CreatePullPointSubscription returned no subscription address")
+        return SubscriptionSession(
+            url=subscription_url,
+            current_time=parse_datetime(first_text(root, "CurrentTime")),
+            termination_time=parse_datetime(first_text(root, "TerminationTime")),
+        )
 
-    def pull_messages(self, subscription_url: str, timeout_seconds: int) -> list[dict[str, Any]]:
+    def renew_pullpoint(self, session: SubscriptionSession) -> SubscriptionSession:
+        action = "http://docs.oasis-open.org/wsn/bw-2/SubscriptionManager/RenewRequest"
+        body = "<wsnt:Renew><wsnt:TerminationTime>PT10M</wsnt:TerminationTime></wsnt:Renew>"
+        root = self.soap(session.url, action, body)
+        return SubscriptionSession(
+            url=session.url,
+            current_time=parse_datetime(first_text(root, "CurrentTime")),
+            termination_time=parse_datetime(first_text(root, "TerminationTime")) or session.termination_time,
+        )
+
+    def pull_messages(self, session: SubscriptionSession, timeout_seconds: int) -> list[dict[str, Any]]:
         action = "http://www.onvif.org/ver10/events/wsdl/PullPointSubscription/PullMessagesRequest"
         body = f"<tev:PullMessages><tev:Timeout>PT{max(1, timeout_seconds)}S</tev:Timeout><tev:MessageLimit>32</tev:MessageLimit></tev:PullMessages>"
-        root = self.soap(subscription_url, action, body, timeout=float(timeout_seconds + 10))
+        root = self.soap(session.url, action, body, timeout=float(timeout_seconds + 10))
+        current = parse_datetime(first_text(root, "CurrentTime"))
+        termination = parse_datetime(first_text(root, "TerminationTime"))
+        if current is not None:
+            session.current_time = current
+        if termination is not None:
+            session.termination_time = termination
         result: list[dict[str, Any]] = []
         for notification in root.iter():
             if local_name(notification.tag) != "NotificationMessage":
@@ -263,6 +361,13 @@ class OnvifCamera:
             if topic or values:
                 result.append({"topic": topic, "operation": operation, "utc_time": utc_time, "values": values})
         return result
+
+    def unsubscribe(self, session: SubscriptionSession) -> None:
+        try:
+            action = "http://docs.oasis-open.org/wsn/bw-2/SubscriptionManager/UnsubscribeRequest"
+            self.soap(session.url, action, "<wsnt:Unsubscribe/>", timeout=8.0)
+        except Exception:
+            pass
 
     def thermal_rule_sample(self, thermal: dict[str, Any]) -> dict[str, Any]:
         channel = int(thermal.get("channel_id", 1))
@@ -295,40 +400,125 @@ class OnvifCamera:
         }
 
 
-def mark_state(state: RuntimeState, uid: str, *, online: bool | None = None, error: str | None = None, event: bool = False, thermal: bool = False) -> None:
+def event_fingerprint(event: dict[str, Any]) -> str:
+    normalized = {
+        "topic": event.get("topic", ""),
+        "operation": event.get("operation", ""),
+        "utc_time": event.get("utc_time", ""),
+        "values": event.get("values", {}),
+    }
+    encoded = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def mark_event_status(
+    state: RuntimeState,
+    uid: str,
+    *,
+    ok: bool,
+    error: str = "",
+    reconnect: bool = False,
+    renewal: bool = False,
+    deduped: bool = False,
+) -> None:
     with LOCK:
         camera = state.cameras[uid]
-        if online is not None:
-            camera.online = online
-        if error is not None:
-            camera.last_error = error[:1000]
+        camera.events_ok = ok
+        camera.last_event_error = error[:1000]
+        if ok:
+            camera.last_success_at = iso_now()
+        if error:
             state.last_error = error[:1000]
-        if event:
-            camera.events += 1
-            camera.last_event_at = iso_now()
-            state.events_forwarded += 1
-        if thermal:
-            camera.thermal_samples += 1
-            state.thermal_samples += 1
+        if reconnect:
+            camera.reconnects += 1
+        if renewal:
+            camera.subscription_renewals += 1
+        if deduped:
+            camera.deduped_events += 1
 
 
-def event_worker(camera_cfg: dict[str, Any], sender: GatewaySender, state: RuntimeState, pull_timeout: int) -> None:
+def mark_event_forwarded(state: RuntimeState, uid: str) -> None:
+    with LOCK:
+        camera = state.cameras[uid]
+        camera.events_ok = True
+        camera.last_event_error = ""
+        camera.events += 1
+        camera.last_event_at = iso_now()
+        camera.last_success_at = camera.last_event_at
+        state.events_forwarded += 1
+
+
+def mark_thermal_status(state: RuntimeState, uid: str, *, ok: bool, error: str = "") -> None:
+    with LOCK:
+        camera = state.cameras[uid]
+        camera.thermal_ok = ok
+        camera.last_thermal_error = error[:1000]
+        if ok:
+            camera.last_success_at = iso_now()
+        if error:
+            state.last_error = error[:1000]
+
+
+def mark_thermal_sample(state: RuntimeState, uid: str) -> None:
+    with LOCK:
+        camera = state.cameras[uid]
+        camera.thermal_ok = True
+        camera.last_thermal_error = ""
+        camera.thermal_samples += 1
+        camera.last_success_at = iso_now()
+        state.thermal_samples += 1
+
+
+def event_worker(
+    camera_cfg: dict[str, Any],
+    sender: GatewaySender,
+    state: RuntimeState,
+    pull_timeout: int,
+    renew_before_seconds: float,
+    dedupe_seconds: float,
+) -> None:
     camera = OnvifCamera(camera_cfg)
     uid = camera.uid
     backoff = 2.0
+    recent_fingerprints: dict[str, float] = {}
+
     while not STOP.is_set():
+        session: SubscriptionSession | None = None
         try:
-            subscription = camera.create_pullpoint()
-            mark_state(state, uid, online=True, error="")
+            session = camera.create_pullpoint()
+            mark_event_status(state, uid, ok=True)
             backoff = 2.0
+
             while not STOP.is_set():
-                for event in camera.pull_messages(subscription, pull_timeout):
+                if session.should_renew(renew_before_seconds):
+                    session = camera.renew_pullpoint(session)
+                    mark_event_status(state, uid, ok=True, renewal=True)
+
+                raw_events = camera.pull_messages(session, pull_timeout)
+                now = time.monotonic()
+                expired = [key for key, seen_at in recent_fingerprints.items() if now - seen_at > dedupe_seconds]
+                for key in expired:
+                    recent_fingerprints.pop(key, None)
+
+                for event in raw_events:
+                    fingerprint = event_fingerprint(event)
+                    if fingerprint in recent_fingerprints:
+                        mark_event_status(state, uid, ok=True, deduped=True)
+                        continue
+                    recent_fingerprints[fingerprint] = now
                     sender.send({"kind": "event", "camera_uid": uid, **event}, timeout=float(pull_timeout + 15))
-                    mark_state(state, uid, online=True, error="", event=True)
+                    mark_event_forwarded(state, uid)
         except Exception as exc:
-            mark_state(state, uid, online=False, error=f"{camera.name}: {exc}")
-            STOP.wait(backoff)
+            if session is not None:
+                camera.unsubscribe(session)
+            message = f"{camera.name}: {exc}"
+            mark_event_status(state, uid, ok=False, error=message, reconnect=True)
+            delay = min(backoff, 60.0) + random.uniform(0.0, 0.8)
+            STOP.wait(delay)
             backoff = min(backoff * 2.0, 60.0)
+        else:
+            if session is not None:
+                camera.unsubscribe(session)
 
 
 def thermal_worker(camera_cfg: dict[str, Any], sender: GatewaySender, state: RuntimeState, interval: float) -> None:
@@ -339,9 +529,9 @@ def thermal_worker(camera_cfg: dict[str, Any], sender: GatewaySender, state: Run
         try:
             sample = camera.thermal_rule_sample(thermal)
             sender.send({"kind": "thermal_sample", "camera_uid": uid, **sample})
-            mark_state(state, uid, online=True, error="", thermal=True)
+            mark_thermal_sample(state, uid)
         except Exception as exc:
-            mark_state(state, uid, online=False, error=f"{camera.name} thermal: {exc}")
+            mark_thermal_status(state, uid, ok=False, error=f"{camera.name} thermal: {exc}")
         STOP.wait(interval)
 
 
@@ -388,12 +578,20 @@ def main() -> int:
     state = RuntimeState()
     cameras: list[dict[str, Any]] = cfg.get("cameras", [])
     for camera in cameras:
-        state.cameras[str(camera["camera_uid"])] = CameraState()
+        thermal = camera.get("thermal") if isinstance(camera.get("thermal"), dict) else {}
+        vendor = str(camera.get("vendor", "")).lower()
+        thermal_enabled = bool(thermal.get("enabled") is True and ("hikvision" in vendor or "hikmicro" in vendor))
+        state.cameras[str(camera["camera_uid"])] = CameraState(
+            events_enabled=bool(camera.get("events", True)),
+            thermal_enabled=thermal_enabled,
+        )
     sender = GatewaySender(cfg, state)
 
     heartbeat_seconds = max(10.0, float(cfg.get("heartbeat_seconds", 30)))
     pull_timeout = max(5, int(cfg.get("pull_timeout_seconds", 20)))
     thermal_poll = max(2.0, float(cfg.get("thermal_poll_seconds", 5)))
+    renew_before_seconds = max(30.0, float(cfg.get("renew_before_seconds", 90)))
+    dedupe_seconds = max(5.0, float(cfg.get("event_dedupe_seconds", 120)))
 
     def stop_handler(_signum: int, _frame: Any) -> None:
         STOP.set()
@@ -402,24 +600,47 @@ def main() -> int:
     signal.signal(signal.SIGTERM, stop_handler)
 
     threads: list[threading.Thread] = [
-        threading.Thread(target=heartbeat_worker, args=(sender, heartbeat_seconds), name="gateway-heartbeat", daemon=True),
+        threading.Thread(
+            target=heartbeat_worker,
+            args=(sender, heartbeat_seconds),
+            name="gateway-heartbeat",
+            daemon=True,
+        ),
     ]
     for camera in cameras:
         if camera.get("events", True):
-            threads.append(threading.Thread(target=event_worker, args=(camera, sender, state, pull_timeout), name=f"onvif-{camera['camera_uid']}", daemon=True))
+            threads.append(
+                threading.Thread(
+                    target=event_worker,
+                    args=(camera, sender, state, pull_timeout, renew_before_seconds, dedupe_seconds),
+                    name=f"onvif-{camera['camera_uid']}",
+                    daemon=True,
+                )
+            )
         thermal = camera.get("thermal")
         if isinstance(thermal, dict) and thermal.get("enabled") is True:
             vendor = str(camera.get("vendor", "")).lower()
             if "hikvision" in vendor or "hikmicro" in vendor:
-                threads.append(threading.Thread(target=thermal_worker, args=(camera, sender, state, thermal_poll), name=f"thermal-{camera['camera_uid']}", daemon=True))
+                threads.append(
+                    threading.Thread(
+                        target=thermal_worker,
+                        args=(camera, sender, state, thermal_poll),
+                        name=f"thermal-{camera['camera_uid']}",
+                        daemon=True,
+                    )
+                )
             else:
-                print(f"Thermal polling skipped for {camera['camera_uid']}: V93 only enables verified Hikvision/HIKMICRO ISAPI thermometry.")
+                print(
+                    f"Thermal polling skipped for {camera['camera_uid']}: "
+                    "V94 only enables verified Hikvision/HIKMICRO ISAPI thermometry."
+                )
 
     for thread in threads:
         thread.start()
 
     print(f"Vet AI Camera Gateway {AGENT_VERSION} running with {len(cameras)} camera(s).")
-    print("Monitoring is now local-to-cloud; the mobile app may be closed.")
+    print("ONVIF subscriptions auto-renew; failed camera links reconnect with exponential backoff.")
+    print("Monitoring is local-to-cloud; the mobile app may be closed.")
     while not STOP.wait(1.0):
         pass
     print("Stopping Vet AI Camera Gateway…")
