@@ -10,6 +10,8 @@ on:
       - 'tools/patch_v68*.py'
       - 'tools/patch_v69*.py'
       - 'tools/patch_v70*.py'
+      - 'tools/patch_v71*.py'
+      - 'tools/patch_v72*.py'
       - 'assets/audio/**'
       - 'pubspec.yaml'
       - 'lib/services/callkit_service.dart'
@@ -74,7 +76,7 @@ jobs:
         run: flutter pub get
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - name: Verify V67-V70 call and chat reliability fixes
+      - name: Verify V67-V72 call and chat reliability fixes
         run: |
           grep -q "senderClientId: endpointId" lib/support/support_webrtc_call_page.dart
           grep -q "await Helper.switchCamera(oldTracks.first);" lib/support/support_webrtc_call_page.dart
@@ -90,6 +92,15 @@ jobs:
           grep -q 'ringtoneSound = "vet_ai_incoming_call.caf"' ios/Runner/AppDelegate.swift
           grep -q "AudioRecorder" lib/support/support_voice_note.dart
           grep -q "message_type': 'audio'" lib/support/support_voice_note.dart
+          grep -q "VOICE_RECORDING_TOO_SHORT" lib/support/support_voice_note.dart
+          grep -q "Future<void> pause()" lib/support/support_voice_note.dart
+          grep -q "Future<void> resume()" lib/support/support_voice_note.dart
+          grep -q "VetSupportVoiceRecorderBar" lib/support/support_voice_recorder_bar.dart
+          grep -q "Icons.pause_rounded" lib/support/support_voice_recorder_bar.dart
+          grep -q "Icons.delete_outline_rounded" lib/support/support_voice_recorder_bar.dart
+          grep -q "Icons.send_rounded" lib/support/support_voice_recorder_bar.dart
+          grep -q "adminAccessResolved" lib/admin/admin_dashboard.dart
+          grep -q "_fallbackCapabilitiesForRole" lib/admin/admin_dashboard.dart
           grep -q "Icons.mic_rounded" lib/support/support_agent_thread_v2.dart
           grep -q "Icons.photo_camera_outlined" lib/support/support_agent_thread_v2.dart
           grep -q "VetSupportChatNotice.show" lib/support/support_agent_thread_v2.dart
