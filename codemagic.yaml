@@ -44,7 +44,7 @@ workflows:
               plistlib.dump(data, f)
           PY
 
-      - name: Apply Vet AI production patches through V95
+      - name: Apply Vet AI production patches through V95a
         script: |
           python3 -m pip install --quiet pillow
           python3 tools/patch_v37_egyptian_voice.py
@@ -85,6 +85,7 @@ workflows:
           python3 tools/patch_v93_camera_gateway.py
           python3 tools/patch_v93a_camera_gateway_compile_fix.py
           python3 tools/patch_v95_camera_wall_performance.py
+          python3 tools/patch_v95a_materialized_idempotency.py
           python3 -m py_compile tools/vet_ai_camera_gateway.py
 
       - name: Verify production backend, camera stack and V96 release readiness
