@@ -42,9 +42,9 @@ if 'DahuaThermalCameraOnboardingPage(' not in s:
               label: Text(
                 tr(
                   context,
-                  'Add Dahua thermal camera',
-                  'إضافة كاميرا داهوا حرارية',
-                  'Dahua thermische camera toevoegen',
+                  'Add camera',
+                  'إضافة كاميرا',
+                  'Camera toevoegen',
                 ),
               ),
             ),
@@ -67,7 +67,7 @@ checks = {
     'lib/v5_app.dart': [
         "import 'monitoring/dahua_thermal_camera_onboarding_page.dart';",
         'DahuaThermalCameraOnboardingPage(',
-        'Add Dahua thermal camera',
+        'Add camera',
     ],
     'lib/monitoring/dahua_thermal_camera_onboarding_page.dart': [
         "device_type': 'thermal_camera'",
@@ -83,4 +83,4 @@ for path, markers in checks.items():
         if marker not in text:
             raise SystemExit(f'V81 verification missing in {path}: {marker}')
 
-print('Vet AI V81 applied: Dahua thermal camera onboarding added to customer Sensors panel')
+print('Vet AI V81 applied: thermal camera onboarding added to customer Sensors panel')
