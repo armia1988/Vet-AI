@@ -1,0 +1,77 @@
+name: iOS CallKit Compile Check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/patch_v66*.py'
+      - 'lib/services/callkit_service.dart'
+      - 'lib/support/callkit_coordinator.dart'
+      - 'supabase/functions/support-call-*/**'
+      - '.github/workflows/ios-callkit-check.yml'
+
+concurrency:
+  group: ios-callkit-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-no-sign:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate native projects
+        run: |
+          flutter create . --platforms=ios,android --project-name app --org com.vetai
+          rm -f test/widget_test.dart
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Vet AI uses the camera for veterinary assessment and support video calls.'" ios/Runner/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Vet AI uses the microphone for support voice and video calls.'" ios/Runner/Info.plist || true
+          sed -i '' "/target 'Runner' do/a\\
+            use_frameworks!
+          " ios/Podfile
+      - name: Apply production patch chain
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 tools/patch_v37_egyptian_voice.py
+          python3 tools/force_voice_playback.py
+          python3 tools/patch_v40_voice_pipeline.py
+          python3 tools/patch_v41_instant_voice_prewarm.py
+          python3 tools/patch_v43_eu_legal_pages.py
+          python3 tools/patch_v44_apns_push.py
+          python3 tools/patch_v45_apns_bridge_reliability.py
+          python3 tools/patch_v46_apns_uiscene_bridge.py
+          python3 tools/patch_v47_custom_alert_sounds.py
+          python3 tools/patch_v48_verified_custom_alert_sounds.py
+          python3 tools/patch_v49_admin_compile_cleanup.py
+          python3 tools/patch_v50_admin_chat_accounts_sensors.py
+          python3 tools/patch_v51_file_picker_compile.py
+          python3 tools/patch_v52_web_chat_company_scroll.py
+          python3 tools/patch_v53_support_operations_import.py
+          python3 tools/patch_v54_native_webrtc_calls.py
+          python3 tools/patch_v55_whatsapp_rich_chat_profiles.py
+          python3 tools/patch_v56_webrtc_audio_hangup.py
+          python3 tools/patch_v57_camera_switch_drag_preview.py
+          python3 tools/patch_v58_ios_safari_camera_flip.py
+          python3 tools/patch_v59_call_smoothing_whatsapp_icons.py
+          python3 tools/patch_v60_instant_camera_flip_black_off.py
+          python3 tools/patch_v61b_admin_instant_navigation.py
+          python3 tools/patch_v62b_admin_accounts_animals_sensors.py
+          python3 tools/patch_v62c_company_manager_routes.py
+          python3 tools/patch_v63d_admin_mobile_accounts_profile_reports.py
+          python3 tools/patch_v63e_profile_metadata_nullsafe.py
+      - name: Dependencies
+        run: flutter pub get
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Compile iOS without signing
+        run: flutter build ios --release --no-codesign -t lib/main_v2.dart
+      - name: Verify CallKit bundle configuration
+        run: |
+          grep -q 'PKPushRegistryDelegate' ios/Runner/AppDelegate.swift
+          grep -q 'CXProviderDelegate' ios/Runner/AppDelegate.swift
+          /usr/libexec/PlistBuddy -c 'Print :UIBackgroundModes' ios/Runner/Info.plist | grep -q voip
