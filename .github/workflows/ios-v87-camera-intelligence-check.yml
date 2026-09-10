@@ -10,6 +10,7 @@ on:
       - 'tools/patch_v91*.py'
       - 'tools/patch_v92*.py'
       - 'tools/patch_v93*.py'
+      - 'tools/patch_v95*.py'
       - 'tools/vet_ai_camera_gateway.py'
       - 'tools/camera_gateway_config.example.json'
       - 'lib/monitoring/camera_intelligence_service.dart'
@@ -19,6 +20,9 @@ on:
       - 'lib/monitoring/camera_alert_repository.dart'
       - 'lib/monitoring/camera_alert_center_page.dart'
       - 'lib/monitoring/camera_gateway_page.dart'
+      - 'lib/monitoring/camera_center_page.dart'
+      - 'lib/monitoring/dahua_thermal_camera_onboarding_page.dart'
+      - 'lib/monitoring/camera_stream_profile_service.dart'
       - 'supabase/functions/camera-gateway-ingest/**'
       - 'supabase/migrations/*camera_gateway*'
       - '.github/workflows/ios-v87-camera-intelligence-check.yml'
@@ -86,6 +90,7 @@ jobs:
           python3 tools/patch_v92_camera_alert_center.py
           python3 tools/patch_v93_camera_gateway.py
           python3 tools/patch_v93a_camera_gateway_compile_fix.py
+          python3 tools/patch_v95_camera_wall_performance.py
       - name: Check local camera gateway agent
         run: python3 -m py_compile tools/vet_ai_camera_gateway.py
       - name: Dependencies
@@ -113,5 +118,15 @@ jobs:
           grep -q "Per-camera health" lib/monitoring/camera_gateway_page.dart
           grep -q "thermal_alert_threshold_c" supabase/functions/camera-gateway-ingest/index.ts
           grep -q "camera_gateway_status" supabase/functions/camera-gateway-ingest/index.ts
+      - name: Verify V95 camera wall performance
+        run: |
+          grep -q "class CameraStreamProfileService" lib/monitoring/camera_stream_profile_service.dart
+          grep -q "GetStreamUri" lib/monitoring/camera_stream_profile_service.dart
+          grep -q "substream_uri" lib/monitoring/dahua_thermal_camera_onboarding_page.dart
+          grep -q "qualityMode = 'auto'" lib/monitoring/camera_center_page.dart
+          grep -q "addAutomaticKeepAlives: false" lib/monitoring/camera_center_page.dart
+          grep -q "autoPlay: widget.active" lib/monitoring/camera_center_page.dart
+          grep -q "wallActive = false" lib/monitoring/camera_center_page.dart
+          grep -q "_discoverMissingStreamProfiles" lib/monitoring/camera_center_page.dart
       - name: Compile iOS without signing
         run: flutter build ios --release --no-codesign -t lib/main_v2.dart
