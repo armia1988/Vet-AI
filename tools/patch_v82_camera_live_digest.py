@@ -50,12 +50,15 @@ replacement = r'''  Future<String> _postSoap(
       final lower = challenge.toLowerCase();
       String authorization;
       if (lower.startsWith('digest')) {
+        final digestUri = uri.path.isEmpty
+            ? '/'
+            : (uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path);
         authorization = _httpDigestAuthorization(
           challenge: challenge,
           username: username,
           password: password,
           method: 'POST',
-          uri: uri.requestUri,
+          uri: digestUri,
         );
       } else if (lower.startsWith('basic')) {
         authorization = 'Basic ${base64Encode(utf8.encode('$username:$password'))}';
