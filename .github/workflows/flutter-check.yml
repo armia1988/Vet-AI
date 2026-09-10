@@ -68,6 +68,7 @@ jobs:
           python3 tools/patch_v84_onvif_network_discovery.py
           python3 tools/patch_v85_onvif_ptz_controls.py
           python3 tools/patch_v87_camera_intelligence.py
+          python3 tools/patch_v90_camera_alert_persistence.py
       - name: Get dependencies
         run: flutter pub get
       - name: Analyze
