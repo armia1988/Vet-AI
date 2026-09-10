@@ -77,7 +77,8 @@ jobs:
           grep -q "senderClientId: endpointId" lib/support/support_webrtc_call_page.dart
           grep -q "await Helper.switchCamera(oldTracks.first);" lib/support/support_webrtc_call_page.dart
           ! grep -q "Camera switch was not completed" lib/support/support_webrtc_call_page.dart
-          grep -q "remoteRenderer.srcObject = fallbackStream" lib/support/support_webrtc_call_page.dart
+          grep -q "_attachStreamlessRemoteTrack(event.track)" lib/support/support_webrtc_call_page.dart
+          grep -q "remoteFallbackStream" lib/support/support_webrtc_call_page.dart
           grep -q "vet_ai_chat_send.wav" lib/support/support_chat_sound.dart
           grep -q "vet_ai_chat_receive.wav" lib/support/support_chat_sound.dart
           grep -q "vet_ai_call_outgoing.wav" lib/support/support_call_tone.dart
