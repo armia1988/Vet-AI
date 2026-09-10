@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../i18n/vet_locale.dart';
 import '../services/vet_backend.dart';
 import '../theme/app_theme.dart';
+import 'camera_connection_service.dart';
 
 String _dt(BuildContext context, String en, String ar, String nl) =>
     VetTranslator.instance.text(
@@ -29,6 +31,9 @@ class DahuaThermalCameraOnboardingPage extends StatefulWidget {
 
 class _DahuaThermalCameraOnboardingPageState
     extends State<DahuaThermalCameraOnboardingPage> {
+  static const _secureStorage = FlutterSecureStorage();
+  static const _connector = CameraConnectionService();
+
   final name = TextEditingController(text: 'IP Camera');
   final manufacturer = TextEditingController();
   final host = TextEditingController();
@@ -41,9 +46,30 @@ class _DahuaThermalCameraOnboardingPageState
 
   bool passwordVisible = false;
   bool busy = false;
+  bool testedSuccessfully = false;
   String protocol = 'ONVIF + RTSP';
   String cameraType = 'standard';
   String purpose = 'general_monitoring';
+  String? discoveredStreamUri;
+  String? testDetails;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final controller in [host, port, rtspPort, username, password]) {
+      controller.addListener(_invalidateTest);
+    }
+  }
+
+  void _invalidateTest() {
+    if (!testedSuccessfully && discoveredStreamUri == null && testDetails == null) return;
+    if (!mounted) return;
+    setState(() {
+      testedSuccessfully = false;
+      discoveredStreamUri = null;
+      testDetails = null;
+    });
+  }
 
   @override
   void dispose() {
@@ -77,8 +103,7 @@ class _DahuaThermalCameraOnboardingPageState
     return p != null && p > 0 && p <= 65535 ? p : null;
   }
 
-  Future<void> _save() async {
-    FocusScope.of(context).unfocus();
+  ({String host, int httpPort, int rtspPort})? _validatedEndpoint() {
     final cameraHost = host.text.trim();
     final httpPort = _validPort(port.text);
     final streamPort = _validPort(rtspPort.text);
@@ -92,7 +117,7 @@ class _DahuaThermalCameraOnboardingPageState
         ),
         true,
       );
-      return;
+      return null;
     }
     if (username.text.trim().isEmpty) {
       _snack(
@@ -104,6 +129,104 @@ class _DahuaThermalCameraOnboardingPageState
         ),
         true,
       );
+      return null;
+    }
+    return (host: cameraHost, httpPort: httpPort, rtspPort: streamPort);
+  }
+
+  Future<void> _testConnection() async {
+    FocusScope.of(context).unfocus();
+    final endpoint = _validatedEndpoint();
+    if (endpoint == null) return;
+
+    setState(() {
+      busy = true;
+      testedSuccessfully = false;
+      discoveredStreamUri = null;
+      testDetails = null;
+    });
+
+    try {
+      final result = await _connector.test(
+        host: endpoint.host,
+        httpPort: endpoint.httpPort,
+        rtspPort: endpoint.rtspPort,
+        username: username.text.trim(),
+        password: password.text,
+        useOnvif: protocol.contains('ONVIF'),
+        useRtsp: protocol.contains('RTSP'),
+      );
+      if (!mounted) return;
+
+      final info = result.deviceInformation ?? const <String, String>{};
+      if (manufacturer.text.trim().isEmpty && (info['Manufacturer'] ?? '').isNotEmpty) {
+        manufacturer.text = info['Manufacturer']!;
+      }
+      if (model.text.trim().isEmpty && (info['Model'] ?? '').isNotEmpty) {
+        model.text = info['Model']!;
+      }
+      if (serial.text.trim().isEmpty && (info['SerialNumber'] ?? '').isNotEmpty) {
+        serial.text = info['SerialNumber']!;
+      }
+
+      setState(() {
+        testedSuccessfully = result.success;
+        discoveredStreamUri = result.streamUri;
+        testDetails = result.message;
+      });
+
+      if (result.success) {
+        _snack(
+          _dt(
+            context,
+            'Camera connection verified successfully.',
+            'تم التحقق من الاتصال بالكاميرا بنجاح.',
+            'De cameraverbinding is succesvol gecontroleerd.',
+          ),
+          false,
+        );
+      } else {
+        _snack(
+          _dt(
+            context,
+            'The camera did not pass the selected connection tests.',
+            'الكاميرا لم تنجح في اختبارات الاتصال المحددة.',
+            'De camera heeft de gekozen verbindingstests niet doorstaan.',
+          ),
+          true,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => testDetails = e.toString());
+      _snack(
+        _dt(
+          context,
+          'Could not connect to the camera. Check network, ports and credentials.',
+          'تعذر الاتصال بالكاميرا. تأكد من الشبكة والمنافذ وبيانات الدخول.',
+          'Kan geen verbinding maken met de camera. Controleer netwerk, poorten en inloggegevens.',
+        ),
+        true,
+      );
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _save() async {
+    FocusScope.of(context).unfocus();
+    final endpoint = _validatedEndpoint();
+    if (endpoint == null) return;
+    if (!testedSuccessfully) {
+      _snack(
+        _dt(
+          context,
+          'Test the real camera connection successfully before adding it.',
+          'اختبر الاتصال الحقيقي بالكاميرا بنجاح قبل إضافتها.',
+          'Test eerst de echte cameraverbinding voordat je de camera toevoegt.',
+        ),
+        true,
+      );
       return;
     }
 
@@ -111,13 +234,16 @@ class _DahuaThermalCameraOnboardingPageState
     try {
       final idPart = serial.text.trim().isNotEmpty
           ? serial.text.trim()
-          : '$cameraHost:$httpPort';
+          : '${endpoint.host}:${endpoint.httpPort}';
       final safeFarmId = widget.farmId.toLowerCase();
       final vendor = manufacturer.text.trim().isEmpty
           ? 'Generic'
           : manufacturer.text.trim();
       final deviceUid = 'camera-$safeFarmId-${idPart.toLowerCase()}';
       final isThermal = cameraType == 'thermal';
+      final secureKey = 'vetai.camera.$deviceUid.password';
+
+      await _secureStorage.write(key: secureKey, value: password.text);
 
       await VetBackend.instance.client.from('sensor_devices').upsert(
         {
@@ -132,16 +258,19 @@ class _DahuaThermalCameraOnboardingPageState
             'vendor': vendor,
             'camera_name': name.text.trim(),
             'camera_type': cameraType,
-            'host': cameraHost,
-            'http_port': httpPort,
-            'rtsp_port': streamPort,
+            'host': endpoint.host,
+            'http_port': endpoint.httpPort,
+            'rtsp_port': endpoint.rtspPort,
             'username': username.text.trim(),
             'protocol': protocol,
             'purpose': purpose,
             'thermal': isThermal,
             'onvif': protocol.contains('ONVIF'),
             'rtsp': protocol.contains('RTSP'),
-            'credentials_storage': 'password_not_stored',
+            'connection_verified': true,
+            'stream_uri': discoveredStreamUri,
+            'credentials_storage': 'platform_secure_storage',
+            'credential_key': secureKey,
           },
         },
         onConflict: 'device_uid',
@@ -151,9 +280,9 @@ class _DahuaThermalCameraOnboardingPageState
       _snack(
         _dt(
           context,
-          'Camera added to Vet AI.',
-          'تمت إضافة الكاميرا إلى Vet AI.',
-          'Camera is toegevoegd aan Vet AI.',
+          'Camera connected and added to Vet AI.',
+          'تم توصيل الكاميرا وإضافتها إلى Vet AI.',
+          'Camera is verbonden en toegevoegd aan Vet AI.',
         ),
         false,
       );
@@ -184,6 +313,20 @@ class _DahuaThermalCameraOnboardingPageState
     );
   }
 
+  Widget _field(TextEditingController controller, String label, IconData icon,
+      {TextInputType? keyboardType, String? hintText}) {
+    return TextField(
+      controller: controller,
+      enabled: !busy,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hintText,
+        prefixIcon: Icon(icon),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -210,16 +353,16 @@ class _DahuaThermalCameraOnboardingPageState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _dt(context, 'IP Camera', 'كاميرا IP', 'IP-camera'),
+                            _dt(context, 'Real IP camera connection', 'اتصال حقيقي بكاميرا IP', 'Echte IP-cameraverbinding'),
                             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                           ),
                           const SizedBox(height: 5),
                           Text(
                             _dt(
                               context,
-                              'Works with compatible cameras using ONVIF and/or RTSP, including Dahua, Hikvision and other IP camera brands.',
-                              'تعمل مع الكاميرات المتوافقة عبر ONVIF و/أو RTSP، بما فيها Dahua وHikvision وغيرها من كاميرات IP.',
-                              'Werkt met compatibele camera’s via ONVIF en/of RTSP, waaronder Dahua, Hikvision en andere IP-cameramerken.',
+                              'Vet AI tests ONVIF and/or RTSP against the camera before it can be added.',
+                              'يقوم Vet AI باختبار ONVIF و/أو RTSP مع الكاميرا فعليًا قبل السماح بإضافتها.',
+                              'Vet AI test ONVIF en/of RTSP echt met de camera voordat deze kan worden toegevoegd.',
                             ),
                             style: const TextStyle(color: VetColors.muted, height: 1.4),
                           ),
@@ -231,23 +374,13 @@ class _DahuaThermalCameraOnboardingPageState
               ),
             ),
             const SizedBox(height: 18),
-            TextField(
-              controller: name,
-              enabled: !busy,
-              decoration: InputDecoration(
-                labelText: _dt(context, 'Camera name', 'اسم الكاميرا', 'Cameranaam'),
-                prefixIcon: const Icon(Icons.videocam_outlined),
-              ),
-            ),
+            _field(name, _dt(context, 'Camera name', 'اسم الكاميرا', 'Cameranaam'), Icons.videocam_outlined),
             const SizedBox(height: 12),
-            TextField(
-              controller: manufacturer,
-              enabled: !busy,
-              decoration: InputDecoration(
-                labelText: _dt(context, 'Manufacturer (optional)', 'الشركة المصنعة (اختياري)', 'Fabrikant (optioneel)'),
-                hintText: 'Dahua, Hikvision, Uniview, Axis…',
-                prefixIcon: const Icon(Icons.factory_outlined),
-              ),
+            _field(
+              manufacturer,
+              _dt(context, 'Manufacturer (optional)', 'الشركة المصنعة (اختياري)', 'Fabrikant (optioneel)'),
+              Icons.factory_outlined,
+              hintText: 'Dahua, Hikvision, Uniview, Axis…',
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
@@ -257,95 +390,42 @@ class _DahuaThermalCameraOnboardingPageState
                 prefixIcon: const Icon(Icons.category_outlined),
               ),
               items: [
-                DropdownMenuItem(
-                  value: 'standard',
-                  child: Text(_dt(context, 'Standard IP camera', 'كاميرا IP عادية', 'Standaard IP-camera')),
-                ),
-                DropdownMenuItem(
-                  value: 'thermal',
-                  child: Text(_dt(context, 'Thermal camera', 'كاميرا حرارية', 'Thermische camera')),
-                ),
+                DropdownMenuItem(value: 'standard', child: Text(_dt(context, 'Standard IP camera', 'كاميرا IP عادية', 'Standaard IP-camera'))),
+                DropdownMenuItem(value: 'thermal', child: Text(_dt(context, 'Thermal camera', 'كاميرا حرارية', 'Thermische camera'))),
               ],
               onChanged: busy ? null : (v) => setState(() => cameraType = v ?? cameraType),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: host,
-              enabled: !busy,
-              keyboardType: TextInputType.url,
-              decoration: InputDecoration(
-                labelText: _dt(context, 'IP address / hostname', 'IP / اسم الشبكة', 'IP-adres / hostnaam'),
-                hintText: '192.168.1.120',
-                prefixIcon: const Icon(Icons.lan_outlined),
-              ),
-            ),
+            _field(host, _dt(context, 'IP address / hostname', 'IP / اسم الشبكة', 'IP-adres / hostnaam'), Icons.lan_outlined, keyboardType: TextInputType.url, hintText: '192.168.1.120'),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: port,
-                    enabled: !busy,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: _dt(context, 'HTTP port', 'منفذ HTTP', 'HTTP-poort'),
-                    ),
-                  ),
-                ),
+                Expanded(child: _field(port, _dt(context, 'HTTP port', 'منفذ HTTP', 'HTTP-poort'), Icons.http_rounded, keyboardType: TextInputType.number)),
                 const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: rtspPort,
-                    enabled: !busy,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: _dt(context, 'RTSP port', 'منفذ RTSP', 'RTSP-poort'),
-                    ),
-                  ),
-                ),
+                Expanded(child: _field(rtspPort, _dt(context, 'RTSP port', 'منفذ RTSP', 'RTSP-poort'), Icons.settings_ethernet_rounded, keyboardType: TextInputType.number)),
               ],
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: username,
-              enabled: !busy,
-              decoration: InputDecoration(
-                labelText: _dt(context, 'Username', 'اسم المستخدم', 'Gebruikersnaam'),
-                prefixIcon: const Icon(Icons.person_outline_rounded),
-              ),
-            ),
+            _field(username, _dt(context, 'Username', 'اسم المستخدم', 'Gebruikersnaam'), Icons.person_outline_rounded),
             const SizedBox(height: 12),
             TextField(
               controller: password,
               enabled: !busy,
               obscureText: !passwordVisible,
               decoration: InputDecoration(
-                labelText: _dt(context, 'Password (not stored)', 'كلمة المرور (لن يتم تخزينها)', 'Wachtwoord (niet opgeslagen)'),
+                labelText: _dt(context, 'Password', 'كلمة المرور', 'Wachtwoord'),
+                helperText: _dt(context, 'Saved only in secure device storage', 'تُحفظ فقط في التخزين الآمن على الجهاز', 'Alleen opgeslagen in beveiligde apparaatopslag'),
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
                 suffixIcon: IconButton(
-                  onPressed: () => setState(() => passwordVisible = !passwordVisible),
+                  onPressed: busy ? null : () => setState(() => passwordVisible = !passwordVisible),
                   icon: Icon(passwordVisible ? Icons.visibility_off_rounded : Icons.visibility_rounded),
                 ),
               ),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: model,
-              enabled: !busy,
-              decoration: InputDecoration(
-                labelText: _dt(context, 'Model (optional)', 'الموديل (اختياري)', 'Model (optioneel)'),
-                prefixIcon: const Icon(Icons.memory_rounded),
-              ),
-            ),
+            _field(model, _dt(context, 'Model (optional)', 'الموديل (اختياري)', 'Model (optioneel)'), Icons.memory_rounded),
             const SizedBox(height: 12),
-            TextField(
-              controller: serial,
-              enabled: !busy,
-              decoration: InputDecoration(
-                labelText: _dt(context, 'Serial number (optional)', 'السيريال (اختياري)', 'Serienummer (optioneel)'),
-                prefixIcon: const Icon(Icons.qr_code_2_rounded),
-              ),
-            ),
+            _field(serial, _dt(context, 'Serial number (optional)', 'السيريال (اختياري)', 'Serienummer (optioneel)'), Icons.qr_code_2_rounded),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               value: protocol,
@@ -358,7 +438,14 @@ class _DahuaThermalCameraOnboardingPageState
                 DropdownMenuItem(value: 'ONVIF', child: Text('ONVIF')),
                 DropdownMenuItem(value: 'RTSP', child: Text('RTSP')),
               ],
-              onChanged: busy ? null : (v) => setState(() => protocol = v ?? protocol),
+              onChanged: busy
+                  ? null
+                  : (v) => setState(() {
+                        protocol = v ?? protocol;
+                        testedSuccessfully = false;
+                        discoveredStreamUri = null;
+                        testDetails = null;
+                      }),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
@@ -368,51 +455,66 @@ class _DahuaThermalCameraOnboardingPageState
                 prefixIcon: const Icon(Icons.monitor_heart_outlined),
               ),
               items: [
-                DropdownMenuItem(
-                  value: 'general_monitoring',
-                  child: Text(_dt(context, 'General monitoring', 'مراقبة عامة', 'Algemene monitoring')),
-                ),
-                DropdownMenuItem(
-                  value: 'animal_monitoring',
-                  child: Text(_dt(context, 'Animal monitoring', 'مراقبة الحيوانات', 'Diermonitoring')),
-                ),
-                DropdownMenuItem(
-                  value: 'barn_monitoring',
-                  child: Text(_dt(context, 'Barn / area monitoring', 'مراقبة الحظيرة / المكان', 'Stal / ruimtemonitoring')),
-                ),
-                DropdownMenuItem(
-                  value: 'temperature_monitoring',
-                  child: Text(_dt(context, 'Temperature monitoring', 'مراقبة الحرارة', 'Temperatuurmonitoring')),
-                ),
+                DropdownMenuItem(value: 'general_monitoring', child: Text(_dt(context, 'General monitoring', 'مراقبة عامة', 'Algemene monitoring'))),
+                DropdownMenuItem(value: 'animal_monitoring', child: Text(_dt(context, 'Animal monitoring', 'مراقبة الحيوانات', 'Diermonitoring'))),
+                DropdownMenuItem(value: 'barn_monitoring', child: Text(_dt(context, 'Barn / area monitoring', 'مراقبة الحظيرة / المكان', 'Stal / ruimtemonitoring'))),
+                DropdownMenuItem(value: 'temperature_monitoring', child: Text(_dt(context, 'Temperature monitoring', 'مراقبة الحرارة', 'Temperatuurmonitoring'))),
               ],
               onChanged: busy ? null : (v) => setState(() => purpose = v ?? purpose),
             ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: busy ? null : _save,
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: busy ? null : _testConnection,
               icon: busy
-                  ? const SizedBox.square(
-                      dimension: 19,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.add_link_rounded),
+                  ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(testedSuccessfully ? Icons.verified_rounded : Icons.network_check_rounded),
               label: Text(_dt(
                 context,
-                busy ? 'Adding camera…' : 'Add camera',
-                busy ? 'جاري إضافة الكاميرا…' : 'إضافة كاميرا',
-                busy ? 'Camera toevoegen…' : 'Camera toevoegen',
+                testedSuccessfully ? 'Connection verified' : 'Test camera connection',
+                testedSuccessfully ? 'تم التحقق من الاتصال' : 'اختبار اتصال الكاميرا',
+                testedSuccessfully ? 'Verbinding gecontroleerd' : 'Cameraverbinding testen',
               )),
+            ),
+            if (testedSuccessfully || testDetails != null || discoveredStreamUri != null) ...[
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        testedSuccessfully ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                        color: testedSuccessfully ? VetColors.green : Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          testedSuccessfully
+                              ? _dt(context, 'Real camera connection succeeded.${discoveredStreamUri == null ? '' : '\nRTSP stream discovered automatically.'}', 'نجح الاتصال الحقيقي بالكاميرا.${discoveredStreamUri == null ? '' : '\nتم اكتشاف رابط RTSP تلقائيًا.'}', 'Echte cameraverbinding gelukt.${discoveredStreamUri == null ? '' : '\nRTSP-stream automatisch gevonden.'}')
+                              : (testDetails ?? _dt(context, 'Connection failed.', 'فشل الاتصال.', 'Verbinding mislukt.')),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: busy || !testedSuccessfully ? null : _save,
+              icon: const Icon(Icons.add_link_rounded),
+              label: Text(_dt(context, 'Add connected camera', 'إضافة الكاميرا المتصلة', 'Verbonden camera toevoegen')),
             ),
             const SizedBox(height: 10),
             Text(
               _dt(
                 context,
-                'Compatibility depends on the camera exposing ONVIF and/or RTSP. The camera password is not written to the Vet AI database.',
-                'التوافق يعتمد على دعم الكاميرا لـ ONVIF و/أو RTSP. كلمة مرور الكاميرا لا يتم حفظها في قاعدة بيانات Vet AI.',
-                'Compatibiliteit hangt af van ONVIF- en/of RTSP-ondersteuning. Het camerawachtwoord wordt niet in de Vet AI-database opgeslagen.',
+                'The password is never written to Supabase. It is kept in platform secure storage for future camera sessions.',
+                'لن تتم كتابة كلمة المرور في Supabase. تُحفظ في التخزين الآمن للجهاز لاستخدام الكاميرا لاحقًا.',
+                'Het wachtwoord wordt nooit naar Supabase geschreven en blijft in beveiligde apparaatopslag.',
               ),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: VetColors.muted, fontSize: 12.5),
+              style: const TextStyle(fontSize: 12, color: VetColors.muted, height: 1.35),
             ),
           ],
         ),
