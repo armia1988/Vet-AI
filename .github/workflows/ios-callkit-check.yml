@@ -6,8 +6,12 @@ on:
     branches: [main]
     paths:
       - 'tools/patch_v66*.py'
+      - 'tools/patch_v67*.py'
+      - 'tools/patch_v68*.py'
+      - 'assets/audio/**'
+      - 'pubspec.yaml'
       - 'lib/services/callkit_service.dart'
-      - 'lib/support/callkit_coordinator.dart'
+      - 'lib/support/**'
       - 'supabase/functions/support-call-*/**'
       - '.github/workflows/ios-callkit-check.yml'
 
@@ -68,6 +72,16 @@ jobs:
         run: flutter pub get
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Verify V67-V68 call reliability fixes
+        run: |
+          grep -q "senderClientId: endpointId" lib/support/support_webrtc_call_page.dart
+          grep -q "await Helper.switchCamera(oldTracks.first);" lib/support/support_webrtc_call_page.dart
+          ! grep -q "Camera switch was not completed" lib/support/support_webrtc_call_page.dart
+          grep -q "remoteRenderer.srcObject = fallbackStream" lib/support/support_webrtc_call_page.dart
+          grep -q "vet_ai_chat_send.wav" lib/support/support_chat_sound.dart
+          grep -q "vet_ai_chat_receive.wav" lib/support/support_chat_sound.dart
+          grep -q "vet_ai_call_outgoing.wav" lib/support/support_call_tone.dart
+          grep -q 'ringtoneSound = "vet_ai_incoming_call.caf"' ios/Runner/AppDelegate.swift
       - name: Compile iOS without signing
         run: flutter build ios --release --no-codesign -t lib/main_v2.dart
       - name: Verify CallKit bundle configuration
