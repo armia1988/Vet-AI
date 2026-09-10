@@ -108,6 +108,22 @@ class CameraAlertRepository {
     );
   }
 
+  Future<List<Map<String, dynamic>>> recentForFarm({
+    required String farmId,
+    int limit = 250,
+  }) async {
+    final rows = await VetBackend.instance.client
+        .from('alerts')
+        .select()
+        .eq('farm_id', farmId)
+        .eq('source', 'camera')
+        .order('created_at', ascending: false)
+        .limit(limit);
+    return List<Map<String, dynamic>>.from(
+      rows.map((e) => Map<String, dynamic>.from(e)),
+    );
+  }
+
   Future<double> thermalCriticalThreshold({
     required String farmId,
     required String cameraUid,
@@ -158,6 +174,33 @@ class CameraAlertRepository {
         .update({
           'acknowledged_at': DateTime.now().toUtc().toIso8601String(),
           'acknowledged_by': userId,
+        })
+        .eq('id', alertId);
+  }
+
+  Future<void> resolve(String alertId) async {
+    final userId = VetBackend.instance.client.auth.currentUser?.id;
+    if (userId == null) throw StateError('Sign-in required to resolve alerts');
+    final now = DateTime.now().toUtc().toIso8601String();
+    await VetBackend.instance.client
+        .from('alerts')
+        .update({
+          'admin_status': 'resolved',
+          'resolved_at': now,
+          'resolved_by': userId,
+          'acknowledged_at': now,
+          'acknowledged_by': userId,
+        })
+        .eq('id', alertId);
+  }
+
+  Future<void> reopen(String alertId) async {
+    await VetBackend.instance.client
+        .from('alerts')
+        .update({
+          'admin_status': 'open',
+          'resolved_at': null,
+          'resolved_by': null,
         })
         .eq('id', alertId);
   }
