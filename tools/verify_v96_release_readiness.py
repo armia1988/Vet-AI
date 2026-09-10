@@ -12,6 +12,7 @@ required_files = [
     'lib/monitoring/camera_gateway_page.dart',
     'lib/monitoring/camera_alert_center_page.dart',
     'tools/vet_ai_camera_gateway.py',
+    'tools/patch_v95a_materialized_idempotency.py',
     'codemagic.yaml',
 ]
 for path in required_files:
@@ -72,6 +73,7 @@ required_patches = [
     'patch_v93_camera_gateway.py',
     'patch_v93a_camera_gateway_compile_fix.py',
     'patch_v95_camera_wall_performance.py',
+    'patch_v95a_materialized_idempotency.py',
 ]
 for patch in required_patches:
     if patch not in codemagic:
