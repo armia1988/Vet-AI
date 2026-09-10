@@ -63,6 +63,7 @@ jobs:
           python3 tools/patch_v62c_company_manager_routes.py
           python3 tools/patch_v63d_admin_mobile_accounts_profile_reports.py
           python3 tools/patch_v63e_profile_metadata_nullsafe.py
+          python3 tools/patch_v82_camera_live_digest.py
       - name: Get dependencies
         run: flutter pub get
       - name: Analyze
