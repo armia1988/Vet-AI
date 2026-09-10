@@ -9,12 +9,18 @@ on:
       - 'tools/patch_v90*.py'
       - 'tools/patch_v91*.py'
       - 'tools/patch_v92*.py'
+      - 'tools/patch_v93*.py'
+      - 'tools/vet_ai_camera_gateway.py'
+      - 'tools/camera_gateway_config.example.json'
       - 'lib/monitoring/camera_intelligence_service.dart'
       - 'lib/monitoring/camera_intelligence_page.dart'
       - 'lib/monitoring/onvif_analytics_events_service.dart'
       - 'lib/monitoring/camera_event_classifier.dart'
       - 'lib/monitoring/camera_alert_repository.dart'
       - 'lib/monitoring/camera_alert_center_page.dart'
+      - 'lib/monitoring/camera_gateway_page.dart'
+      - 'supabase/functions/camera-gateway-ingest/**'
+      - 'supabase/migrations/*camera_gateway*'
       - '.github/workflows/ios-v87-camera-intelligence-check.yml'
 
 concurrency:
@@ -78,21 +84,25 @@ jobs:
           python3 tools/patch_v90_camera_alert_persistence.py
           python3 tools/patch_v91_camera_alert_hardening.py
           python3 tools/patch_v92_camera_alert_center.py
+          python3 tools/patch_v93_camera_gateway.py
+      - name: Check local camera gateway agent
+        run: python3 -m py_compile tools/vet_ai_camera_gateway.py
       - name: Dependencies
         run: flutter pub get
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - name: Verify V92 camera alert center
+      - name: Verify V93 local camera gateway
         run: |
           grep -q "ISAPI/Thermal/capabilities" lib/monitoring/camera_intelligence_service.dart
-          grep -q "CameraIntelligencePage" lib/monitoring/camera_center_page.dart
-          grep -q "_persistCameraAlerts" lib/monitoring/camera_intelligence_page.dart
-          grep -q "thermal_alert_threshold_c" lib/monitoring/camera_alert_repository.dart
           grep -q "class CameraAlertCenterPage" lib/monitoring/camera_alert_center_page.dart
-          grep -q "_unacknowledgedCount" lib/monitoring/camera_alert_center_page.dart
-          grep -q "repository.resolve(id)" lib/monitoring/camera_alert_center_page.dart
-          grep -q "repository.reopen(id)" lib/monitoring/camera_alert_center_page.dart
-          grep -q "CameraAlertCenterPage(farmId: widget.farmId)" lib/monitoring/camera_center_page.dart
-          grep -q "CameraAlertCenterPage(farmId: farmId)" lib/v5_app.dart
+          grep -q "class CameraGatewayPage" lib/monitoring/camera_gateway_page.dart
+          grep -q "device_secret_hash': tokenHash" lib/monitoring/camera_gateway_page.dart
+          grep -q "CameraGatewayPage(farmId: widget.farmId)" lib/monitoring/camera_center_page.dart
+          grep -q "CameraGatewayPage(farmId: farmId)" lib/v5_app.dart
+          grep -q "CreatePullPointSubscription" tools/vet_ai_camera_gateway.py
+          grep -q "PullMessages" tools/vet_ai_camera_gateway.py
+          grep -q "camera-gateway-ingest" tools/vet_ai_camera_gateway.py
+          grep -q "thermal_alert_threshold_c" supabase/functions/camera-gateway-ingest/index.ts
+          grep -q "camera_gateway_status" supabase/functions/camera-gateway-ingest/index.ts
       - name: Compile iOS without signing
         run: flutter build ios --release --no-codesign -t lib/main_v2.dart
