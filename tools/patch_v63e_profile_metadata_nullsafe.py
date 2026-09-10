@@ -112,3 +112,4 @@ runpy.run_path('tools/patch_v69c_agent_call_actions_compat.py', run_name='__main
 runpy.run_path('tools/patch_v69_whatsapp_voice_foreground_chat.py', run_name='__main__')
 runpy.run_path('tools/patch_v70_chat_instant_send_sound.py', run_name='__main__')
 runpy.run_path('tools/patch_v71_support_voice_rbac_stability.py', run_name='__main__')
+runpy.run_path('tools/patch_v72_whatsapp_voice_recording_bar.py', run_name='__main__')
