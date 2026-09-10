@@ -126,7 +126,8 @@ p.write_text(s, encoding='utf-8')
 # Silence stays as a center dot/short line; speech creates symmetric bars around
 # the center line. Controls are compact: cancel, timer, live wave, pause, send.
 # ---------------------------------------------------------------------------
-Path('lib/support/support_voice_recorder_bar.dart').write_text(r'''import 'package:flutter/material.dart';
+Path('lib/support/support_voice_recorder_bar.dart').write_text(r'''import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 class VetSupportVoiceRecorderBar extends StatefulWidget {
   const VetSupportVoiceRecorderBar({
@@ -303,7 +304,7 @@ for required_file, required_tokens in {
     'lib/support/support_chat_v6.dart': ['resizeToAvoidBottomInset: !kIsWeb', 'scrollPadding: kIsWeb ? EdgeInsets.zero'],
     'lib/support/support_agent_thread_v2.dart': ['resizeToAvoidBottomInset: !kIsWeb', 'scrollPadding: kIsWeb ? EdgeInsets.zero'],
     'lib/support/support_voice_note.dart': ['playVetVoiceBytes(', 'cachedAudioBytes = null'],
-    'lib/support/support_voice_recorder_bar.dart': ['List<double>.filled(46, 0)', 'height: value == 0 ? 2.2', 'Icons.arrow_upward_rounded'],
+    'lib/support/support_voice_recorder_bar.dart': ["import 'package:flutter/foundation.dart';", 'ValueListenable<double> level', 'List<double>.filled(46, 0)', 'height: value == 0 ? 2.2', 'Icons.arrow_upward_rounded'],
 }.items():
     text = Path(required_file).read_text(encoding='utf-8')
     for token in required_tokens:
