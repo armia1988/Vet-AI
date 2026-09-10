@@ -1,8 +1,8 @@
 from pathlib import Path
 
-# V81: add Dahua thermal camera as a first-class monitoring device.
-# The camera is registered in sensor_devices using the existing farm RLS model.
-# Sensitive camera passwords are intentionally not persisted.
+# V81: add generic IP camera onboarding as a first-class monitoring device.
+# Compatible cameras can use ONVIF and/or RTSP. Standard and thermal cameras
+# are supported. Camera passwords are intentionally not persisted.
 
 p = Path('lib/v5_app.dart')
 s = p.read_text(encoding='utf-8')
@@ -38,7 +38,7 @@ if 'DahuaThermalCameraOnboardingPage(' not in s:
                 );
                 if (added == true && mounted) _retry();
               },
-              icon: const Icon(Icons.thermostat_rounded, size: 28),
+              icon: const Icon(Icons.videocam_rounded, size: 28),
               label: Text(
                 tr(
                   context,
@@ -70,11 +70,13 @@ checks = {
         'Add camera',
     ],
     'lib/monitoring/dahua_thermal_camera_onboarding_page.dart': [
-        "device_type': 'thermal_camera'",
-        "'vendor': 'Dahua'",
+        "'device_type': isThermal ? 'thermal_camera' : 'ip_camera'",
+        "? 'Generic'",
+        "'camera_type': cameraType",
         "onConflict: 'device_uid'",
         "'credentials_storage': 'password_not_stored'",
         'ONVIF + RTSP',
+        'Hikvision',
     ],
 }
 for path, markers in checks.items():
@@ -83,4 +85,4 @@ for path, markers in checks.items():
         if marker not in text:
             raise SystemExit(f'V81 verification missing in {path}: {marker}')
 
-print('Vet AI V81 applied: thermal camera onboarding added to customer Sensors panel')
+print('Vet AI V81 applied: generic ONVIF/RTSP standard and thermal camera onboarding added')
