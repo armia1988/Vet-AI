@@ -110,3 +110,4 @@ runpy.run_path('tools/patch_v69a_customer_sound_appbar_compat.py', run_name='__m
 runpy.run_path('tools/patch_v69b_composer_anchor_compat.py', run_name='__main__')
 runpy.run_path('tools/patch_v69c_agent_call_actions_compat.py', run_name='__main__')
 runpy.run_path('tools/patch_v69_whatsapp_voice_foreground_chat.py', run_name='__main__')
+runpy.run_path('tools/patch_v70_chat_instant_send_sound.py', run_name='__main__')
