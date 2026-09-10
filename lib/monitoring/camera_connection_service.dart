@@ -151,7 +151,10 @@ class CameraConnectionService {
 
     final token = _firstMatch(
       profilesResponse,
-      RegExp(r'<(?:\w+:)?Profiles\b[^>]*\btoken=["\']([^"\']+)["\']', caseSensitive: false),
+      RegExp(
+        r'''<(?:\w+:)?Profiles\b[^>]*\btoken=["']([^"']+)["']''',
+        caseSensitive: false,
+      ),
     );
     if (token == null || token.isEmpty) {
       throw const FormatException('No ONVIF media profile returned');
