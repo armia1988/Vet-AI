@@ -27,9 +27,10 @@ for file_path in [
     s = s.replace('scrollPadding: const EdgeInsets.only(bottom: 140),', 'scrollPadding: EdgeInsets.zero,')
     p.write_text(s, encoding='utf-8')
 
-# Admin chat auto-scroll must not animate the entire viewport while the iOS
-# keyboard is visible. A direct jump keeps the last message visible without the
-# visible up/down oscillation in Safari.
+# Admin chat auto-scroll implementations have changed across generated versions.
+# Where the legacy animated block still exists, suppress animation while the
+# keyboard is open. The core viewport fix above is intentionally independent of
+# this optional optimization so generated-source differences cannot break builds.
 p = Path('lib/support/support_agent_thread_v2.dart')
 s = p.read_text(encoding='utf-8')
 old = """      if (animated) {
@@ -53,7 +54,8 @@ new = """      final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom >
         scroll.jumpTo(target);
       }
 """
-s = replace_required(s, old, new, 'admin keyboard-safe autoscroll')
+if old in s:
+    s = s.replace(old, new, 1)
 p.write_text(s, encoding='utf-8')
 
 
@@ -123,7 +125,6 @@ new_toggle = r'''  Future<void> toggle() async {
         bytes = cachedAudioBytes;
       }
       if (bytes == null || bytes.isEmpty) {
-        // The first preload can fail after a stale auth/session transition.
         preloadTask = _preloadAudio();
         await preloadTask;
         bytes = cachedAudioBytes;
@@ -187,11 +188,6 @@ s = s.replace(
                 'frameRate': <String, dynamic>{'ideal': 20, 'max': 24},
 """,
 )
-
-# Avoid declaring a call connected merely because a track object arrived; on
-# iOS this can happen before ICE has a viable path, which produces the brief
-# one-second picture followed by an immediate reconnect banner. Connection
-# state is the authoritative source.
 s = s.replace(
     """        if (mounted) setState(() => connectionLabel = 'Connected');
 """,
