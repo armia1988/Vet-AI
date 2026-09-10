@@ -9,6 +9,7 @@ on:
       - 'tools/patch_v67*.py'
       - 'tools/patch_v68*.py'
       - 'tools/patch_v69*.py'
+      - 'tools/patch_v70*.py'
       - 'assets/audio/**'
       - 'pubspec.yaml'
       - 'lib/services/callkit_service.dart'
@@ -73,7 +74,7 @@ jobs:
         run: flutter pub get
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - name: Verify V67-V69 call and chat reliability fixes
+      - name: Verify V67-V70 call and chat reliability fixes
         run: |
           grep -q "senderClientId: endpointId" lib/support/support_webrtc_call_page.dart
           grep -q "await Helper.switchCamera(oldTracks.first);" lib/support/support_webrtc_call_page.dart
@@ -82,6 +83,9 @@ jobs:
           grep -q "remoteFallbackStream" lib/support/support_webrtc_call_page.dart
           grep -q "vet_ai_chat_send.wav" lib/support/support_chat_sound.dart
           grep -q "vet_ai_chat_receive.wav" lib/support/support_chat_sound.dart
+          grep -q "volume: 0.92" lib/support/support_chat_sound.dart
+          grep -q "volume: 0.88" lib/support/support_chat_sound.dart
+          grep -q "position: Duration.zero" lib/support/support_chat_sound.dart
           grep -q "vet_ai_call_outgoing.wav" lib/support/support_call_tone.dart
           grep -q 'ringtoneSound = "vet_ai_incoming_call.caf"' ios/Runner/AppDelegate.swift
           grep -q "AudioRecorder" lib/support/support_voice_note.dart
@@ -90,6 +94,22 @@ jobs:
           grep -q "Icons.photo_camera_outlined" lib/support/support_agent_thread_v2.dart
           grep -q "VetSupportChatNotice.show" lib/support/support_agent_thread_v2.dart
           grep -q "VetSupportChatSound.muted" lib/support/support_agent_thread_v2.dart
+          python3 - <<'PY'
+          from pathlib import Path
+          checks = [
+              ('lib/support/support_chat_v6.dart', '  Future<void> _sendText() async {', '  Future<bool> _confirmAccess('),
+              ('lib/support/support_agent_thread_v2.dart', '  Future<void> _send() async {', '  Future<void> _showAttachmentMenu() async {'),
+          ]
+          for path, start_marker, end_marker in checks:
+              text = Path(path).read_text(encoding='utf-8')
+              start = text.index(start_marker)
+              end = text.index(end_marker, start)
+              method = text[start:end]
+              assert 'sending = true' not in method
+              assert 'setState(() => sending = true)' not in method
+              assert 'await VetSupportChatSound.playSend();' in method
+          print('V70 plain text send has no loading-state spinner')
+          PY
       - name: Compile iOS without signing
         run: flutter build ios --release --no-codesign -t lib/main_v2.dart
       - name: Verify CallKit bundle configuration
