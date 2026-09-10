@@ -1,0 +1,118 @@
+name: iOS V96 Release Readiness
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'codemagic.yaml'
+      - 'tools/verify_v96_release_readiness.py'
+      - 'tools/patch_v82*.py'
+      - 'tools/patch_v83*.py'
+      - 'tools/patch_v84*.py'
+      - 'tools/patch_v85*.py'
+      - 'tools/patch_v87*.py'
+      - 'tools/patch_v90*.py'
+      - 'tools/patch_v91*.py'
+      - 'tools/patch_v92*.py'
+      - 'tools/patch_v93*.py'
+      - 'tools/patch_v95*.py'
+      - 'tools/vet_ai_camera_gateway.py'
+      - 'lib/monitoring/**'
+      - 'lib/v5_app.dart'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/ios-v96-release-readiness.yml'
+
+concurrency:
+  group: ios-v96-release-readiness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-readiness:
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate release-native projects and permissions
+        run: |
+          flutter create . --platforms=ios,android --project-name app --org com.vetai
+          rm -f test/widget_test.dart
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Vet AI uses the camera to capture animal health images for veterinary assessment and support video calls.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Vet AI uses the camera to capture animal health images for veterinary assessment and support video calls.'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Vet AI uses the microphone only when you choose to join a support voice or video call.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Vet AI uses the microphone only when you choose to join a support voice or video call.'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSLocalNetworkUsageDescription string 'Vet AI connects to IP cameras on your local network for live monitoring and veterinary alerts.'" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Set :NSLocalNetworkUsageDescription 'Vet AI connects to IP cameras on your local network for live monitoring and veterinary alerts.'" ios/Runner/Info.plist
+          sed -i '' "/target 'Runner' do/a\\
+            use_frameworks!
+          " ios/Podfile
+          python3 - <<'PY'
+          import plistlib
+          path = 'ios/Runner/Info.plist'
+          with open(path, 'rb') as f:
+              data = plistlib.load(f)
+          ats = dict(data.get('NSAppTransportSecurity') or {})
+          ats['NSAllowsArbitraryLoads'] = True
+          data['NSAppTransportSecurity'] = ats
+          with open(path, 'wb') as f:
+              plistlib.dump(data, f)
+          PY
+
+      - name: Apply exact production patch chain through V95
+        run: |
+          python3 -m pip install --quiet --break-system-packages pillow
+          python3 tools/patch_v37_egyptian_voice.py
+          python3 tools/force_voice_playback.py
+          python3 tools/patch_v40_voice_pipeline.py
+          python3 tools/patch_v41_instant_voice_prewarm.py
+          python3 tools/patch_v43_eu_legal_pages.py
+          python3 tools/patch_v44_apns_push.py
+          python3 tools/patch_v45_apns_bridge_reliability.py
+          python3 tools/patch_v46_apns_uiscene_bridge.py
+          python3 tools/patch_v47_custom_alert_sounds.py
+          python3 tools/patch_v48_verified_custom_alert_sounds.py
+          python3 tools/patch_v49_admin_compile_cleanup.py
+          python3 tools/patch_v50_admin_chat_accounts_sensors.py
+          python3 tools/patch_v51_file_picker_compile.py
+          python3 tools/patch_v52_web_chat_company_scroll.py
+          python3 tools/patch_v53_support_operations_import.py
+          python3 tools/patch_v54_native_webrtc_calls.py
+          python3 tools/patch_v55_whatsapp_rich_chat_profiles.py
+          python3 tools/patch_v56_webrtc_audio_hangup.py
+          python3 tools/patch_v57_camera_switch_drag_preview.py
+          python3 tools/patch_v58_ios_safari_camera_flip.py
+          python3 tools/patch_v59_call_smoothing_whatsapp_icons.py
+          python3 tools/patch_v60_instant_camera_flip_black_off.py
+          python3 tools/patch_v61b_admin_instant_navigation.py
+          python3 tools/patch_v62b_admin_accounts_animals_sensors.py
+          python3 tools/patch_v62c_company_manager_routes.py
+          python3 tools/patch_v63d_admin_mobile_accounts_profile_reports.py
+          python3 tools/patch_v63e_profile_metadata_nullsafe.py
+          python3 tools/patch_v82_camera_live_digest.py
+          python3 tools/patch_v83_professional_camera_center.py
+          python3 tools/patch_v84_onvif_network_discovery.py
+          python3 tools/patch_v85_onvif_ptz_controls.py
+          python3 tools/patch_v87_camera_intelligence.py
+          python3 tools/patch_v90_camera_alert_persistence.py
+          python3 tools/patch_v91_camera_alert_hardening.py
+          python3 tools/patch_v92_camera_alert_center.py
+          python3 tools/patch_v93_camera_gateway.py
+          python3 tools/patch_v93a_camera_gateway_compile_fix.py
+          python3 tools/patch_v95_camera_wall_performance.py
+
+      - name: V96 production release guard
+        run: |
+          python3 -m py_compile tools/vet_ai_camera_gateway.py
+          python3 tools/verify_v96_release_readiness.py
+
+      - name: Dependencies
+        run: flutter pub get
+
+      - name: Analyze release source
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Compile release iOS without signing
+        run: flutter build ios --release --no-codesign -t lib/main_v2.dart
