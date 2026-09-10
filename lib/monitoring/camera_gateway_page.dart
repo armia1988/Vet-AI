@@ -79,7 +79,10 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
 
   String _randomSuffix() {
     final random = Random.secure();
-    return List<int>.generate(5, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
+    return List<String>.generate(
+      5,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
   }
 
   Future<void> _createGateway() async {
@@ -97,7 +100,10 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () {
               final value = nameController.text.trim();
@@ -171,7 +177,13 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                Text(
+                  name,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 8),
                 const Text(
                   'Save this token now. Vet AI stores only its SHA-256 hash, so the original token cannot be shown again.',
@@ -188,7 +200,7 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'After the agent starts, the phone can be closed. The gateway keeps ONVIF subscriptions and supported thermal polling alive and forwards events to Vet AI.',
+                  'After the agent starts, the phone can be closed. The gateway renews ONVIF subscriptions, reconnects failed camera links and forwards supported thermal readings to Vet AI.',
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
               ],
@@ -213,7 +225,10 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  Text(
+                    label,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
                   const SizedBox(height: 5),
                   SelectableText(value),
                 ],
@@ -224,7 +239,9 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
               onPressed: () async {
                 await Clipboard.setData(ClipboardData(text: value));
                 if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$label copied')));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('$label copied')),
+                );
               },
               icon: const Icon(Icons.copy_rounded),
             ),
@@ -245,7 +262,9 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not ${active ? 'enable' : 'disable'} gateway: $e')),
+          SnackBar(
+            content: Text('Could not ${active ? 'enable' : 'disable'} gateway: $e'),
+          ),
         );
       }
     }
@@ -253,9 +272,12 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
 
   bool _online(Map<String, dynamic>? status, bool active) {
     if (!active || status == null) return false;
-    final parsed = DateTime.tryParse((status['last_heartbeat_at'] ?? '').toString());
+    final parsed = DateTime.tryParse(
+      (status['last_heartbeat_at'] ?? '').toString(),
+    );
     if (parsed == null) return false;
-    return DateTime.now().toUtc().difference(parsed.toUtc()) < const Duration(seconds: 90);
+    return DateTime.now().toUtc().difference(parsed.toUtc()) <
+        const Duration(seconds: 90);
   }
 
   String _time(dynamic raw) {
@@ -263,8 +285,13 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
     if (value == null) return 'Never';
     final local = value.toLocal();
     String two(int v) => v.toString().padLeft(2, '0');
-    return '${local.year}-${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
+    return '${local.year}-${two(local.month)}-${two(local.day)} '
+        '${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
   }
+
+  Map<String, dynamic> _map(dynamic raw) => raw is Map
+      ? Map<String, dynamic>.from(raw)
+      : <String, dynamic>{};
 
   @override
   Widget build(BuildContext context) {
@@ -275,7 +302,11 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
         foregroundColor: Colors.white,
         title: const Text('Local Camera Gateway'),
         actions: [
-          IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh'),
+          IconButton(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Refresh',
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -295,7 +326,10 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
                     children: [
                       _explanation(),
                       const SizedBox(height: 14),
-                      if (gateways.isEmpty) _emptyState() else ...gateways.map(_gatewayCard),
+                      if (gateways.isEmpty)
+                        _emptyState()
+                      else
+                        ...gateways.map(_gatewayCard),
                     ],
                   ),
                 ),
@@ -316,7 +350,7 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                '24/7 camera monitoring needs an always-on device inside the camera LAN. This gateway does that work locally and sends authenticated events to Vet AI. Supabase does not connect directly to private LAN cameras.',
+                '24/7 camera monitoring needs an always-on device inside the camera LAN. The V94 gateway renews PullPoint subscriptions before expiry, reconnects after network loss and reports separate event/thermal health for every camera.',
                 style: TextStyle(color: Colors.white70, height: 1.35),
               ),
             ),
@@ -329,13 +363,17 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
     final status = statusByDeviceId[id];
     final active = gateway['active'] == true;
     final online = _online(status, active);
-    final name = (gateway['display_name'] ?? gateway['controller_model'] ?? 'Camera Gateway').toString();
+    final name = (gateway['display_name'] ??
+            gateway['controller_model'] ??
+            'Camera Gateway')
+        .toString();
     final uid = (gateway['device_uid'] ?? '').toString();
     final camerasOnline = status?['cameras_online'] ?? 0;
     final camerasConfigured = status?['cameras_configured'] ?? 0;
     final events = status?['events_forwarded'] ?? 0;
     final thermal = status?['thermal_samples'] ?? 0;
     final lastError = (status?['last_error'] ?? '').toString().trim();
+    final runtime = _map(status?['runtime']);
 
     return Card(
       color: const Color(0xFF15191F),
@@ -347,37 +385,88 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
           children: [
             Row(
               children: [
-                Icon(online ? Icons.check_circle_rounded : Icons.cloud_off_rounded, color: online ? Colors.greenAccent : Colors.orangeAccent),
+                Icon(
+                  online
+                      ? Icons.check_circle_rounded
+                      : Icons.cloud_off_rounded,
+                  color: online ? Colors.greenAccent : Colors.orangeAccent,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      Text(online ? 'ONLINE — 24/7 agent heartbeat received' : active ? 'OFFLINE — no heartbeat in the last 90 seconds' : 'DISABLED', style: TextStyle(color: online ? Colors.greenAccent : Colors.orangeAccent, fontWeight: FontWeight.w700)),
+                      Text(
+                        online
+                            ? 'ONLINE — 24/7 agent heartbeat received'
+                            : active
+                                ? 'OFFLINE — no heartbeat in the last 90 seconds'
+                                : 'DISABLED',
+                        style: TextStyle(
+                          color: online
+                              ? Colors.greenAccent
+                              : Colors.orangeAccent,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                Switch(value: active, onChanged: (value) => _setActive(gateway, value)),
+                Switch(
+                  value: active,
+                  onChanged: (value) => _setActive(gateway, value),
+                ),
               ],
             ),
             const Divider(color: Colors.white12, height: 24),
             _row('Gateway UID', uid),
-            _row('Last heartbeat', _time(status?['last_heartbeat_at'] ?? gateway['last_seen_at'])),
+            _row(
+              'Last heartbeat',
+              _time(status?['last_heartbeat_at'] ?? gateway['last_seen_at']),
+            ),
             _row('Agent version', (status?['agent_version'] ?? '—').toString()),
             _row('Host', (status?['hostname'] ?? '—').toString()),
             _row('Cameras online', '$camerasOnline / $camerasConfigured'),
             _row('Events forwarded', '$events'),
             _row('Thermal samples', '$thermal'),
             _row('Last camera event', _time(status?['last_event_at'])),
+            if (runtime.isNotEmpty) ...[
+              const Divider(color: Colors.white12, height: 26),
+              const Text(
+                'Per-camera health',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...runtime.entries.map(
+                (entry) => _cameraHealthCard(entry.key, _map(entry.value)),
+              ),
+            ],
             if (lastError.isNotEmpty) ...[
               const SizedBox(height: 8),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.redAccent.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
-                child: Text(lastError, style: const TextStyle(color: Colors.redAccent)),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  lastError,
+                  style: const TextStyle(color: Colors.redAccent),
+                ),
               ),
             ],
           ],
@@ -386,13 +475,138 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
     );
   }
 
+  Widget _cameraHealthCard(String cameraUid, Map<String, dynamic> data) {
+    final online = data['online'] == true;
+    final eventsEnabled = data['events_enabled'] == true;
+    final eventsOk = data['events_ok'] == true;
+    final thermalEnabled = data['thermal_enabled'] == true;
+    final thermalOk = data['thermal_ok'] == true;
+    final lastError = (data['last_error'] ?? '').toString().trim();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 7),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF20252C),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(
+              online ? Icons.videocam_rounded : Icons.videocam_off_rounded,
+              color: online ? Colors.greenAccent : Colors.orangeAccent,
+              size: 19,
+            ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: SelectableText(
+                cameraUid,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 7),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              if (eventsEnabled) _healthChip('Events', eventsOk),
+              if (thermalEnabled) _healthChip('Thermal', thermalOk),
+              _countChip('Renewals', data['subscription_renewals']),
+              _countChip('Reconnects', data['reconnects']),
+              _countChip('Deduped', data['deduped_events']),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Last success: ${_time(data['last_success_at'])}',
+            style: const TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+          if (lastError.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                lastError,
+                style: const TextStyle(color: Colors.orangeAccent, fontSize: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _healthChip(String label, bool ok) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: (ok ? Colors.greenAccent : Colors.orangeAccent)
+              .withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              ok ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+              size: 14,
+              color: ok ? Colors.greenAccent : Colors.orangeAccent,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '$label ${ok ? 'OK' : 'DOWN'}',
+              style: TextStyle(
+                color: ok ? Colors.greenAccent : Colors.orangeAccent,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _countChip(String label, dynamic raw) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          '$label ${raw ?? 0}',
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
+
   Widget _row(String label, String value) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: 130, child: Text(label, style: const TextStyle(color: Colors.white54, fontWeight: FontWeight.w700))),
-            Expanded(child: SelectableText(value, style: const TextStyle(color: Colors.white))),
+            SizedBox(
+              width: 130,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            Expanded(
+              child: SelectableText(
+                value,
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
           ],
         ),
       );
@@ -403,9 +617,20 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
           children: [
             Icon(Icons.hub_outlined, size: 58, color: Colors.white38),
             SizedBox(height: 14),
-            Text('No local gateway yet', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+            Text(
+              'No local gateway yet',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             SizedBox(height: 8),
-            Text('Create one, install the agent on an always-on device in the farm LAN, then add your saved camera UIDs to its configuration.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white60)),
+            Text(
+              'Create one, install the agent on an always-on device in the farm LAN, then add your saved camera UIDs to its configuration.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white60),
+            ),
           ],
         ),
       );
@@ -416,9 +641,17 @@ class _CameraGatewayPageState extends State<CameraGatewayPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 52),
+              const Icon(
+                Icons.error_outline_rounded,
+                color: Colors.redAccent,
+                size: 52,
+              ),
               const SizedBox(height: 12),
-              Text(error ?? 'Could not load gateway status', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+              Text(
+                error ?? 'Could not load gateway status',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70),
+              ),
               const SizedBox(height: 14),
               FilledButton(onPressed: _load, child: const Text('Retry')),
             ],
