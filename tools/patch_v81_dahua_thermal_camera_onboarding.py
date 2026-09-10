@@ -2,7 +2,8 @@ from pathlib import Path
 
 # V81: add generic IP camera onboarding as a first-class monitoring device.
 # Compatible cameras can use ONVIF and/or RTSP. Standard and thermal cameras
-# are supported. Camera passwords are intentionally not persisted.
+# are supported. Camera credentials are kept out of Supabase and the UI now
+# requires a real connection test before the camera can be saved.
 
 p = Path('lib/v5_app.dart')
 s = p.read_text(encoding='utf-8')
@@ -74,9 +75,20 @@ checks = {
         "? 'Generic'",
         "'camera_type': cameraType",
         "onConflict: 'device_uid'",
-        "'credentials_storage': 'password_not_stored'",
+        'CameraConnectionService',
+        'testConnection',
+        'connectionVerified',
         'ONVIF + RTSP',
         'Hikvision',
+        'flutter_secure_storage',
+    ],
+    'lib/monitoring/camera_connection_service.dart': [
+        'class CameraConnectionService',
+        'testConnection',
+        'GetDeviceInformation',
+        'GetProfiles',
+        'GetStreamUri',
+        'RTSP',
     ],
 }
 for path, markers in checks.items():
@@ -85,4 +97,4 @@ for path, markers in checks.items():
         if marker not in text:
             raise SystemExit(f'V81 verification missing in {path}: {marker}')
 
-print('Vet AI V81 applied: generic ONVIF/RTSP standard and thermal camera onboarding added')
+print('Vet AI V81 applied: generic camera onboarding now requires real ONVIF/RTSP connectivity and secure local credentials')
