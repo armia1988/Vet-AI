@@ -22,6 +22,7 @@ class CameraEventClassifier {
   static CameraAlertDecision classify({
     required String topic,
     required Map<String, String> values,
+    double criticalTemperatureC = 41.0,
   }) {
     final haystack = '${topic.toLowerCase()} ${values.entries.map((e) => '${e.key}=${e.value}').join(' ').toLowerCase()}';
     final active = _isActive(values);
@@ -37,7 +38,7 @@ class CameraEventClassifier {
     }
 
     if (_containsAny(haystack, const ['temperature', 'thermometry', 'thermal', 'overheat', 'high temp'])) {
-      final critical = temperature != null && temperature >= 41.0;
+      final critical = temperature != null && temperature >= criticalTemperatureC;
       return CameraAlertDecision(
         category: 'thermal',
         title: temperature == null ? 'Thermal event' : 'Thermal event ${temperature.toStringAsFixed(1)} °C',
