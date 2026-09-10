@@ -6,8 +6,12 @@ on:
     branches: [main]
     paths:
       - 'tools/patch_v87*.py'
+      - 'tools/patch_v90*.py'
       - 'lib/monitoring/camera_intelligence_service.dart'
       - 'lib/monitoring/camera_intelligence_page.dart'
+      - 'lib/monitoring/onvif_analytics_events_service.dart'
+      - 'lib/monitoring/camera_event_classifier.dart'
+      - 'lib/monitoring/camera_alert_repository.dart'
       - '.github/workflows/ios-v87-camera-intelligence-check.yml'
 
 concurrency:
@@ -68,16 +72,18 @@ jobs:
           python3 tools/patch_v84_onvif_network_discovery.py
           python3 tools/patch_v85_onvif_ptz_controls.py
           python3 tools/patch_v87_camera_intelligence.py
+          python3 tools/patch_v90_camera_alert_persistence.py
       - name: Dependencies
         run: flutter pub get
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - name: Verify V87 capabilities thermal analytics
+      - name: Verify V90 camera alerts
         run: |
           grep -q "ISAPI/Thermal/capabilities" lib/monitoring/camera_intelligence_service.dart
-          grep -q "rulesTemperatureInfo" lib/monitoring/camera_intelligence_service.dart
-          grep -q "VideoAnalyticsConfiguration" lib/monitoring/camera_intelligence_service.dart
           grep -q "CameraIntelligencePage" lib/monitoring/camera_center_page.dart
-          grep -q "Capabilities / Thermal / AI" lib/monitoring/camera_center_page.dart
+          grep -q "_persistCameraAlerts" lib/monitoring/camera_intelligence_page.dart
+          grep -q "Saved camera alerts" lib/monitoring/camera_intelligence_page.dart
+          grep -q "vet-ai-apns-push" lib/monitoring/camera_alert_repository.dart
+          grep -q "source': 'camera'" lib/monitoring/camera_alert_repository.dart
       - name: Compile iOS without signing
         run: flutter build ios --release --no-codesign -t lib/main_v2.dart
