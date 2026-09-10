@@ -17,6 +17,8 @@ on:
       - 'tools/patch_v75*.py'
       - 'tools/patch_v76*.py'
       - 'tools/patch_v77*.py'
+      - 'tools/patch_v78*.py'
+      - 'tools/patch_v79*.py'
       - 'assets/audio/**'
       - 'pubspec.yaml'
       - 'lib/services/callkit_service.dart'
@@ -83,7 +85,7 @@ jobs:
         run: flutter pub get
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - name: Verify V67-V77 call and chat reliability fixes
+      - name: Verify V67-V79 call and chat reliability fixes
         run: |
           grep -q "senderClientId: endpointId" lib/support/support_webrtc_call_page.dart
           grep -q "await Helper.switchCamera(oldTracks.first);" lib/support/support_webrtc_call_page.dart
@@ -102,7 +104,9 @@ jobs:
           grep -q "noiseFloor = 0.010" lib/support/support_voice_note.dart
           grep -q "_compressedWaveform" lib/support/support_voice_note.dart
           grep -q "'waveform': clip.waveform" lib/support/support_voice_note.dart
-          grep -q "BytesSource(bytes)" lib/support/support_voice_note.dart
+          grep -q "playVetVoiceBytes" lib/support/support_voice_note.dart
+          grep -q "DeviceFileSource" lib/support/support_voice_playback_native.dart
+          grep -q "BytesSource" lib/support/support_voice_playback_web.dart
           grep -q "downloadSupportAttachment(path)" lib/support/support_voice_note.dart
           grep -q "cachedAudioBytes" lib/support/support_voice_note.dart
           grep -q "ValueNotifier<double> level" lib/support/support_voice_note.dart
@@ -114,18 +118,19 @@ jobs:
           grep -q "List<double>.filled(46, 0)" lib/support/support_voice_recorder_bar.dart
           grep -q "height: value == 0 ? 2.2" lib/support/support_voice_recorder_bar.dart
           grep -q "Icons.pause_rounded" lib/support/support_voice_recorder_bar.dart
-          grep -q "Icons.delete_outline_rounded" lib/support/support_voice_recorder_bar.dart
-          grep -q "Icons.send_rounded" lib/support/support_voice_recorder_bar.dart
+          grep -q "Icons.arrow_upward_rounded" lib/support/support_voice_recorder_bar.dart
           grep -q "level: voiceRecorder.level" lib/support/support_chat_v6.dart
           grep -q "level: voiceRecorder.level" lib/support/support_agent_thread_v2.dart
           grep -q "mine ? Alignment.centerRight : Alignment.centerLeft" lib/support/support_chat_v6.dart
           grep -q "mine ? Alignment.centerRight : Alignment.centerLeft" lib/support/support_agent_thread_v2.dart
           grep -q "widthFactor: 1" lib/support/support_agent_thread_v2.dart
-          grep -q "resizeToAvoidBottomInset: false" lib/support/support_chat_v6.dart
-          grep -q "resizeToAvoidBottomInset: false" lib/support/support_agent_thread_v2.dart
-          grep -q "scrollPadding: EdgeInsets.zero" lib/support/support_agent_thread_v2.dart
+          grep -q "resizeToAvoidBottomInset: !kIsWeb" lib/support/support_chat_v6.dart
+          grep -q "resizeToAvoidBottomInset: !kIsWeb" lib/support/support_agent_thread_v2.dart
+          grep -q "scrollPadding: kIsWeb ? EdgeInsets.zero" lib/support/support_agent_thread_v2.dart
           grep -q "iceCandidatePoolSize': 2" lib/support/support_webrtc_call_page.dart
           grep -q "'ideal': 640" lib/support/support_webrtc_call_page.dart
+          grep -q "'iceRestart': true" lib/support/support_webrtc_call_page.dart
+          grep -q "_restartIceNegotiation" lib/support/support_webrtc_call_page.dart
           grep -q "from('support_messages')" lib/support/support_incoming_call_overlay.dart
           grep -q "playReceiveFor(id)" lib/support/support_incoming_call_overlay.dart
           grep -q "VetSupportChatNotice.show" lib/support/support_incoming_call_overlay.dart
@@ -150,7 +155,7 @@ jobs:
               assert 'setState(() => sending = true)' not in method
               assert 'VetSupportChatSound.playSend()' in method
               assert 'addPostFrameCallback' not in method
-          print('V77 chat/voice/call verification passed')
+          print('V79 chat/voice/call verification passed')
           PY
       - name: Compile iOS without signing
         run: flutter build ios --release --no-codesign -t lib/main_v2.dart
