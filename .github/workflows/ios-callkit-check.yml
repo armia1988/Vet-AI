@@ -8,6 +8,7 @@ on:
       - 'tools/patch_v66*.py'
       - 'tools/patch_v67*.py'
       - 'tools/patch_v68*.py'
+      - 'tools/patch_v69*.py'
       - 'assets/audio/**'
       - 'pubspec.yaml'
       - 'lib/services/callkit_service.dart'
@@ -72,7 +73,7 @@ jobs:
         run: flutter pub get
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - name: Verify V67-V68 call reliability fixes
+      - name: Verify V67-V69 call and chat reliability fixes
         run: |
           grep -q "senderClientId: endpointId" lib/support/support_webrtc_call_page.dart
           grep -q "await Helper.switchCamera(oldTracks.first);" lib/support/support_webrtc_call_page.dart
@@ -83,6 +84,12 @@ jobs:
           grep -q "vet_ai_chat_receive.wav" lib/support/support_chat_sound.dart
           grep -q "vet_ai_call_outgoing.wav" lib/support/support_call_tone.dart
           grep -q 'ringtoneSound = "vet_ai_incoming_call.caf"' ios/Runner/AppDelegate.swift
+          grep -q "AudioRecorder" lib/support/support_voice_note.dart
+          grep -q "message_type': 'audio'" lib/support/support_voice_note.dart
+          grep -q "Icons.mic_rounded" lib/support/support_agent_thread_v2.dart
+          grep -q "Icons.photo_camera_outlined" lib/support/support_agent_thread_v2.dart
+          grep -q "VetSupportChatNotice.show" lib/support/support_agent_thread_v2.dart
+          grep -q "VetSupportChatSound.muted" lib/support/support_agent_thread_v2.dart
       - name: Compile iOS without signing
         run: flutter build ios --release --no-codesign -t lib/main_v2.dart
       - name: Verify CallKit bundle configuration
