@@ -40,7 +40,7 @@ jobs:
           " ios/Podfile
       - name: Apply production patch chain
         run: |
-          python3 -m pip install --quiet pillow
+          python3 -m pip install --quiet --break-system-packages pillow
           python3 tools/patch_v37_egyptian_voice.py
           python3 tools/force_voice_playback.py
           python3 tools/patch_v40_voice_pipeline.py
