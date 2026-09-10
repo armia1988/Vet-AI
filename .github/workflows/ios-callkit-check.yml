@@ -26,6 +26,8 @@ on:
       - 'lib/services/callkit_service.dart'
       - 'lib/services/alert_notification_service.dart'
       - 'lib/support/**'
+      - 'lib/monitoring/camera_connection_service.dart'
+      - 'lib/monitoring/dahua_thermal_camera_onboarding_page.dart'
       - 'supabase/functions/support-call-*/**'
       - 'supabase/functions/customer-support-push/**'
       - '.github/workflows/ios-callkit-check.yml'
