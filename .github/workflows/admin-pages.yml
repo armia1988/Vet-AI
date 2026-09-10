@@ -40,6 +40,8 @@ on:
       - 'tools/patch_v73*.py'
       - 'tools/patch_v74*.py'
       - 'tools/patch_v75*.py'
+      - 'tools/patch_v76*.py'
+      - 'tools/patch_v77*.py'
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - '.github/workflows/admin-pages.yml'
