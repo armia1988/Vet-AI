@@ -81,6 +81,18 @@ jobs:
         run: flutter pub get
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Verify V94 ONVIF event hardening
+        run: |
+          grep -q "GetSupportedAnalyticsModules" lib/monitoring/onvif_analytics_events_service.dart
+          grep -q "renewPullPointSubscription" lib/monitoring/onvif_analytics_events_service.dart
+          grep -q "xmlns:wsa" lib/monitoring/onvif_analytics_events_service.dart
+          grep -q "eventsReconnecting" lib/monitoring/camera_intelligence_page.dart
+          grep -q "Camera-supported modules" lib/monitoring/camera_intelligence_page.dart
+          grep -q 'AGENT_VERSION = "0.2.0-v94"' tools/vet_ai_camera_gateway.py
+          grep -q "RenewRequest" tools/vet_ai_camera_gateway.py
+          grep -q "event_dedupe_seconds" tools/vet_ai_camera_gateway.py
+          grep -q "subscription_renewals" tools/vet_ai_camera_gateway.py
+          grep -q "Per-camera health" lib/monitoring/camera_gateway_page.dart
       - name: Set up Deno
         uses: denoland/setup-deno@v2
         with:
