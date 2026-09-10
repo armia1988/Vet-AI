@@ -91,6 +91,7 @@ jobs:
           python3 tools/patch_v93_camera_gateway.py
           python3 tools/patch_v93a_camera_gateway_compile_fix.py
           python3 tools/patch_v95_camera_wall_performance.py
+          python3 tools/patch_v95a_materialized_idempotency.py
       - name: Check local camera gateway agent
         run: python3 -m py_compile tools/vet_ai_camera_gateway.py
       - name: Dependencies
