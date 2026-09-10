@@ -85,6 +85,7 @@ jobs:
           python3 tools/patch_v91_camera_alert_hardening.py
           python3 tools/patch_v92_camera_alert_center.py
           python3 tools/patch_v93_camera_gateway.py
+          python3 tools/patch_v93a_camera_gateway_compile_fix.py
       - name: Check local camera gateway agent
         run: python3 -m py_compile tools/vet_ai_camera_gateway.py
       - name: Dependencies
@@ -97,6 +98,7 @@ jobs:
           grep -q "class CameraAlertCenterPage" lib/monitoring/camera_alert_center_page.dart
           grep -q "class CameraGatewayPage" lib/monitoring/camera_gateway_page.dart
           grep -q "device_secret_hash': tokenHash" lib/monitoring/camera_gateway_page.dart
+          grep -q "List<String>.generate(5" lib/monitoring/camera_gateway_page.dart
           grep -q "CameraGatewayPage(farmId: widget.farmId)" lib/monitoring/camera_center_page.dart
           grep -q "CameraGatewayPage(farmId: farmId)" lib/v5_app.dart
           grep -q "CreatePullPointSubscription" tools/vet_ai_camera_gateway.py
