@@ -15,48 +15,26 @@ field_insert = """  String connectionLabel = 'Connecting';
   int recoveryAttempt = 0;
   bool recoveryInFlight = false;
   bool adaptiveVideoPaused = false;
-  DateTime lastConnectedAt = DateTime.now();
 """
 if 'Timer? recoveryTimer;' not in s:
     if field_anchor not in s:
         raise SystemExit('V78: connection field anchor missing')
     s = s.replace(field_anchor, field_insert, 1)
 
-# A new ICE-restart offer/answer is a legitimate new remote description. The
-# old one-shot guard prevented recovery negotiation after the initial call.
 old_guard = "if (connection == null || sdp == null || sdp.isEmpty || remoteDescriptionSet)"
 if old_guard in s:
     s = s.replace(old_guard, "if (connection == null || sdp == null || sdp.isEmpty)")
 
-# Feed PeerConnection state into the recovery controller. V67 already routes
-# audio here when connected; hook immediately after that block when available.
 connected_audio = """        if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
           unawaited(_activateRemoteAudio());
         }
 """
 if '_handleAdaptivePeerState(state);' not in s:
     if connected_audio in s:
-        s = s.replace(
-            connected_audio,
-            connected_audio + "        _handleAdaptivePeerState(state);\n",
-            1,
-        )
+        s = s.replace(connected_audio, connected_audio + "        _handleAdaptivePeerState(state);\n", 1)
     else:
-        # Compatibility fallback for generated variants that do not contain
-        # the audio-routing hook.
-        marker = """      final constraints = <String, dynamic>{
-"""
-        if marker not in s:
-            raise SystemExit('V78: peer-state insertion anchor missing')
-        # Find the final callback close directly before media constraints.
-        prefix = s[:s.index(marker)]
-        idx = prefix.rfind('      };\n')
-        if idx < 0:
-            raise SystemExit('V78: connection callback close missing')
-        idx += len('      };\n')
-        s = s[:idx] + "        _handleAdaptivePeerState(state);\n" + s[idx:]
+        raise SystemExit('V78: peer-state hook anchor missing')
 
-# Insert the adaptive recovery implementation before signal consumption.
 method_anchor = "  Future<void> _consumeSignals(List<Map<String, dynamic>> rows) async {\n"
 if 'Future<void> _restartIceNegotiation() async {' not in s:
     methods = r'''  void _handleAdaptivePeerState(RTCPeerConnectionState state) {
@@ -68,7 +46,6 @@ if 'Future<void> _restartIceNegotiation() async {' not in s:
         connectionWatchdog?.cancel();
         recoveryAttempt = 0;
         recoveryInFlight = false;
-        lastConnectedAt = DateTime.now();
         if (adaptiveVideoPaused) {
           adaptiveVideoPaused = false;
           if (cameraEnabled) {
@@ -100,8 +77,8 @@ if 'Future<void> _restartIceNegotiation() async {' not in s:
       const Duration(seconds: 7),
       const Duration(seconds: 10),
     ];
-    final delay = delays[recoveryAttempt.clamp(0, delays.length - 1)];
-    recoveryTimer = Timer(delay, () {
+    final index = recoveryAttempt < delays.length ? recoveryAttempt : delays.length - 1;
+    recoveryTimer = Timer(delays[index], () {
       recoveryTimer = null;
       unawaited(_restartIceNegotiation());
     });
@@ -113,8 +90,6 @@ if 'Future<void> _restartIceNegotiation() async {' not in s:
     recoveryInFlight = true;
     recoveryAttempt += 1;
 
-    // If repeated retries fail, temporarily stop transmitting video so audio
-    // gets the available bandwidth. Video resumes automatically on connection.
     if (isVideo && recoveryAttempt >= 3 && !adaptiveVideoPaused) {
       adaptiveVideoPaused = true;
       for (final track in localStream?.getVideoTracks() ?? const <MediaStreamTrack>[]) {
@@ -122,9 +97,7 @@ if 'Future<void> _restartIceNegotiation() async {' not in s:
       }
     }
 
-    if (mounted) {
-      setState(() => connectionLabel = 'Reconnecting');
-    }
+    if (mounted) setState(() => connectionLabel = 'Reconnecting');
 
     try {
       final offer = await connection.createOffer({
@@ -164,10 +137,6 @@ if 'Future<void> _restartIceNegotiation() async {' not in s:
         raise SystemExit('V78: consume-signals anchor missing')
     s = s.replace(method_anchor, methods + method_anchor, 1)
 
-# When a recovery offer arrives, answer it even if this endpoint was the
-# original caller in an unusual role/device topology. The original callee path
-# remains unchanged; caller glare is avoided because only isCaller initiates
-# automatic restarts.
 old_answer_gate = """    if (!widget.isCaller) {
       final answer = await connection.createAnswer({
 """
@@ -177,8 +146,6 @@ new_answer_gate = """    {
 if old_answer_gate in s:
     s = s.replace(old_answer_gate, new_answer_gate, 1)
 
-# Avoid ending a valid call because the watchdog from an older restart fires.
-# Any successfully applied remote answer releases the restart lock.
 answer_tail = """    remoteDescriptionSet = true;
     await _flushCandidates();
   }
@@ -194,20 +161,17 @@ answer_tail_new = """    remoteDescriptionSet = true;
 if answer_tail in s:
     s = s.replace(answer_tail, answer_tail_new, 1)
 
-# Cancel all timers before disposing the peer; otherwise a delayed retry can
-# run against an already closed RTCPeerConnection.
-dispose_anchor = """  void dispose() {
-    signalSubscription?.cancel();
-"""
-dispose_new = """  void dispose() {
-    recoveryTimer?.cancel();
-    connectionWatchdog?.cancel();
-    signalSubscription?.cancel();
-"""
-if dispose_new not in s:
-    if dispose_anchor not in s:
-        raise SystemExit('V78: dispose anchor missing')
-    s = s.replace(dispose_anchor, dispose_new, 1)
+# Generated versions differ in which subscription is cancelled first. Hook the
+# method declaration itself instead of depending on the next line.
+if '    recoveryTimer?.cancel();\n    connectionWatchdog?.cancel();\n' not in s:
+    dispose_decl = "  void dispose() {\n"
+    if dispose_decl not in s:
+        raise SystemExit('V78: dispose declaration missing')
+    s = s.replace(
+        dispose_decl,
+        dispose_decl + "    recoveryTimer?.cancel();\n    connectionWatchdog?.cancel();\n",
+        1,
+    )
 
 for required in [
     'Timer? recoveryTimer;',
@@ -215,6 +179,7 @@ for required in [
     "'iceRestart': true",
     'Future<void> _restartIceNegotiation() async {',
     'adaptiveVideoPaused = true;',
+    'recoveryTimer?.cancel();',
     'connectionWatchdog?.cancel();',
 ]:
     if required not in s:
