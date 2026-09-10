@@ -109,7 +109,8 @@ class _DahuaThermalCameraOnboardingPageState
       final idPart = serial.text.trim().isNotEmpty
           ? serial.text.trim()
           : '$cameraHost:$httpPort';
-      final deviceUid = 'dahua-thermal-${idPart.toLowerCase()}';
+      final safeFarmId = widget.farmId.toLowerCase();
+      final deviceUid = 'dahua-thermal-$safeFarmId-${idPart.toLowerCase()}';
       await VetBackend.instance.client.from('sensor_devices').upsert(
         {
           'farm_id': widget.farmId,
