@@ -12,8 +12,8 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 # ---------------------------------------------------------------------------
 # 1) WebRTC: Safari/iOS can occasionally deliver an RTCTrackEvent without a
 # MediaStream in event.streams. The track was real, but the old UI had nothing
-# to attach to the renderer, so users could see "connected" with a black remote
-# view and/or no audible remote track. Build a renderer stream from that track.
+# to attach to the renderer, so users could see a black remote view and/or no
+# audible remote track. Build a renderer stream from that track.
 # ---------------------------------------------------------------------------
 p = Path('lib/support/support_webrtc_call_page.dart')
 s = p.read_text(encoding='utf-8')
@@ -21,7 +21,6 @@ s = p.read_text(encoding='utf-8')
 field_anchor = '  MediaStream? switchedCameraStream;\n'
 if '  MediaStream? remoteFallbackStream;\n' not in s:
     if field_anchor not in s:
-        # Older generated source can place the field near localStream instead.
         field_anchor = '  MediaStream? localStream;\n'
         if field_anchor not in s:
             raise SystemExit('V68: remote fallback field anchor missing')
@@ -39,9 +38,9 @@ new_track = """      connection.onTrack = (event) {
         if (event.streams.isNotEmpty) {
           remoteRenderer.srcObject = event.streams.first;
         } else {
-          // Unified-plan Safari may provide a perfectly valid remote track with
-          // an empty streams list. Attach it to a renderer-owned stream instead
-          // of leaving the call black/silent.
+          // Unified-plan Safari may provide a valid remote track with an empty
+          // streams list. Attach it to a renderer-owned stream instead of
+          // leaving the call black or silent.
           unawaited(_attachStreamlessRemoteTrack(event.track));
         }
         unawaited(_activateRemoteAudio());
@@ -69,56 +68,28 @@ if 'Future<void> _attachStreamlessRemoteTrack(MediaStreamTrack track)' not in s:
       await _activateRemoteAudio();
       if (mounted) setState(() {});
     } catch (_) {
-      // The normal event.streams path remains the primary route. This fallback
-      // must never tear down a call if a platform does not need it.
+      // The normal event.streams route stays primary. This compatibility path
+      // must never tear down an otherwise working call.
     }
   }
 
 '''
     s = s.replace(helper_anchor, helper + helper_anchor, 1)
 
-# Pre-gather a few ICE candidates before the offer. It reduces the visible
-# delay of direct P2P setup without changing the STUN/TURN privacy model.
-old_pc = """      final connection = await createPeerConnection({
-        'iceServers': iceServers,
-        'sdpSemantics': 'unified-plan',
-      });
-"""
-new_pc = """      final connection = await createPeerConnection({
-        'iceServers': iceServers,
-        'sdpSemantics': 'unified-plan',
-        'iceCandidatePoolSize': 4,
-      });
-"""
-if old_pc in s:
-    s = s.replace(old_pc, new_pc, 1)
-elif "'iceCandidatePoolSize': 4" not in s:
-    raise SystemExit('V68: peer connection config anchor missing')
-
-# Clean up the renderer-only remote stream as well.
-dispose_anchor = """    localStream?.dispose();
-    peer?.close();
-"""
-dispose_new = """    localStream?.dispose();
-    if (remoteFallbackStream != null && remoteFallbackStream != remoteRenderer.srcObject) {
-      remoteFallbackStream?.dispose();
-    }
-    peer?.close();
-"""
-if dispose_anchor in s:
-    s = s.replace(dispose_anchor, dispose_new, 1)
-elif 'remoteFallbackStream?.dispose();' not in s:
-    raise SystemExit('V68: remote fallback dispose anchor missing')
+# Dispose the renderer-only stream with the call.
+dispose_anchor = '    localStream?.dispose();\n'
+if '    remoteFallbackStream?.dispose();\n' not in s:
+    if dispose_anchor not in s:
+        raise SystemExit('V68: remote fallback dispose anchor missing')
+    s = s.replace(dispose_anchor, dispose_anchor + '    remoteFallbackStream?.dispose();\n', 1)
 
 p.write_text(s, encoding='utf-8')
 
 
 # ---------------------------------------------------------------------------
 # 2) Native iOS CallKit: V65 already bundles vet_ai_incoming_call.caf, but V66
-# intentionally left ringtoneSound unset. Explicitly select our bundled,
-# original phone-style ringtone so a real PushKit/CallKit incoming call has an
-# audible call ring (subject to the iPhone mute/Focus rules, exactly like normal
-# phone calls). Also make the active CallKit audio session explicit on answer.
+# left ringtoneSound unset. Explicitly select our bundled original phone-style
+# ringtone and make the active CallKit audio session explicit on answer.
 # ---------------------------------------------------------------------------
 app_delegate = Path('ios/Runner/AppDelegate.swift')
 if app_delegate.exists():
@@ -128,8 +99,8 @@ if app_delegate.exists():
     // system incoming-call ringtone and respects mute/Focus/accessibility rules.
 """
     new = """    configuration.includesCallsInRecents = true
-    // Use Vet AI's bundled original phone-style ringtone for incoming support
-    // calls. iOS still applies the user's mute, Focus and accessibility rules.
+    // Vet AI original phone-style incoming support-call ringtone. iOS still
+    // applies the user's mute, Focus and accessibility rules.
     configuration.ringtoneSound = \"vet_ai_incoming_call.caf\"
 """
     native = replace_once(native, old, new, 'CallKit ringtone selection')
@@ -153,13 +124,11 @@ else:
     print('V68: iOS project not present; native CallKit ringtone step skipped for web build')
 
 
-# Build-time checks.
 call_text = Path('lib/support/support_webrtc_call_page.dart').read_text(encoding='utf-8')
 for marker in [
     'remoteFallbackStream',
     '_attachStreamlessRemoteTrack(event.track)',
     "createLocalMediaStream('vet-ai-remote-$callId')",
-    "'iceCandidatePoolSize': 4",
 ]:
     if marker not in call_text:
         raise SystemExit(f'V68 call verification missing: {marker}')
@@ -173,4 +142,4 @@ if app_delegate.exists():
         if marker not in native:
             raise SystemExit(f'V68 native verification missing: {marker}')
 
-print('Vet AI V68 applied: explicit CallKit ringtone, active iOS call audio, faster ICE warmup, and streamless remote-media fallback')
+print('Vet AI V68 applied: explicit CallKit ringtone, active iOS call audio, and streamless remote-media fallback')
