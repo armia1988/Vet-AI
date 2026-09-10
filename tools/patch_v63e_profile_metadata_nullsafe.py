@@ -120,3 +120,4 @@ runpy.run_path('tools/patch_v75_support_realtime_voice_precision.py', run_name='
 runpy.run_path('tools/patch_v76_support_overlay_compile_and_navigation.py', run_name='__main__')
 runpy.run_path('tools/patch_v77_ios_safari_chat_audio_call_stability.py', run_name='__main__')
 runpy.run_path('tools/patch_v78_adaptive_call_recovery.py', run_name='__main__')
+runpy.run_path('tools/patch_v79_chatgpt_chat_voice_stability.py', run_name='__main__')
