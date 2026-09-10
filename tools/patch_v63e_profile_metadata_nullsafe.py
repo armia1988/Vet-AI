@@ -91,7 +91,7 @@ p.write_text(s, encoding='utf-8')
 print('Vet AI V63e applied: null-safe profile metadata and persistent current admin section after refresh')
 
 # Later cross-platform support fixes are chained here so both GitHub Pages and
-# Codemagic generated builds receive the exact same chat/call behavior.
+# Codemagic generated builds receive the exact same chat/call/sensor behavior.
 runpy.run_path('tools/patch_v64_reliable_support_calls.py', run_name='__main__')
 runpy.run_path('tools/patch_v64c_support_chat_whatsapp_behavior.py', run_name='__main__')
 runpy.run_path('tools/patch_v64d_support_chat_compile_guard.py', run_name='__main__')
@@ -121,3 +121,4 @@ runpy.run_path('tools/patch_v76_support_overlay_compile_and_navigation.py', run_
 runpy.run_path('tools/patch_v77_ios_safari_chat_audio_call_stability.py', run_name='__main__')
 runpy.run_path('tools/patch_v78_adaptive_call_recovery.py', run_name='__main__')
 runpy.run_path('tools/patch_v79_chatgpt_chat_voice_stability.py', run_name='__main__')
+runpy.run_path('tools/patch_v80_universal_ble_sensor_onboarding.py', run_name='__main__')
