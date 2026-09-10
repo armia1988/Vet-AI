@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'camera_event_classifier.dart';
 import 'camera_intelligence_service.dart';
 import 'onvif_analytics_events_service.dart';
 
@@ -178,6 +179,7 @@ class _CameraIntelligencePageState extends State<CameraIntelligencePage> {
               events.insertAll(0, pulled.reversed);
               if (events.length > 100) events.removeRange(100, events.length);
             });
+            _surfaceHighestPriorityAlert(pulled);
           }
         } catch (e) {
           if (!mounted) break;
@@ -192,6 +194,23 @@ class _CameraIntelligencePageState extends State<CameraIntelligencePage> {
     }
   }
 
+  void _surfaceHighestPriorityAlert(List<OnvifCameraEvent> pulled) {
+    CameraAlertDecision? best;
+    for (final event in pulled) {
+      final decision = CameraEventClassifier.classify(topic: event.topic, values: event.values);
+      if (!decision.shouldSurface) continue;
+      if (best == null || decision.severity.index > best.severity.index) best = decision;
+    }
+    if (best == null || !mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${widget.cameraName}: ${best.title}'),
+        duration: Duration(seconds: best.severity == CameraAlertSeverity.critical ? 6 : 3),
+      ),
+    );
+  }
+
   Future<void> _stopEvents() async {
     final session = eventSession;
     eventsRunning = false;
@@ -199,6 +218,12 @@ class _CameraIntelligencePageState extends State<CameraIntelligencePage> {
     if (session != null) await analyticsService.unsubscribe(session);
     if (mounted) setState(() {});
   }
+
+  int get _activeAlertCount => events.where((e) => CameraEventClassifier.classify(topic: e.topic, values: e.values).shouldSurface).length;
+  int get _criticalAlertCount => events.where((e) {
+        final d = CameraEventClassifier.classify(topic: e.topic, values: e.values);
+        return d.shouldSurface && d.severity == CameraAlertSeverity.critical;
+      }).length;
 
   @override
   Widget build(BuildContext context) {
@@ -268,13 +293,17 @@ class _CameraIntelligencePageState extends State<CameraIntelligencePage> {
             if (analyticsError != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(analyticsError!, style: const TextStyle(color: Colors.orangeAccent))),
           ])),
           const SizedBox(height: 14),
-          _section('Live camera events', Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          _section('Smart alerts from camera events', Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             _flag('ONVIF Event service', c.onvifEvents),
             if (eventTopics.isNotEmpty) _row('Reported topics', eventTopics.take(8).join(', ')),
+            if (events.isNotEmpty) ...[
+              _row('Surfaced alerts', '$_activeAlertCount'),
+              _row('Critical alerts', '$_criticalAlertCount'),
+            ],
             const SizedBox(height: 8),
             if (c.onvifEvents)
               Row(children: [
-                Expanded(child: FilledButton.icon(onPressed: eventsRunning ? null : _startEvents, icon: const Icon(Icons.play_arrow_rounded), label: const Text('Start live events'))),
+                Expanded(child: FilledButton.icon(onPressed: eventsRunning ? null : _startEvents, icon: const Icon(Icons.play_arrow_rounded), label: const Text('Start live alerts'))),
                 const SizedBox(width: 10),
                 Expanded(child: OutlinedButton.icon(onPressed: eventsRunning ? _stopEvents : null, icon: const Icon(Icons.stop_rounded), label: const Text('Stop'))),
               ]),
@@ -284,24 +313,38 @@ class _CameraIntelligencePageState extends State<CameraIntelligencePage> {
             ...events.take(30).map(_eventTile),
           ])),
           const SizedBox(height: 18),
-          const Text('Events and analytics shown here come from the connected camera through ONVIF. Thermal values require a radiometric camera and supported vendor thermometry API.', style: TextStyle(color: Colors.white54, fontSize: 12)),
+          const Text('Smart alert labels are derived only from real ONVIF event topics and values emitted by the connected camera. Vet AI does not fabricate detections.', style: TextStyle(color: Colors.white54, fontSize: 12)),
         ],
       ),
     );
   }
 
-  Widget _eventTile(OnvifCameraEvent e) => Container(
-        margin: const EdgeInsets.only(top: 8),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: const Color(0xFF20252C), borderRadius: BorderRadius.circular(10)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(e.topic, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-          Text(e.summary, style: const TextStyle(color: Colors.white70)),
-          if (e.utcTime != null) Text(e.utcTime!.toLocal().toString(), style: const TextStyle(color: Colors.white38, fontSize: 11)),
-          if (e.values.length > 1) Text(e.values.entries.map((x) => '${x.key}=${x.value}').join(' • '), style: const TextStyle(color: Colors.white54, fontSize: 11)),
-        ]),
-      );
+  Widget _eventTile(OnvifCameraEvent e) {
+    final decision = CameraEventClassifier.classify(topic: e.topic, values: e.values);
+    final icon = decision.severity == CameraAlertSeverity.critical
+        ? Icons.error_rounded
+        : decision.severity == CameraAlertSeverity.warning
+            ? Icons.warning_amber_rounded
+            : Icons.info_outline_rounded;
+    final color = decision.severity == CameraAlertSeverity.critical
+        ? Colors.redAccent
+        : decision.severity == CameraAlertSeverity.warning
+            ? Colors.orangeAccent
+            : Colors.lightBlueAccent;
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: const Color(0xFF20252C), borderRadius: BorderRadius.circular(10), border: Border.all(color: decision.shouldSurface ? color.withValues(alpha: 0.45) : Colors.white10)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Icon(icon, color: color, size: 18), const SizedBox(width: 7), Expanded(child: Text(decision.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)))]),
+        const SizedBox(height: 4),
+        Text(e.topic, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+        Text(e.summary, style: const TextStyle(color: Colors.white70)),
+        if (e.utcTime != null) Text(e.utcTime!.toLocal().toString(), style: const TextStyle(color: Colors.white38, fontSize: 11)),
+        if (e.values.length > 1) Text(e.values.entries.map((x) => '${x.key}=${x.value}').join(' • '), style: const TextStyle(color: Colors.white54, fontSize: 11)),
+      ]),
+    );
+  }
 
   Widget _thermalCard(ThermalRuleTemperature t) => Container(
         padding: const EdgeInsets.all(14),
@@ -324,40 +367,23 @@ class _CameraIntelligencePageState extends State<CameraIntelligencePage> {
   Widget _section(String title, Widget child) => Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(color: const Color(0xFF15191F), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white10)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 12),
-          child,
-        ]),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)), const SizedBox(height: 12), child]),
       );
 
   Widget _row(String label, String value) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 5),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: 128, child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
-          Expanded(child: Text(value, style: const TextStyle(color: Colors.white70))),
-        ]),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 128, child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700))), Expanded(child: Text(value, style: const TextStyle(color: Colors.white70)))]),
       );
 
   Widget _flag(String label, bool value) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 5),
-        child: Row(children: [
-          Icon(value ? Icons.check_circle_rounded : Icons.remove_circle_outline_rounded, color: value ? Colors.greenAccent : Colors.white30, size: 20),
-          const SizedBox(width: 9),
-          Expanded(child: Text(label, style: const TextStyle(color: Colors.white70))),
-        ]),
+        child: Row(children: [Icon(value ? Icons.check_circle_rounded : Icons.remove_circle_outline_rounded, color: value ? Colors.greenAccent : Colors.white30, size: 20), const SizedBox(width: 9), Expanded(child: Text(label, style: const TextStyle(color: Colors.white70)))]),
       );
 
   Widget _errorState() => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 52),
-            const SizedBox(height: 12),
-            Text(error ?? 'Could not read camera capabilities', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
-            const SizedBox(height: 14),
-            FilledButton(onPressed: _load, child: const Text('Retry')),
-          ]),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 52), const SizedBox(height: 12), Text(error ?? 'Could not read camera capabilities', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)), const SizedBox(height: 14), FilledButton(onPressed: _load, child: const Text('Retry'))]),
         ),
       );
 }
