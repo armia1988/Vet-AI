@@ -57,4 +57,14 @@ for path, markers in checks.items():
         if marker not in text:
             raise SystemExit(f'V84 verification missing in {path}: {marker}')
 
-print('Vet AI V84 applied: real ONVIF WS-Discovery camera scan integrated into onboarding')
+# The dedicated V84 iOS workflow stops after this patch, so apply the current
+# camera verification compatibility layer here as well. V105b is idempotent.
+for extra in [
+    'tools/patch_v105_camera_connection_compat.py',
+    'tools/patch_v105b_camera_onboarding_truthful.py',
+]:
+    if Path(extra).exists():
+        code = Path(extra).read_text(encoding='utf-8')
+        exec(compile(code, extra, 'exec'), {'__name__': '__main__'})
+
+print('Vet AI V84 applied: discovery integrated and V105 camera verification compatibility active')
