@@ -145,6 +145,7 @@ jobs:
           IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
           IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
         run: |
+          set -euo pipefail
           CERT_PATH="$RUNNER_TEMP/vetai_distribution.p12"
           PROFILE_PATH="$RUNNER_TEMP/vetai_appstore.mobileprovision"
           PROFILE_PLIST="$RUNNER_TEMP/vetai_appstore.plist"
@@ -159,9 +160,32 @@ jobs:
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERT_PATH" -P "$IOS_DISTRIBUTION_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+          # Import the complete PKCS#12 identity (certificate + private key).
+          # Do not force -t cert: Flutter/Xcode needs a code-signing identity,
+          # not a certificate object without its matching private key identity.
+          security import "$CERT_PATH" \
+            -P "$IOS_DISTRIBUTION_CERTIFICATE_PASSWORD" \
+            -A \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          SIGNING_IDENTITIES="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH")"
+          echo "$SIGNING_IDENTITIES"
+          if ! grep -q 'Apple Distribution' <<< "$SIGNING_IDENTITIES"; then
+            echo "::error::The imported p12 does not expose a valid Apple Distribution code-signing identity."
+            exit 1
+          fi
 
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
@@ -169,6 +193,7 @@ jobs:
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")
           PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$PROFILE_PLIST")
           PROFILE_APP_ID=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$PROFILE_PLIST")
+          PROFILE_TEAM_ID=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$PROFILE_PLIST")
           if [[ "$PROFILE_APP_ID" != *".$BUNDLE_ID" ]]; then
             echo "::error::Provisioning profile does not match bundle id $BUNDLE_ID"
             exit 1
@@ -176,6 +201,7 @@ jobs:
           cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
           echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
           echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+          echo "PROFILE_TEAM_ID=$PROFILE_TEAM_ID" >> "$GITHUB_ENV"
 
       - name: Install App Store Connect API key
         shell: bash
@@ -190,6 +216,10 @@ jobs:
       - name: Build signed IPA
         shell: bash
         run: |
+          set -euo pipefail
+          echo "Available code-signing identities before build:"
+          security find-identity -v -p codesigning
+
           APP_VERSION=$(python3 - <<'PY'
           import re
           text = open('pubspec.yaml', encoding='utf-8').read()
@@ -206,6 +236,8 @@ jobs:
           <dict>
             <key>method</key><string>app-store-connect</string>
             <key>signingStyle</key><string>manual</string>
+            <key>teamID</key><string>${PROFILE_TEAM_ID}</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
             <key>provisioningProfiles</key>
             <dict>
               <key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
