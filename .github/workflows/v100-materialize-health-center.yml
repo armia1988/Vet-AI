@@ -1,4 +1,4 @@
-name: V100 Materialize Health Center
+name: V101 Materialize AI Follow-up
 
 on:
   workflow_dispatch:
@@ -6,10 +6,6 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/v100-materialize-health-center.yml'
-      - 'tools/patch_v99b_care_push_reminders.py'
-      - 'tools/patch_v99c_care_reminder_ui_hardening.py'
-      - 'tools/patch_v100_animal_health_center.py'
-      - 'tools/patch_v100a_health_ui_fix.py'
       - 'tools/patch_v101_ai_followup_ui.py'
       - 'tools/patch_v101a_followup_format_guard.py'
 
@@ -17,7 +13,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: v100-materialize-health-center
+  group: v101-materialize-ai-followup
   cancel-in-progress: false
 
 jobs:
@@ -27,27 +23,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply V100 customer navigation
-        run: python3 tools/patch_v100_animal_health_center.py
-      - name: Apply V100a health UI fix
-        run: python3 tools/patch_v100a_health_ui_fix.py
-      - name: Apply V99b care reminders
-        run: python3 tools/patch_v99b_care_push_reminders.py
-      - name: Apply V99c reminder UI hardening
-        run: python3 tools/patch_v99c_care_reminder_ui_hardening.py
+      - name: Verify existing health center baseline
+        run: python3 tools/verify_v100_health_management.py
       - name: Apply V101 AI follow-up UI
         run: python3 tools/patch_v101_ai_followup_ui.py
       - name: Apply V101a image format guard
         run: python3 tools/patch_v101a_followup_format_guard.py
-      - name: Verify materialized source
+      - name: Verify V101 materialized source
         run: |
-          python3 tools/verify_v100_health_management.py
           python3 - <<'PY'
           from pathlib import Path
           ui = Path('lib/health/animal_health_center.dart').read_text(encoding='utf-8')
           service = Path('lib/health/ai_followup_service.dart').read_text(encoding='utf-8')
           for marker in [
+              'length: 4,',
               'class _FollowUpTab extends StatefulWidget',
+              '_FollowUpTab(farmId: farmId)',
               'AiFollowupService.instance.submitFollowup',
               '12 / 24 / 48 hour AI follow-up',
               "const supportedExtensions = {'jpg', 'jpeg', 'png', 'webp'};",
@@ -63,14 +54,14 @@ jobs:
                   raise SystemExit(f'V101 service marker missing: {marker}')
           print('V101 AI follow-up source verified')
           PY
-      - name: Commit materialized health source
+      - name: Commit materialized V101 source
         run: |
-          if git diff --quiet -- lib/v5_app.dart lib/health/animal_health_center.dart lib/health/animal_health_service.dart; then
-            echo "Health source already materialized"
+          if git diff --quiet -- lib/health/animal_health_center.dart; then
+            echo "V101 source already materialized"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add lib/v5_app.dart lib/health/animal_health_center.dart lib/health/animal_health_service.dart
+          git add lib/health/animal_health_center.dart
           git commit -m "Materialize V101 AI follow-up source"
           git push origin HEAD:main
