@@ -28,6 +28,37 @@ jobs:
           cache: true
       - name: V102 source wiring guard
         run: python3 tools/verify_v102_production_e2e.py
+      - name: Apply production generated-source cleanup
+        run: |
+          python3 tools/patch_v49_admin_compile_cleanup.py
+          python3 tools/patch_v50_admin_chat_accounts_sensors.py
+          python3 tools/patch_v51_file_picker_compile.py
+          python3 tools/patch_v52_web_chat_company_scroll.py
+          python3 tools/patch_v53_support_operations_import.py
+          python3 tools/patch_v54_native_webrtc_calls.py
+          python3 tools/patch_v55_whatsapp_rich_chat_profiles.py
+          python3 tools/patch_v56_webrtc_audio_hangup.py
+          python3 tools/patch_v57_camera_switch_drag_preview.py
+          python3 tools/patch_v58_ios_safari_camera_flip.py
+          python3 tools/patch_v59_call_smoothing_whatsapp_icons.py
+          python3 tools/patch_v60_instant_camera_flip_black_off.py
+          python3 tools/patch_v61b_admin_instant_navigation.py
+          python3 tools/patch_v62b_admin_accounts_animals_sensors.py
+          python3 tools/patch_v62c_company_manager_routes.py
+          python3 tools/patch_v63d_admin_mobile_accounts_profile_reports.py
+          python3 tools/patch_v63e_profile_metadata_nullsafe.py
+          python3 tools/patch_v82_camera_live_digest.py
+          python3 tools/patch_v83_professional_camera_center.py
+          python3 tools/patch_v84_onvif_network_discovery.py
+          python3 tools/patch_v85_onvif_ptz_controls.py
+          python3 tools/patch_v87_camera_intelligence.py
+          python3 tools/patch_v90_camera_alert_persistence.py
+          python3 tools/patch_v91_camera_alert_hardening.py
+          python3 tools/patch_v92_camera_alert_center.py
+          python3 tools/patch_v93_camera_gateway.py
+          python3 tools/patch_v93a_camera_gateway_compile_fix.py
+          python3 tools/patch_v95_camera_wall_performance.py
+          python3 tools/patch_v95a_materialized_idempotency.py
       - name: Flutter dependencies
         run: flutter pub get
       - name: Analyze production app source
