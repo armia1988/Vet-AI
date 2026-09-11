@@ -59,14 +59,26 @@ class CameraConnectionService {
 
     if (useRtsp) {
       try {
-        final uri = streamUri ?? 'rtsp://$host:$rtspPort/';
-        await _probeRtsp(
-          uri: uri,
-          username: username,
-          password: password,
-        );
-        rtspOk = true;
-        streamUri ??= uri;
+        final candidates = streamUri != null
+            ? <String>[streamUri]
+            : _rtspCandidateUris(host, rtspPort);
+        Object? lastError;
+        for (final uri in candidates) {
+          try {
+            await _probeRtsp(
+              uri: uri,
+              username: username,
+              password: password,
+            );
+            rtspOk = true;
+            streamUri = uri;
+            lastError = null;
+            break;
+          } catch (e) {
+            lastError = e;
+          }
+        }
+        if (!rtspOk && lastError != null) throw lastError;
       } catch (e) {
         notes.add('RTSP: ${_cleanError(e)}');
       }
@@ -210,7 +222,26 @@ class CameraConnectionService {
       }
     }
 
-    var response = await send(null);
+    _HttpSoapResponse response;
+    try {
+      response = await send(null);
+    } on HttpException catch (_) {
+      response = await _sendSoap11(
+        uri,
+        body,
+        soapAction,
+        username,
+        password,
+      );
+    } on SocketException catch (_) {
+      response = await _sendSoap11(
+        uri,
+        body,
+        soapAction,
+        username,
+        password,
+      );
+    }
     if (response.statusCode == HttpStatus.unauthorized) {
       final challenge = response.wwwAuthenticate;
       if (challenge == null || challenge.isEmpty) {
@@ -242,6 +273,67 @@ class CameraConnectionService {
       throw HttpException('HTTP ${response.statusCode}', uri: uri);
     }
     return response.body;
+  }
+
+  Future<_HttpSoapResponse> _sendSoap11(
+    Uri uri,
+    String body,
+    String soapAction,
+    String username,
+    String password,
+  ) async {
+    Future<_HttpSoapResponse> send(String? authorization) async {
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 5)
+        ..badCertificateCallback = (_, __, ___) => true;
+      try {
+        final request = await client.postUrl(uri).timeout(const Duration(seconds: 7));
+        request.headers.contentType = ContentType('text', 'xml', charset: 'utf-8');
+        request.headers.set('SOAPAction', '"$soapAction"');
+        request.headers.set(HttpHeaders.connectionHeader, 'close');
+        if (authorization != null) {
+          request.headers.set(HttpHeaders.authorizationHeader, authorization);
+        }
+        request.write(body.replaceFirst(
+          'http://www.w3.org/2003/05/soap-envelope',
+          'http://schemas.xmlsoap.org/soap/envelope/',
+        ));
+        final response = await request.close().timeout(const Duration(seconds: 8));
+        final text = await utf8.decoder.bind(response).join();
+        return _HttpSoapResponse(
+          response.statusCode,
+          text,
+          response.headers.value(HttpHeaders.wwwAuthenticateHeader),
+        );
+      } finally {
+        client.close(force: true);
+      }
+    }
+
+    var response = await send(null);
+    if (response.statusCode == HttpStatus.unauthorized) {
+      final challenge = response.wwwAuthenticate;
+      if (challenge != null && challenge.isNotEmpty) {
+        final lower = challenge.toLowerCase();
+        String? authorization;
+        if (lower.startsWith('digest')) {
+          final digestUri = uri.path.isEmpty
+              ? '/'
+              : (uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path);
+          authorization = _httpDigestAuthorization(
+            challenge: challenge,
+            username: username,
+            password: password,
+            method: 'POST',
+            uri: digestUri,
+          );
+        } else if (lower.startsWith('basic')) {
+          authorization = 'Basic ${base64Encode(utf8.encode('$username:$password'))}';
+        }
+        if (authorization != null) response = await send(authorization);
+      }
+    }
+    return response;
   }
 
   String _httpDigestAuthorization({
@@ -287,6 +379,24 @@ class CameraConnectionService {
 
     final digest = md5.convert(utf8.encode('$ha1:$nonce:$ha2')).toString();
     return 'Digest username="$username", realm="$realm", nonce="$nonce", uri="$uri", response="$digest"';
+  }
+
+  List<String> _rtspCandidateUris(String host, int port) {
+    final base = 'rtsp://$host:$port';
+    return <String>[
+      '$base/cam/realmonitor?channel=1&subtype=0',
+      '$base/cam/realmonitor?channel=1&subtype=1',
+      '$base/Streaming/Channels/101',
+      '$base/Streaming/Channels/102',
+      '$base/h264Preview_01_main',
+      '$base/h264Preview_01_sub',
+      '$base/live/ch00_0',
+      '$base/live/ch00_1',
+      '$base/stream1',
+      '$base/stream2',
+      '$base/live',
+      '$base/',
+    ];
   }
 
   Future<void> _probeRtsp({
@@ -387,47 +497,53 @@ class CameraConnectionService {
     for (final match in RegExp(r'(\w+)=(?:"([^"]*)"|([^,\s]+))').allMatches(challenge)) {
       params[match.group(1)!.toLowerCase()] = match.group(2) ?? match.group(3) ?? '';
     }
-
     final realm = params['realm'] ?? '';
     final nonce = params['nonce'];
-    if (nonce == null || nonce.isEmpty) {
-      throw const HttpException('RTSP digest nonce missing');
-    }
-
+    if (nonce == null || nonce.isEmpty) throw const HttpException('RTSP digest nonce missing');
     final algorithm = (params['algorithm'] ?? 'MD5').toUpperCase();
     if (algorithm != 'MD5' && algorithm != 'MD5-SESS') {
       throw HttpException('Unsupported RTSP digest algorithm: $algorithm');
     }
 
+    final seedHa1 = md5.convert(utf8.encode('$username:$realm:$password')).toString();
     final cnonce = List<int>.generate(12, (_) => Random.secure().nextInt(256))
         .map((e) => e.toRadixString(16).padLeft(2, '0'))
         .join();
-    final baseHa1 = md5.convert(utf8.encode('$username:$realm:$password')).toString();
     final ha1 = algorithm == 'MD5-SESS'
-        ? md5.convert(utf8.encode('$baseHa1:$nonce:$cnonce')).toString()
-        : baseHa1;
+        ? md5.convert(utf8.encode('$seedHa1:$nonce:$cnonce')).toString()
+        : seedHa1;
     final ha2 = md5.convert(utf8.encode('$method:$uri')).toString();
-
-    final qopRaw = params['qop'];
-    final qops = qopRaw
-        ?.split(',')
-        .map((e) => e.trim().replaceAll('"', '').toLowerCase())
+    final qops = (params['qop'] ?? '')
+        .split(',')
+        .map((e) => e.trim().toLowerCase())
         .where((e) => e.isNotEmpty)
         .toList();
-    final opaque = params['opaque'];
-    final algorithmPart = params.containsKey('algorithm') ? ', algorithm=$algorithm' : '';
-    final opaquePart = opaque == null || opaque.isEmpty ? '' : ', opaque="$opaque"';
 
-    if (qops != null && qops.contains('auth')) {
+    String response;
+    final pieces = <String>[
+      'username="$username"',
+      'realm="$realm"',
+      'nonce="$nonce"',
+      'uri="$uri"',
+    ];
+    if (qops.contains('auth')) {
       const nc = '00000001';
-      final response = md5
-          .convert(utf8.encode('$ha1:$nonce:$nc:$cnonce:auth:$ha2'))
-          .toString();
-      return 'Digest username="$username", realm="$realm", nonce="$nonce", uri="$uri", response="$response", qop=auth, nc=$nc, cnonce="$cnonce"$algorithmPart$opaquePart';
+      response = md5.convert(utf8.encode('$ha1:$nonce:$nc:$cnonce:auth:$ha2')).toString();
+      pieces.addAll(<String>[
+        'response="$response"',
+        'qop=auth',
+        'nc=$nc',
+        'cnonce="$cnonce"',
+      ]);
+    } else {
+      response = md5.convert(utf8.encode('$ha1:$nonce:$ha2')).toString();
+      pieces.add('response="$response"');
+      if (algorithm == 'MD5-SESS') pieces.add('cnonce="$cnonce"');
     }
-
-    final response = md5.convert(utf8.encode('$ha1:$nonce:$ha2')).toString();
-    return 'Digest username="$username", realm="$realm", nonce="$nonce", uri="$uri", response="$response"$algorithmPart$opaquePart';
+    final opaque = params['opaque'];
+    if (opaque != null && opaque.isNotEmpty) pieces.add('opaque="$opaque"');
+    if (params['algorithm'] != null) pieces.add('algorithm=${params['algorithm']}');
+    return 'Digest ${pieces.join(', ')}';
   }
 
   String _soapEnvelope({

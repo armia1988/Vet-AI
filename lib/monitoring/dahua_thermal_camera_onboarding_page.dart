@@ -57,6 +57,8 @@ class _DahuaThermalCameraOnboardingPageState
   String? discoveredSubStreamUri;
   int discoveredProfileCount = 0;
   String? testDetails;
+  bool verifiedOnvif = false;
+  bool verifiedRtsp = false;
 
   @override
   void initState() {
@@ -75,6 +77,8 @@ class _DahuaThermalCameraOnboardingPageState
       discoveredSubStreamUri = null;
       discoveredProfileCount = 0;
       testDetails = null;
+      verifiedOnvif = false;
+      verifiedRtsp = false;
     });
   }
 
@@ -177,6 +181,8 @@ class _DahuaThermalCameraOnboardingPageState
       discoveredSubStreamUri = null;
       discoveredProfileCount = 0;
       testDetails = null;
+      verifiedOnvif = false;
+      verifiedRtsp = false;
     });
 
     try {
@@ -217,15 +223,21 @@ class _DahuaThermalCameraOnboardingPageState
         serial.text = info['SerialNumber']!;
       }
 
+      final usableStream = discoveredProfiles?.mainStreamUri ?? result.streamUri;
+      final connectionUsable = result.success || (result.rtspOk && usableStream != null);
       setState(() {
-        testedSuccessfully = result.success;
-        discoveredStreamUri = discoveredProfiles?.mainStreamUri ?? result.streamUri;
+        verifiedOnvif = result.onvifOk;
+        verifiedRtsp = result.rtspOk;
+        testedSuccessfully = connectionUsable;
+        discoveredStreamUri = usableStream;
         discoveredSubStreamUri = discoveredProfiles?.subStreamUri;
         discoveredProfileCount = discoveredProfiles?.profiles.length ?? 0;
         testDetails = result.message;
+        if (result.rtspOk && !result.onvifOk) protocol = 'RTSP';
+        if (result.onvifOk && !result.rtspOk) protocol = 'ONVIF';
       });
 
-      if (result.success) {
+      if (connectionUsable) {
         _snack(
           _dt(
             context,
@@ -308,6 +320,7 @@ class _DahuaThermalCameraOnboardingPageState
             'vendor': vendor,
             'camera_name': name.text.trim(),
             'camera_type': cameraType,
+            'serial_number': serial.text.trim().isEmpty ? null : serial.text.trim(),
             'host': endpoint.host,
             'http_port': endpoint.httpPort,
             'rtsp_port': endpoint.rtspPort,
@@ -315,9 +328,9 @@ class _DahuaThermalCameraOnboardingPageState
             'protocol': protocol,
             'purpose': purpose,
             'thermal': isThermal,
-            'onvif': protocol.contains('ONVIF'),
-            'rtsp': protocol.contains('RTSP'),
-            'connection_verified': true,
+            'onvif': verifiedOnvif,
+            'rtsp': verifiedRtsp,
+            'connection_verified': testedSuccessfully,
             'stream_uri': discoveredStreamUri,
             'substream_uri': discoveredSubStreamUri,
             'stream_profile_count': discoveredProfileCount,
