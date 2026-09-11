@@ -29,7 +29,7 @@ checks = {
         'trend === "worse"',
         '.from("animal_ai_followups")',
         '.from("alerts").insert',
-        'IMAGE 1 — original assessment',
+        'IMAGE 1 — original baseline',
         'IMAGE 2 — current follow-up',
     ],
     'supabase/functions/vet-ai-apns-push/index.ts': [
