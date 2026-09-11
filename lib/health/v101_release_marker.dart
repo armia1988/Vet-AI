@@ -1,1 +1,1 @@
-const String vetAiAiFollowupVersion = 'V101';
+const String vetAiAiFollowupVersion = 'V101b';
