@@ -8,6 +8,7 @@ on:
       - '.github/workflows/v100-materialize-health-center.yml'
       - 'tools/patch_v101_ai_followup_ui.py'
       - 'tools/patch_v101a_followup_format_guard.py'
+      - 'tools/patch_v101b_scan_animal_link.py'
 
 permissions:
   contents: write
@@ -29,12 +30,16 @@ jobs:
         run: python3 tools/patch_v101_ai_followup_ui.py
       - name: Apply V101a image format guard
         run: python3 tools/patch_v101a_followup_format_guard.py
+      - name: Apply V101b scan animal link
+        run: python3 tools/patch_v101b_scan_animal_link.py
       - name: Verify V101 materialized source
         run: |
           python3 - <<'PY'
           from pathlib import Path
           ui = Path('lib/health/animal_health_center.dart').read_text(encoding='utf-8')
           service = Path('lib/health/ai_followup_service.dart').read_text(encoding='utf-8')
+          app = Path('lib/v5_app.dart').read_text(encoding='utf-8')
+          backend = Path('lib/services/vet_backend.dart').read_text(encoding='utf-8')
           for marker in [
               'length: 4,',
               'class _FollowUpTab extends StatefulWidget',
@@ -52,16 +57,27 @@ jobs:
           ]:
               if marker not in service:
                   raise SystemExit(f'V101 service marker missing: {marker}')
-          print('V101 AI follow-up source verified')
+          for marker in [
+              "'Link to animal (recommended)'",
+              'animalId: selectedAnimalId,',
+              'Future<void> _loadScanAnimals() async',
+          ]:
+              if marker not in app:
+                  raise SystemExit(f'V101b scan marker missing: {marker}')
+          assessment = backend[backend.find('Future<String> createDraftAssessment'):backend.find('Future<Map<String, dynamic>> analyzeAssessment')]
+          for marker in ['String? animalId,', "if (animalId != null) 'animal_id': animalId,"]:
+              if marker not in assessment:
+                  raise SystemExit(f'V101b backend marker missing: {marker}')
+          print('V101 AI follow-up and animal linking verified')
           PY
       - name: Commit materialized V101 source
         run: |
-          if git diff --quiet -- lib/health/animal_health_center.dart; then
+          if git diff --quiet -- lib/health/animal_health_center.dart lib/v5_app.dart lib/services/vet_backend.dart; then
             echo "V101 source already materialized"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add lib/health/animal_health_center.dart
-          git commit -m "Materialize V101 AI follow-up source"
+          git add lib/health/animal_health_center.dart lib/v5_app.dart lib/services/vet_backend.dart
+          git commit -m "Materialize V101b animal-linked follow-up source"
           git push origin HEAD:main
