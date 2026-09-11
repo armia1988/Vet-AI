@@ -1,0 +1,42 @@
+name: V102 Production Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'lib/health/**'
+      - 'lib/v5_app.dart'
+      - 'supabase/functions/analyze-followup/**'
+      - 'supabase/functions/vet-ai-apns-push/**'
+      - 'supabase/migrations/20260911102000_v102_production_validation.sql'
+      - 'tools/verify_v102_production_e2e.py'
+      - '.github/workflows/v102-production-validation.yml'
+
+concurrency:
+  group: v102-production-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: V102 source wiring guard
+        run: python3 tools/verify_v102_production_e2e.py
+      - name: Flutter dependencies
+        run: flutter pub get
+      - name: Analyze production app source
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Check production Edge Functions
+        run: |
+          deno check supabase/functions/analyze-followup/index.ts
+          deno check supabase/functions/vet-ai-apns-push/index.ts
