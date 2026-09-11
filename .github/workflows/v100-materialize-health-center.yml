@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/v100-materialize-health-center.yml'
+      - 'tools/patch_v100_animal_health_center.py'
 
 permissions:
   contents: write
