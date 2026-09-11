@@ -12,16 +12,16 @@ if import_line not in text:
 
 marker = "AnimalHealthCenterPage(farmId: farmId)"
 if marker not in text:
-    anchor = """            OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => CameraCenterPage(farmId: farmId),
-                ),
-              ),
-"""
-    if anchor not in text:
-        raise SystemExit('V100 Camera Center navigation anchor not found')
+    needle = "builder: (_) => CameraCenterPage(farmId: farmId)"
+    camera_pos = text.find(needle)
+    if camera_pos < 0:
+        raise SystemExit('V100 Camera Center route not found')
+
+    widget_pos = text.rfind('            OutlinedButton.icon(', 0, camera_pos)
+    if widget_pos < 0:
+        raise SystemExit('V100 Camera Center button start not found')
+
+    line_start = text.rfind('\n', 0, widget_pos) + 1
     button = """            FilledButton.icon(
               onPressed: () => Navigator.push(
                 context,
@@ -41,7 +41,7 @@ if marker not in text:
             ),
             const SizedBox(height: 10),
 """
-    text = text.replace(anchor, button + anchor, 1)
+    text = text[:line_start] + button + text[line_start:]
 
 if text.count(import_line) != 1:
     raise SystemExit('V100 health center import must exist exactly once')
