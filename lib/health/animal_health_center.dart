@@ -749,9 +749,10 @@ class _AnimalTimelinePageState extends State<AnimalTimelinePage> {
               child: Text(_t(context, 'Cancel', 'إلغاء', 'Annuleren')),
             ),
             FilledButton(
-              onPressed: title.text.trim().isEmpty
-                  ? null
-                  : () => Navigator.pop(dialogContext, true),
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                title.text.trim().isNotEmpty,
+              ),
               child: Text(_t(context, 'Save', 'حفظ', 'Opslaan')),
             ),
           ],
