@@ -147,11 +147,14 @@ jobs:
         run: |
           CERT_PATH="$RUNNER_TEMP/vetai_distribution.p12"
           PROFILE_PATH="$RUNNER_TEMP/vetai_appstore.mobileprovision"
+          PROFILE_PLIST="$RUNNER_TEMP/vetai_appstore.plist"
           KEYCHAIN_PATH="$RUNNER_TEMP/vetai-signing.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
 
           printf '%s' "$IOS_DISTRIBUTION_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
           printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+          test -s "$CERT_PATH"
+          test -s "$PROFILE_PATH"
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
@@ -161,8 +164,15 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
 
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          PROFILE_UUID=$(security cms -D -i "$PROFILE_PATH" | /usr/libexec/PlistBuddy -c 'Print :UUID' /dev/stdin)
-          PROFILE_NAME=$(security cms -D -i "$PROFILE_PATH" | /usr/libexec/PlistBuddy -c 'Print :Name' /dev/stdin)
+          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+          test -s "$PROFILE_PLIST"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$PROFILE_PLIST")
+          PROFILE_APP_ID=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$PROFILE_PLIST")
+          if [[ "$PROFILE_APP_ID" != *".$BUNDLE_ID" ]]; then
+            echo "::error::Provisioning profile does not match bundle id $BUNDLE_ID"
+            exit 1
+          fi
           cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
           echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
           echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
