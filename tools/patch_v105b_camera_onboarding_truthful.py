@@ -11,7 +11,16 @@ for patch_name in [
     patch = Path(patch_name)
     if not patch.exists():
         raise SystemExit(f'Camera release patch is missing: {patch_name}')
-    exec(compile(patch.read_text(encoding='utf-8'), str(patch), 'exec'))
+    source = patch.read_text(encoding='utf-8')
+    # V112 runtime code uses `final path = ...`; its original release guard
+    # accidentally looked for `path: ...` and stopped CI before analysis.
+    # Correct only that verifier token while keeping the runtime patch intact.
+    if patch_name == 'tools/patch_v112_dahua_live_and_controls.py':
+        source = source.replace(
+            '"path: \'/cgi-bin/ptz.cgi"',
+            '"final path = \'/cgi-bin/ptz.cgi"',
+        )
+    exec(compile(source, str(patch), 'exec'))
 
 # App Store Connect ITMS-90683 hardening. Some linked iOS location APIs are
 # detected statically even though Vet AI normally requests foreground location.
