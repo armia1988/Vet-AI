@@ -1,0 +1,39 @@
+name: V105c Materialize Release Chain
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/patch_v105c_release_chain.py'
+      - '.github/workflows/v105c-materialize-release-chain.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply release chain updates
+        run: python3 tools/patch_v105c_release_chain.py
+      - name: Verify release chains
+        run: |
+          grep -q "patch_v105_camera_connection_compat.py" codemagic.yaml
+          grep -q "patch_v105b_camera_onboarding_truthful.py" codemagic.yaml
+          grep -q "patch_v105_camera_connection_compat.py" .github/workflows/ios-v96-release-readiness.yml
+          grep -q "patch_v105_camera_connection_compat.py" .github/workflows/ios-v84-camera-discovery-check.yml
+      - name: Commit release chain updates
+        run: |
+          if git diff --quiet -- codemagic.yaml .github/workflows/ios-v96-release-readiness.yml .github/workflows/ios-v84-camera-discovery-check.yml; then
+            echo "V105 release chains already updated"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add codemagic.yaml .github/workflows/ios-v96-release-readiness.yml .github/workflows/ios-v84-camera-discovery-check.yml
+          git commit -m "Materialize V105 camera fixes in release chains"
+          git push origin HEAD:main
