@@ -1121,7 +1121,7 @@ class _CareTabState extends State<_CareTab> {
     var animalId = '${animals.first['id']}';
     var start = DateTime.now();
     DateTime? nextDose;
-    int? doseIntervalHours;
+    var doseIntervalHours = 0;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -1179,7 +1179,7 @@ class _CareTabState extends State<_CareTab> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  DropdownButtonFormField<int?>(
+                  DropdownButtonFormField<int>(
                     value: doseIntervalHours,
                     decoration: InputDecoration(
                       labelText: _t(
@@ -1190,23 +1190,23 @@ class _CareTabState extends State<_CareTab> {
                       ),
                     ),
                     items: [
-                      DropdownMenuItem<int?>(
-                        value: null,
+                      DropdownMenuItem<int>(
+                        value: 0,
                         child: Text(_t(context, 'One-time / manual', 'مرة واحدة / يدوي', 'Eenmalig / handmatig')),
                       ),
-                      const DropdownMenuItem<int?>(value: 6, child: Text('6 h')),
-                      const DropdownMenuItem<int?>(value: 8, child: Text('8 h')),
-                      const DropdownMenuItem<int?>(value: 12, child: Text('12 h')),
-                      const DropdownMenuItem<int?>(value: 24, child: Text('24 h')),
-                      const DropdownMenuItem<int?>(value: 48, child: Text('48 h')),
-                      const DropdownMenuItem<int?>(value: 72, child: Text('72 h')),
-                      const DropdownMenuItem<int?>(value: 168, child: Text('7 days')),
+                      const DropdownMenuItem<int>(value: 6, child: Text('6 h')),
+                      const DropdownMenuItem<int>(value: 8, child: Text('8 h')),
+                      const DropdownMenuItem<int>(value: 12, child: Text('12 h')),
+                      const DropdownMenuItem<int>(value: 24, child: Text('24 h')),
+                      const DropdownMenuItem<int>(value: 48, child: Text('48 h')),
+                      const DropdownMenuItem<int>(value: 72, child: Text('72 h')),
+                      const DropdownMenuItem<int>(value: 168, child: Text('7 days')),
                     ],
                     onChanged: (value) {
                       setDialogState(() {
-                        doseIntervalHours = value;
-                        if (value != null && nextDose == null) {
-                          nextDose = start.add(Duration(hours: value));
+                        doseIntervalHours = value ?? 0;
+                        if (doseIntervalHours > 0 && nextDose == null) {
+                          nextDose = start.add(Duration(hours: doseIntervalHours));
                         }
                       });
                     },
@@ -1278,7 +1278,7 @@ class _CareTabState extends State<_CareTab> {
           route: route.text,
           frequency: frequency.text,
           startsAt: start,
-          doseIntervalHours: doseIntervalHours,
+          doseIntervalHours: doseIntervalHours == 0 ? null : doseIntervalHours,
           nextDoseAt: nextDose,
           notes: notes.text,
         );
@@ -1339,9 +1339,9 @@ class _CareTabState extends State<_CareTab> {
               subtitle: Text(
                 _t(
                   context,
-                  'Care reminders are checked every 15 minutes. Vaccines due within 24 hours and scheduled medication doses create a real Vet AI alert and iOS push notification.',
-                  'يتم فحص تذكيرات الرعاية كل 15 دقيقة. التطعيمات المستحقة خلال 24 ساعة وجرعات الدواء المجدولة تنشئ تنبيه Vet AI حقيقي وإشعار Push على iPhone.',
-                  'Zorgherinneringen worden elke 15 minuten gecontroleerd. Vaccins binnen 24 uur en geplande medicatiedoses maken een echte Vet AI-melding en iOS-pushmelding.',
+                  'Care reminders are checked every 15 minutes. Vaccines due within 24 hours and scheduled medication doses create a Vet AI alert and use the registered iOS APNs push delivery path.',
+                  'يتم فحص تذكيرات الرعاية كل 15 دقيقة. التطعيمات المستحقة خلال 24 ساعة وجرعات الدواء المجدولة تنشئ تنبيه Vet AI وتستخدم مسار APNs المسجل لإشعارات iPhone.',
+                  'Zorgherinneringen worden elke 15 minuten gecontroleerd. Vaccins binnen 24 uur en geplande medicatiedoses maken een Vet AI-melding en gebruiken het geregistreerde iOS APNs-pushpad.',
                 ),
               ),
             ),
