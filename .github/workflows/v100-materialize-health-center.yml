@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/v100-materialize-health-center.yml'
+      - 'tools/patch_v99b_care_push_reminders.py'
       - 'tools/patch_v100_animal_health_center.py'
       - 'tools/patch_v100a_health_ui_fix.py'
 
@@ -27,16 +28,18 @@ jobs:
         run: python3 tools/patch_v100_animal_health_center.py
       - name: Apply V100a health UI fix
         run: python3 tools/patch_v100a_health_ui_fix.py
+      - name: Apply V99b care reminders
+        run: python3 tools/patch_v99b_care_push_reminders.py
       - name: Verify materialized source
         run: python3 tools/verify_v100_health_management.py
-      - name: Commit materialized V100 source
+      - name: Commit materialized health source
         run: |
-          if git diff --quiet -- lib/v5_app.dart lib/health/animal_health_center.dart; then
-            echo "V100 source already materialized"
+          if git diff --quiet -- lib/v5_app.dart lib/health/animal_health_center.dart lib/health/animal_health_service.dart; then
+            echo "Health source already materialized"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add lib/v5_app.dart lib/health/animal_health_center.dart
-          git commit -m "Materialize V100 farm health center source"
+          git add lib/v5_app.dart lib/health/animal_health_center.dart lib/health/animal_health_service.dart
+          git commit -m "Materialize V99b care reminder source"
           git push origin HEAD:main
