@@ -166,6 +166,8 @@ class _DahuaThermalCameraOnboardingPageState
       discoveredSubStreamUri = null;
       discoveredProfileCount = 0;
       testDetails = null;
+      verifiedOnvif = false;
+      verifiedRtsp = false;
     });
   }
 
