@@ -28,6 +28,7 @@ import 'monitoring/sensor_alert_rules.dart';
 import 'monitoring/camera_center_page.dart';
 import 'monitoring/camera_alert_center_page.dart';
 import 'monitoring/camera_gateway_page.dart';
+import 'health/animal_health_center.dart';
 import 'monitoring/ble_sensor_onboarding_page.dart';
 import 'monitoring/dahua_thermal_camera_onboarding_page.dart';
 import 'models/animal_taxonomy.dart';
@@ -2607,6 +2608,24 @@ class _V5SensorsPanelState extends State<V5SensorsPanel> {
                   'Connect sensor with Bluetooth',
                   'ربط حساس بالبلوتوث',
                   'Sensor koppelen via Bluetooth',
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AnimalHealthCenterPage(farmId: farmId),
+                ),
+              ),
+              icon: const Icon(Icons.health_and_safety_rounded, size: 27),
+              label: Text(
+                tr(
+                  context,
+                  'Farm Health Center',
+                  'مركز صحة المزرعة',
+                  'Gezondheidscentrum',
                 ),
               ),
             ),
