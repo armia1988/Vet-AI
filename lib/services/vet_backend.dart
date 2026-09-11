@@ -479,6 +479,7 @@ class VetBackend {
   Future<String> createDraftAssessment({
     required String farmId,
     required String mediaPath,
+    String? animalId,
     String symptomNotes = '',
     String animalGroup = 'livestock',
     String speciesCode = '',
@@ -493,6 +494,7 @@ class VetBackend {
         .insert({
           'farm_id': farmId,
           'created_by': user.id,
+          if (animalId != null) 'animal_id': animalId,
           'media_path': mediaPath,
           'symptom_notes': symptomNotes.trim(),
           'animal_group': animalGroup,

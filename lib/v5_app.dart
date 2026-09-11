@@ -1910,6 +1910,8 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
   bool busy = false;
   Map<String, dynamic>? result;
   String? assessmentId;
+  List<Map<String, dynamic>> scanAnimals = const [];
+  String? selectedAnimalId;
   late String group;
   late String speciesCode;
   late String dogBreedCode;
@@ -1965,6 +1967,43 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
               : 'cattle')
         : initialSpecies.first;
     dogBreedCode = _availableDogBreeds.first.code;
+    unawaited(_loadScanAnimals());
+  }
+
+  Future<void> _loadScanAnimals() async {
+    try {
+      final farmId = '${widget.farm['id'] ?? ''}';
+      if (farmId.isEmpty) return;
+      final rows = await Supabase.instance.client
+          .from('animals')
+          .select('id,animal_group,external_id,name,species')
+          .eq('farm_id', farmId)
+          .eq('active', true)
+          .order('created_at', ascending: false);
+      if (!mounted) return;
+      setState(() {
+        scanAnimals = rows
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      });
+    } catch (_) {
+      // Individual animal selection is optional; scanning still works without it.
+    }
+  }
+
+  List<Map<String, dynamic>> get _scanAnimalsForGroup => scanAnimals
+      .where((animal) => '${animal['animal_group'] ?? ''}' == group)
+      .toList();
+
+  String _scanAnimalLabel(Map<String, dynamic> animal) {
+    final name = '${animal['name'] ?? ''}'.trim();
+    final tag = '${animal['external_id'] ?? ''}'.trim();
+    final species = '${animal['species'] ?? ''}'.trim();
+    if (name.isNotEmpty && tag.isNotEmpty) return '$name · $tag';
+    if (name.isNotEmpty) return name;
+    if (tag.isNotEmpty) return tag;
+    if (species.isNotEmpty) return species;
+    return tr(context, 'Animal', 'حيوان', 'Dier');
   }
 
   @override
@@ -2159,6 +2198,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
       final newAssessmentId = await VetBackend.instance.createDraftAssessment(
         farmId: farmId,
         mediaPath: path,
+        animalId: selectedAnimalId,
         symptomNotes: group == 'dogs'
             ? '[Dog breed: $dogBreedCode]\n${notes.text}'
             : notes.text,
@@ -2321,6 +2361,55 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
               result = null;
             }),
           ),
+        if (_scanAnimalsForGroup.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          DropdownButtonFormField<String?>(
+            value: _scanAnimalsForGroup.any(
+              (animal) => '${animal['id']}' == selectedAnimalId,
+            )
+                ? selectedAnimalId
+                : null,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: tr(
+                context,
+                'Link to animal (recommended)',
+                'اربط الفحص بالحيوان (موصى به)',
+                'Koppel aan dier (aanbevolen)',
+              ),
+              helperText: tr(
+                context,
+                'Enables the 12 / 24 / 48 hour AI follow-up timeline.',
+                'يفعّل متابعة AI بعد 12 / 24 / 48 ساعة.',
+                'Activeert de AI-follow-up na 12 / 24 / 48 uur.',
+              ),
+            ),
+            items: [
+              DropdownMenuItem<String?>(
+                value: null,
+                child: Text(
+                  tr(context, 'No individual animal', 'بدون حيوان محدد', 'Geen individueel dier'),
+                ),
+              ),
+              ..._scanAnimalsForGroup.map(
+                (animal) => DropdownMenuItem<String?>(
+                  value: '${animal['id']}',
+                  child: Text(
+                    _scanAnimalLabel(animal),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
+            onChanged: busy
+                ? null
+                : (value) => setState(() {
+                    selectedAnimalId = value;
+                    result = null;
+                  }),
+          ),
+        ],
         const SizedBox(height: 16),
         Container(
           height: 285,
