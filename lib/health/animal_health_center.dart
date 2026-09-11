@@ -1121,6 +1121,7 @@ class _CareTabState extends State<_CareTab> {
     var animalId = '${animals.first['id']}';
     var start = DateTime.now();
     DateTime? nextDose;
+    int? doseIntervalHours;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -1176,6 +1177,39 @@ class _CareTabState extends State<_CareTab> {
                       labelText: _t(context, 'Frequency', 'التكرار', 'Frequentie'),
                       hintText: _t(context, 'e.g. every 12 hours', 'مثال: كل 12 ساعة', 'bijv. elke 12 uur'),
                     ),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<int?>(
+                    value: doseIntervalHours,
+                    decoration: InputDecoration(
+                      labelText: _t(
+                        context,
+                        'Automatic reminder interval',
+                        'فاصل التذكير التلقائي',
+                        'Automatisch herinneringsinterval',
+                      ),
+                    ),
+                    items: [
+                      DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text(_t(context, 'One-time / manual', 'مرة واحدة / يدوي', 'Eenmalig / handmatig')),
+                      ),
+                      const DropdownMenuItem<int?>(value: 6, child: Text('6 h')),
+                      const DropdownMenuItem<int?>(value: 8, child: Text('8 h')),
+                      const DropdownMenuItem<int?>(value: 12, child: Text('12 h')),
+                      const DropdownMenuItem<int?>(value: 24, child: Text('24 h')),
+                      const DropdownMenuItem<int?>(value: 48, child: Text('48 h')),
+                      const DropdownMenuItem<int?>(value: 72, child: Text('72 h')),
+                      const DropdownMenuItem<int?>(value: 168, child: Text('7 days')),
+                    ],
+                    onChanged: (value) {
+                      setDialogState(() {
+                        doseIntervalHours = value;
+                        if (value != null && nextDose == null) {
+                          nextDose = start.add(Duration(hours: value));
+                        }
+                      });
+                    },
                   ),
                   const SizedBox(height: 8),
                   ListTile(
@@ -1244,6 +1278,7 @@ class _CareTabState extends State<_CareTab> {
           route: route.text,
           frequency: frequency.text,
           startsAt: start,
+          doseIntervalHours: doseIntervalHours,
           nextDoseAt: nextDose,
           notes: notes.text,
         );
@@ -1287,6 +1322,29 @@ class _CareTabState extends State<_CareTab> {
                 label: Text(_t(context, 'Add medication', 'إضافة دواء', 'Medicatie toevoegen')),
               ),
             ],
+          ),
+          const SizedBox(height: 14),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.notifications_active_rounded),
+              title: Text(
+                _t(
+                  context,
+                  'Automatic care reminders',
+                  'تذكيرات الرعاية التلقائية',
+                  'Automatische zorgherinneringen',
+                ),
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              subtitle: Text(
+                _t(
+                  context,
+                  'Care reminders are checked every 15 minutes. Vaccines due within 24 hours and scheduled medication doses create a real Vet AI alert and iOS push notification.',
+                  'يتم فحص تذكيرات الرعاية كل 15 دقيقة. التطعيمات المستحقة خلال 24 ساعة وجرعات الدواء المجدولة تنشئ تنبيه Vet AI حقيقي وإشعار Push على iPhone.',
+                  'Zorgherinneringen worden elke 15 minuten gecontroleerd. Vaccins binnen 24 uur en geplande medicatiedoses maken een echte Vet AI-melding en iOS-pushmelding.',
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 22),
           Text(
@@ -1356,22 +1414,46 @@ class _CareTabState extends State<_CareTab> {
                     animalLabels['${row['animal_id']}'] ?? _t(context, 'Animal', 'حيوان', 'Dier'),
                     if (row['dose'] != null) '${_t(context, 'Dose', 'الجرعة', 'Dosis')}: ${row['dose']}',
                     if (row['frequency'] != null) '${row['frequency']}',
+                    if (row['dose_interval_hours'] != null)
+                      '${_t(context, 'Reminder', 'التذكير', 'Herinnering')}: ${row['dose_interval_hours']} h',
                     if (next != null) '${_t(context, 'Next', 'القادم', 'Volgende')}: ${_dateLabel(next)}',
                     '${_t(context, 'Status', 'الحالة', 'Status')}: ${row['status'] ?? 'active'}',
                   ].join('\n')),
                   isThreeLine: true,
                   trailing: active
-                      ? IconButton.filledTonal(
-                          tooltip: _t(context, 'Complete treatment', 'إنهاء العلاج', 'Behandeling afronden'),
-                          onPressed: () async {
+                      ? PopupMenuButton<String>(
+                          tooltip: _t(context, 'Medication actions', 'إجراءات الدواء', 'Medicatieacties'),
+                          onSelected: (value) async {
                             try {
-                              await AnimalHealthService.instance.completeMedication(row);
+                              if (value == 'dose') {
+                                await AnimalHealthService.instance.recordMedicationDose(row);
+                              } else if (value == 'complete') {
+                                await AnimalHealthService.instance.completeMedication(row);
+                              }
                               await load();
                             } catch (e) {
                               if (mounted) _showError(context, e);
                             }
                           },
-                          icon: const Icon(Icons.check_rounded),
+                          itemBuilder: (context) => [
+                            if (row['status'] == 'active' && next != null)
+                              PopupMenuItem<String>(
+                                value: 'dose',
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(Icons.medication_liquid_rounded),
+                                  title: Text(_t(context, 'Dose given', 'تم إعطاء الجرعة', 'Dosis gegeven')),
+                                ),
+                              ),
+                            PopupMenuItem<String>(
+                              value: 'complete',
+                              child: ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: const Icon(Icons.check_circle_outline_rounded),
+                                title: Text(_t(context, 'Complete treatment', 'إنهاء العلاج', 'Behandeling afronden')),
+                              ),
+                            ),
+                          ],
                         )
                       : const Icon(Icons.check_circle_outline_rounded),
                 ),

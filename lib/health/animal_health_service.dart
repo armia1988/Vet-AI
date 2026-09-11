@@ -184,6 +184,7 @@ class AnimalHealthService {
     required String frequency,
     required DateTime startsAt,
     DateTime? endsAt,
+    int? doseIntervalHours,
     DateTime? nextDoseAt,
     String? notes,
   }) async {
@@ -194,6 +195,7 @@ class AnimalHealthService {
       'dose': dose.trim().isEmpty ? null : dose.trim(),
       'route': route.trim().isEmpty ? null : route.trim(),
       'frequency': frequency.trim().isEmpty ? null : frequency.trim(),
+      'dose_interval_hours': doseIntervalHours,
       'starts_at': startsAt.toUtc().toIso8601String(),
       if (endsAt != null) 'ends_at': endsAt.toUtc().toIso8601String(),
       if (nextDoseAt != null) 'next_dose_at': nextDoseAt.toUtc().toIso8601String(),
@@ -212,6 +214,38 @@ class AnimalHealthService {
         if (frequency.trim().isNotEmpty) 'Frequency: ${frequency.trim()}',
       ].join(' · '),
       occurredAt: startsAt,
+    );
+  }
+
+  Future<void> recordMedicationDose(Map<String, dynamic> medication) async {
+    final now = DateTime.now();
+    final rawInterval = medication['dose_interval_hours'];
+    final intervalHours = rawInterval is num
+        ? rawInterval.toInt()
+        : int.tryParse('${rawInterval ?? ''}');
+    final nextDose = intervalHours != null && intervalHours > 0
+        ? now.add(Duration(hours: intervalHours))
+        : null;
+
+    await _client
+        .from('animal_medications')
+        .update({
+          'status': 'active',
+          'next_dose_at': nextDose?.toUtc().toIso8601String(),
+        })
+        .eq('id', '${medication['id']}');
+
+    await addHealthEvent(
+      farmId: '${medication['farm_id']}',
+      animalId: '${medication['animal_id']}',
+      eventType: 'treatment',
+      title: 'Medication dose given: ${medication['medication_name'] ?? ''}',
+      details: [
+        if (medication['dose'] != null) 'Dose: ${medication['dose']}',
+        if (medication['route'] != null) 'Route: ${medication['route']}',
+        if (nextDose != null) 'Next dose: ${nextDose.toLocal()}',
+      ].join(' · '),
+      occurredAt: now,
     );
   }
 
