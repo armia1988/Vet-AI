@@ -1,0 +1,38 @@
+name: V104b Materialize Camera Auth
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/v104b-materialize-camera-auth.yml'
+      - 'tools/patch_v104b_camera_auth_hardening.py'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply V104b camera auth hardening
+        run: python3 tools/patch_v104b_camera_auth_hardening.py
+      - name: Verify V104b markers
+        run: |
+          grep -q "Unsupported RTSP digest algorithm" lib/monitoring/camera_connection_service.dart
+          grep -q "qop=auth" lib/monitoring/camera_connection_service.dart
+          grep -q "MD5-SESS" lib/monitoring/camera_connection_service.dart
+      - name: Commit materialized source
+        run: |
+          if git diff --quiet -- lib/monitoring/camera_connection_service.dart; then
+            echo "V104b already materialized"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/monitoring/camera_connection_service.dart
+          git commit -m "Materialize V104b camera authentication hardening"
+          git push origin HEAD:main
