@@ -78,7 +78,7 @@ checks = {
         'CameraConnectionService',
         '_testConnection',
         'testedSuccessfully',
-        "'connection_verified': true",
+        "'connection_verified': testedSuccessfully",
         "'credentials_storage': 'platform_secure_storage'",
         'ONVIF + RTSP',
         'Hikvision',
