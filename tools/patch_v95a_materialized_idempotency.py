@@ -13,13 +13,9 @@ block = """            httpPort: int.tryParse((caps['http_port'] ?? '80').toStri
             capabilities: caps,
 """
 
-# Collapse any adjacent duplicate metadata blocks created by reapplying V85
-# then V95 to an already materialized Camera Center source.
 while block + block in s:
     s = s.replace(block + block, block, 1)
 
-# Also handle the intermediate V85-only duplicate httpPort form if V95 changes
-# in a future patch order.
 http_line = "            httpPort: int.tryParse((caps['http_port'] ?? '80').toString()) ?? 80,\n"
 while http_line + http_line in s:
     s = s.replace(http_line + http_line, http_line, 1)
@@ -34,4 +30,14 @@ if text.count("onvif: caps['onvif'] == true,") != 1:
 if text.count('capabilities: caps,') != 1:
     raise SystemExit('V95a expected exactly one saved-camera capabilities argument')
 
-print('Vet AI V95a applied: materialized camera source remains safe when production patches are reapplied')
+# Final camera compatibility layer. Keeping this here guarantees Codemagic and
+# release workflows that already run through V95a also receive V105, even when
+# older V82 rewrites the connection service earlier in the patch chain.
+for extra in [
+    'tools/patch_v105_camera_connection_compat.py',
+    'tools/patch_v105b_camera_onboarding_truthful.py',
+]:
+    code = Path(extra).read_text(encoding='utf-8')
+    exec(compile(code, extra, 'exec'), {'__name__': '__main__'})
+
+print('Vet AI V95a applied: materialized camera source remains safe and V105 compatibility is active')
