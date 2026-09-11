@@ -7,6 +7,7 @@ for patch_name in [
     'tools/patch_v111_dahua_direct_camera_hub.py',
     'tools/patch_v112_dahua_live_and_controls.py',
     'tools/patch_v112b_dahua_control_reliability.py',
+    'tools/patch_v112c_camera_control_vendor_dedupe.py',
 ]:
     patch = Path(patch_name)
     if not patch.exists():
@@ -46,4 +47,4 @@ info['NSLocationAlwaysAndWhenInUseUsageDescription'] = (
 with plist_path.open('wb') as f:
     plistlib.dump(info, f)
 
-print('V110/V111/V112 iOS privacy, Dahua live and native camera controls applied')
+print('V110/V111/V112/V113 iOS privacy, Dahua live and native camera controls applied')
