@@ -1,8 +1,16 @@
 workflows:
   ios-release:
-    name: Vet AI iOS TestFlight Build
+    name: Vet AI V103 iOS TestFlight Build
     max_build_duration: 60
     instance_type: mac_mini_m2
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'release/v103-testflight'
+          include: true
+          source: true
+      cancel_previous_builds: true
     integrations:
       app_store_connect: Codemagic Key
     environment:
@@ -88,66 +96,9 @@ workflows:
           python3 tools/patch_v95a_materialized_idempotency.py
           python3 -m py_compile tools/vet_ai_camera_gateway.py
 
-      - name: Verify production backend, camera stack and V96 release readiness
+      - name: Verify V102 and release readiness
         script: |
-          python3 - <<'PY'
-          from pathlib import Path
-          expected_ref = 'mzqwjyantyvizwbzetwf'
-          config = Path('lib/config/supabase_config.dart').read_text(encoding='utf-8')
-          if expected_ref not in config:
-              raise SystemExit('Vet AI production Supabase project guard is missing')
-          workflow = Path('lib/services/vet_case_workflow.dart').read_text(encoding='utf-8')
-          if 'clean.length > 3600' not in workflow:
-              raise SystemExit('Vet AI full voice length patch is missing')
-          report = Path('lib/analysis/vet_analysis_report.dart').read_text(encoding='utf-8')
-          required = [
-              'DeviceFileSource(voiceFile.path)',
-              'device_file_pipeline',
-              '_splitVoiceChunks',
-              '_buildSpokenReportText()',
-              'actions.join',
-              'chunks[i + 1]',
-              '_egyptianSpeechText(text)',
-              '_prewarmCurrentVoice()',
-              '_voicePrewarmBytes',
-              'voice_prewarm_ready',
-              'voice_tap_cache_hit',
-              'instant_voice_cache',
-              'maxChars: 300',
-          ]
-          for marker in required:
-              if marker not in report:
-                  raise SystemExit(f'Vet AI voice pipeline missing: {marker}')
-          if 'BytesSource(natural)' in report:
-              raise SystemExit('Vet AI old BytesSource playback is still active')
-          if "String text = (_result['voice_summary']" in report:
-              raise SystemExit('Vet AI old partial voice_summary path is still active')
-          call_page = Path('lib/support/support_webrtc_call_page.dart').read_text(encoding='utf-8')
-          for marker in [
-              'createPeerConnection',
-              'getUserMedia',
-              'RTCVideoView',
-              'V56 remote audio renderer',
-              '_startRingback()',
-              'allowPop = true',
-              "targetFacing = usingFrontCamera ? 'environment' : 'user'",
-              'localRenderer.srcObject = fresh;',
-              'previewOffset',
-          ]:
-              if marker not in call_page:
-                  raise SystemExit(f'Vet AI WebRTC call UI missing: {marker}')
-          admin_markers = {
-              'lib/admin/admin_dashboard.dart': ['VetAdminMyAccountPage', '_AdminProfileTile'],
-              'lib/admin/admin_reports_center.dart': ['latest_sensor_telemetry', 'Telemetry quality & credibility'],
-              'lib/admin/admin_account_control_v2.dart': ['softWrap: false'],
-          }
-          for path, markers in admin_markers.items():
-              text = Path(path).read_text(encoding='utf-8')
-              for marker in markers:
-                  if marker not in text:
-                      raise SystemExit(f'Vet AI admin V63 missing: {path} / {marker}')
-          print('Vet AI voice, APNs, WebRTC and admin pipeline verified')
-          PY
+          python3 tools/verify_v102_production_e2e.py
           python3 tools/verify_v96_release_readiness.py
 
       - name: Install Flutter dependencies
@@ -214,42 +165,3 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-
-  web-admin:
-    name: Vet AI Admin Web Dashboard
-    max_build_duration: 30
-    instance_type: mac_mini_m2
-    environment:
-      flutter: stable
-    scripts:
-      - name: Generate Flutter web project
-        script: |
-          flutter create . --platforms=web --project-name app --org com.vetai
-          rm -f test/widget_test.dart
-      - name: Apply admin web source cleanup
-        script: |
-          python3 tools/patch_v49_admin_compile_cleanup.py
-          python3 tools/patch_v50_admin_chat_accounts_sensors.py
-          python3 tools/patch_v51_file_picker_compile.py
-          python3 tools/patch_v52_web_chat_company_scroll.py
-          python3 tools/patch_v53_support_operations_import.py
-          python3 tools/patch_v54_native_webrtc_calls.py
-          python3 tools/patch_v55_whatsapp_rich_chat_profiles.py
-          python3 tools/patch_v56_webrtc_audio_hangup.py
-          python3 tools/patch_v57_camera_switch_drag_preview.py
-          python3 tools/patch_v58_ios_safari_camera_flip.py
-          python3 tools/patch_v59_call_smoothing_whatsapp_icons.py
-          python3 tools/patch_v60_instant_camera_flip_black_off.py
-          python3 tools/patch_v61b_admin_instant_navigation.py
-          python3 tools/patch_v62b_admin_accounts_animals_sensors.py
-          python3 tools/patch_v62c_company_manager_routes.py
-          python3 tools/patch_v63d_admin_mobile_accounts_profile_reports.py
-          python3 tools/patch_v63e_profile_metadata_nullsafe.py
-      - name: Install Flutter dependencies
-        script: flutter pub get
-      - name: Static analysis
-        script: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - name: Build Vet AI web admin
-        script: flutter build web --release -t lib/main_v2.dart
-    artifacts:
-      - build/web/**
