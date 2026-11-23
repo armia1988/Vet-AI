@@ -254,7 +254,7 @@ class _CameraCenterPageState extends State<CameraCenterPage> with WidgetsBinding
       await Navigator.push<void>(
         context,
         MaterialPageRoute(
-          builder: (_) => _FullscreenCameraPage(camera: camera),
+          builder: (_) => _FullscreenCameraPage(camera: camera, streamUri: _gridStreamFor(camera)),
         ),
       );
     } finally {
@@ -791,7 +791,8 @@ class _CameraTileState extends State<_CameraTile> {
 }
 
 class _FullscreenCameraPage extends StatefulWidget {
-  const _FullscreenCameraPage({required this.camera});
+  const _FullscreenCameraPage({required this.camera, required this.streamUri});
+  final String streamUri;
   final _CameraDevice camera;
 
   @override
@@ -806,7 +807,7 @@ class _FullscreenCameraPageState extends State<_FullscreenCameraPage> {
   void initState() {
     super.initState();
     controller = VlcPlayerController.network(
-      widget.camera.authenticatedUri,
+      widget.camera.authenticated(widget.streamUri),
       hwAcc: HwAcc.full,
       autoPlay: true,
       allowBackgroundPlayback: false,
@@ -831,7 +832,8 @@ class _FullscreenCameraPageState extends State<_FullscreenCameraPage> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text(widget.camera.name),
+        title: Text(widget.camera.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white)),
         actions: [
           IconButton(
             onPressed: () {
