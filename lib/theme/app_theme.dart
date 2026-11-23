@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
 class VetColors {
-  static const background = Color(0xFFF3F7F8);
+  static const background = Color(0xFFF5F5FA);
   static const surface = Color(0xFFFFFFFF);
   static const surface2 = Color(0xFFF0F5F5);
-  static const surface3 = Color(0xFFE5F0EE);
-  static const border = Color(0xFFD5E1E2);
-  static const primary = Color(0xFF3C9787);
-  static const primaryDark = Color(0xFF2E756A);
-  static const text = Color(0xFF17242A);
+  static const surface3 = Color(0xFFEAE9FB);
+  static const border = Color(0xFFDADBE8);
+  static const primary = Color(0xFF4646AA);
+  static const primaryDark = Color(0xFF30306E);
+  static const text = Color(0xFF202337);
   static const muted = Color(0xFF637178);
   static const red = Color(0xFFD94E5A);
   static const orange = Color(0xFFE58B3D);
@@ -43,14 +43,22 @@ ThemeData buildVetTheme() {
       onSurface: VetColors.text,
       error: VetColors.red,
     ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: VetColors.primary, foregroundColor: Colors.white, elevation: 1,
+    ),
+    filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(
+      backgroundColor: VetColors.primary, foregroundColor: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    )),
     dividerColor: VetColors.border,
-    iconTheme: const IconThemeData(size: 29, color: VetColors.text),
+    iconTheme: const IconThemeData(size: 24, color: VetColors.text),
     textTheme: ThemeData.light().textTheme.apply(
       bodyColor: VetColors.text,
       displayColor: VetColors.text,
     ),
     appBarTheme: const AppBarTheme(
-      backgroundColor: VetColors.background,
+      backgroundColor: VetColors.surface,
       foregroundColor: VetColors.text,
       iconTheme: IconThemeData(size: 30, color: VetColors.text),
       actionsIconTheme: IconThemeData(size: 31, color: VetColors.text),
@@ -64,7 +72,7 @@ ThemeData buildVetTheme() {
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         side: const BorderSide(color: VetColors.border),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
       ),
     ),
     listTileTheme: const ListTileThemeData(
@@ -104,9 +112,9 @@ ThemeData buildVetTheme() {
       ),
     ),
     navigationBarTheme: const NavigationBarThemeData(
-      height: 80,
+      height: 70,
       backgroundColor: Color(0xFFFFFFFF),
-      indicatorColor: Color(0xFFE6EFEE),
+      indicatorColor: Color(0xFFE4E3FA),
       iconTheme: WidgetStatePropertyAll(IconThemeData(size: 30)),
       labelTextStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: VetColors.text)),
       elevation: 2,
