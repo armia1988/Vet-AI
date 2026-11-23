@@ -2263,6 +2263,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
                         ? null
                         : (_) => setState(() {
                             group = g;
+                            selectedAnimalId = null;
                             final choices = _speciesCodesForGroup(g);
                             speciesCode = choices.isEmpty
                                 ? (g == 'dogs'
@@ -2284,17 +2285,6 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
                 .toList(),
           ),
         if (groups.length > 1) const SizedBox(height: 12),
-        _AnimalGroupBanner(
-          spriteIndex: groupSpriteIndex(group),
-          title: label(group),
-          text: tr(
-            context,
-            'This is the animal group selected for this scan.',
-            'ده قسم الحيوان المختار للفحص ده.',
-            'Dit is de diergroep die voor deze scan is geselecteerd.',
-          ),
-        ),
-        const SizedBox(height: 12),
         if (group == 'dogs')
           _DogBreedSingleSelect(
             title: tr(
@@ -2385,7 +2375,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
         ],
         const SizedBox(height: 16),
         Container(
-          height: 285,
+          height: bytes == null ? 112 : 285,
           decoration: BoxDecoration(
             color: VetColors.surface,
             borderRadius: BorderRadius.circular(22),
@@ -2403,7 +2393,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
                   borderRadius: BorderRadius.circular(22),
                   child: Image.memory(
                     bytes!,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                     width: double.infinity,
                   ),
                 ),
