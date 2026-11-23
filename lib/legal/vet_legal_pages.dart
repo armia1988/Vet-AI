@@ -33,6 +33,7 @@ class VetLegalHubScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
         children: [
           const _BrandHeader(),
+          Text(_lt(context, 'Using Vet AI', 'استخدام Vet AI', 'Vet AI gebruiken'), style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900)),
           const SizedBox(height: 18),
           Text(_lt(context, 'These pages explain how Vet AI works, where its limits are, how information is protected and what you agree to when using the service.', 'الصفحات دي بتشرح بالتفصيل Vet AI بيشتغل إزاي، حدوده فين، بياناتك بتتحمى إزاي، وإيه الشروط اللي بتوافق عليها لما تستخدم الخدمة.', 'Deze pagina’s leggen uit hoe Vet AI werkt, waar de grenzen liggen, hoe gegevens worden beschermd en welke voorwaarden gelden bij gebruik.'), style: const TextStyle(color: VetColors.muted, height: 1.55, fontSize: 15.5)),
           const SizedBox(height: 18),
