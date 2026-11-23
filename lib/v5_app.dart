@@ -1678,7 +1678,7 @@ class V5Home extends StatelessWidget {
       children: [
         Container(
           padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(color: const Color(0xff292747), borderRadius: BorderRadius.circular(20)),
+          decoration: BoxDecoration(color: VetColors.primaryDark, borderRadius: BorderRadius.circular(20)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               const Expanded(child: Text('Vet AI', style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w700))),
@@ -1702,13 +1702,28 @@ class V5Home extends StatelessWidget {
                 Text(label,style:const TextStyle(fontWeight:FontWeight.w700)),
               ])))));
           void go(Widget page) {Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));}
-          return Wrap(spacing:10,runSpacing:10,children:[
+          Widget group(String title, List<Widget> items) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Wrap(spacing: 10, runSpacing: 10, children: items),
+            ],
+          );
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            group(tr(context, 'Farm monitoring', 'مراقبة المزرعة', 'Boerderijbewaking'), [
             if(smart) entry(Icons.videocam_outlined,tr(context,'Camera center','مركز الكاميرات','Cameracentrum'),()=>go(CameraHubPage(farmId: farmId))),
             if(smart) entry(Icons.notifications_active_outlined,tr(context,'Camera alerts','تنبيهات الكاميرات','Camerameldingen'),()=>go(CameraAlertCenterPage(farmId: farmId))),
-            entry(Icons.document_scanner_outlined,tr(context,'AI health scan','فحص الصحة بالذكاء الاصطناعي','AI-gezondheidsscan'),()=>onSection(1)),
             entry(Icons.sensors,tr(context,'Sensors','الحساسات','Sensoren'),()=>onSection(2)),
+            ]),
+            const SizedBox(height: 18),
+            group(tr(context, 'Animal care', 'رعاية الحيوانات', 'Dierzorg'), [
             entry(Icons.warning_amber,tr(context,'Health alerts','إنذارات الصحة','Gezondheidsmeldingen'),()=>onSection(3)),
             if(smart) entry(Icons.pets,tr(context,'Farm health','مركز صحة المزرعة','Diergezondheid'),()=>go(AnimalHealthCenterPage(farmId: farmId))),
+            entry(Icons.document_scanner_outlined,tr(context,'AI health scan','فحص الصحة بالذكاء الاصطناعي','AI-gezondheidsscan'),()=>onSection(1)),
+              entry(Icons.manage_history, tr(context, 'Assessment history', 'سجل الفحوصات', 'Beoordelingshistorie'), () => onSection(4)),
+            ]),
+            const SizedBox(height: 18),
             entry(Icons.card_membership,tr(context,'Subscription','الاشتراك','Abonnement'),onSubscription),
           ]);
         }),
