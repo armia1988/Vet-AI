@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'services/vet_backend.dart';
+import 'alert_team_page.dart';
 import 'services/vet_operations.dart';
 import 'services/alert_notification_service.dart';
 import 'services/callkit_service.dart';
@@ -2902,6 +2903,8 @@ class V5AlertsPanel extends StatefulWidget {
 class _V5AlertsPanelState extends State<V5AlertsPanel> {
   final seen = <String>{};
   bool initialized = false;
+  String? _selectedRisk;
+  List<Map<String, dynamic>>? _lastObservedRows;
   late Stream<List<Map<String, dynamic>>> alerts;
 
   @override
@@ -2916,6 +2919,8 @@ class _V5AlertsPanelState extends State<V5AlertsPanel> {
     if (oldWidget.farmId != widget.farmId) {
       initialized = false;
       seen.clear();
+      _selectedRisk = null;
+      _lastObservedRows = null;
       alerts = VetBackend.instance.alertsStream(widget.farmId);
     }
   }
@@ -2923,6 +2928,7 @@ class _V5AlertsPanelState extends State<V5AlertsPanel> {
   void _retry() {
     setState(() {
       initialized = false;
+      _lastObservedRows = null;
       alerts = VetBackend.instance.alertsStream(widget.farmId);
     });
   }
@@ -2987,110 +2993,128 @@ class _V5AlertsPanelState extends State<V5AlertsPanel> {
   Widget build(
     BuildContext context,
   ) => StreamBuilder<List<Map<String, dynamic>>>(
+    key: ObjectKey(alerts),
     stream: alerts,
     builder: (context, snapshot) {
       final rows = snapshot.data ?? const <Map<String, dynamic>>[];
-      if (snapshot.hasData)
-        WidgetsBinding.instance.addPostFrameCallback((_) => _onRows(rows));
-      return ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          _StepTitle(
-            icon: Icons.warning_amber_rounded,
-            title: tr(
-              context,
-              'Health & sensor alerts',
-              'إنذارات الصحة والحساسات',
-              'Gezondheids- & sensormeldingen',
-            ),
-            subtitle: tr(
-              context,
-              'AI risk alerts plus real configured sensor thresholds. New alerts make a sound while Vet AI is active.',
-              'إنذارات خطورة AI + حدود الحساسات الحقيقية اللي إنت ضابطها. الإنذار الجديد يطلع صوت واهتزاز وVet AI مفتوح.',
-              'AI-risicomeldingen plus echte ingestelde sensordrempels. Nieuwe meldingen geven geluid/trilling terwijl Vet AI actief is.',
+      if (!snapshot.hasError &&
+          snapshot.hasData &&
+          !identical(_lastObservedRows, rows)) {
+        _lastObservedRows = rows;
+        final observedStream = alerts;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && identical(alerts, observedStream)) _onRows(rows);
+        });
+      }
+
+      final selectedRisk = _selectedRisk;
+      final visibleRows = snapshot.hasError
+          ? const <Map<String, dynamic>>[]
+          : selectedRisk == null
+          ? rows
+          : rows.where((row) => row['risk'] == selectedRisk).toList();
+
+      final header = <Widget>[
+        _StepTitle(
+          icon: Icons.warning_amber_rounded,
+          title: tr(
+            context,
+            'Health & sensor alerts',
+            'إنذارات الصحة والحساسات',
+            'Gezondheids- & sensormeldingen',
+          ),
+          subtitle: tr(
+            context,
+            'AI risk alerts plus real configured sensor thresholds. New alerts make a sound while Vet AI is active.',
+            'إنذارات خطورة AI + حدود الحساسات الحقيقية اللي إنت ضابطها. الإنذار الجديد يطلع صوت واهتزاز وVet AI مفتوح.',
+            'AI-risicomeldingen plus echte ingestelde sensordrempels. Nieuwe meldingen geven geluid/trilling terwijl Vet AI actief is.',
+          ),
+        ),
+        OutlinedButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => AlertTeamPage(farmId: widget.farmId))), icon: const Icon(Icons.groups), label: Text(tr(context, 'Team workspace', 'متابعة الفريق', 'Teamoverzicht'))),
+        const SizedBox(height: 18),
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(),
             ),
           ),
-          const SizedBox(height: 18),
-          if (snapshot.connectionState == ConnectionState.waiting &&
-              !snapshot.hasData)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
-              ),
+        if (snapshot.hasError) ...[
+          _Notice(
+            icon: Icons.cloud_off_rounded,
+            title: tr(
+              context,
+              'Could not load alerts',
+              'تعذر تحميل الإنذارات',
+              'Meldingen konden niet worden geladen',
             ),
-          if (snapshot.hasError) ...[
-            _Notice(
-              icon: Icons.cloud_off_rounded,
-              title: tr(
-                context,
-                'Could not load alerts',
-                'تعذر تحميل الإنذارات',
-                'Meldingen konden niet worden geladen',
-              ),
-              text: tr(
-                context,
-                'The live alert connection failed. Vet AI will not leave this page loading forever; retry the connection.',
-                'فشل اتصال الإنذارات المباشر. Vet AI مش هيسيب الصفحة تحمل للأبد؛ جرّب إعادة الاتصال.',
-                'De live meldingsverbinding is mislukt. Vet AI blijft niet eindeloos laden; probeer opnieuw te verbinden.',
-              ),
-              danger: true,
+            text: tr(
+              context,
+              'The live alert connection failed. Vet AI will not leave this page loading forever; retry the connection.',
+              'فشل اتصال الإنذارات المباشر. Vet AI مش هيسيب الصفحة تحمل للأبد؛ جرّب إعادة الاتصال.',
+              'De live meldingsverbinding is mislukt. Vet AI blijft niet eindeloos laden; probeer opnieuw te verbinden.',
             ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: _retry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: Text(
-                tr(context, 'Reconnect', 'إعادة الاتصال', 'Opnieuw verbinden'),
-              ),
-            ),
-          ],
-          if (!snapshot.hasError && snapshot.hasData && rows.isEmpty)
-            _Notice(
-              icon: Icons.check_circle_outline_rounded,
-              title: tr(
-                context,
-                'No active alerts',
-                'لا توجد إنذارات حالية',
-                'Geen actieve meldingen',
-              ),
-              text: tr(
-                context,
-                'No AI or configured real-sensor alert is stored for this farm.',
-                'مفيش إنذار AI أو إنذار حساس حقيقي متضبط محفوظ للمزرعة دي.',
-                'Er is geen AI- of ingestelde echte-sensormelding voor deze boerderij opgeslagen.',
-              ),
-            ),
-          if (!snapshot.hasError)
-            for (final a in rows)
-              Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                child: ListTile(
-                  leading: Icon(
-                    a['risk'] == 'red'
-                        ? Icons.error_rounded
-                        : Icons.warning_rounded,
-                    size: 36,
-                    color: a['risk'] == 'red'
-                        ? VetColors.red
-                        : a['risk'] == 'orange'
-                        ? VetColors.orange
-                        : VetColors.history,
-                  ),
-                  title: Text(
-                    a['title']?.toString() ?? '',
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  subtitle: a['source'] == 'sensor'
-                      ? Text(
-                          '${_metric(a['metric']?.toString() ?? '')}: ${a['value_numeric'] ?? '—'}\n${tr(context, 'Configured threshold', 'الحد المتضبط', 'Ingestelde drempel')}: ${a['threshold_text'] ?? '—'}',
-                        )
-                      : Text(a['details']?.toString() ?? ''),
-                  isThreeLine: a['source'] == 'sensor',
-                ),
-              ),
+            danger: true,
+          ),
           const SizedBox(height: 10),
-          Text(
+          OutlinedButton.icon(
+            onPressed: _retry,
+            icon: const Icon(Icons.refresh_rounded),
+            label: Text(
+              tr(context, 'Reconnect', 'إعادة الاتصال', 'Opnieuw verbinden'),
+            ),
+          ),
+        ],
+        if (!snapshot.hasError && rows.isNotEmpty) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final (risk, label) in <(String?, String)>[
+                (null, tr(context, 'All alerts', 'كل الإنذارات', 'Alle meldingen')),
+                ('red', tr(context, 'Red priority', 'أولوية حمراء', 'Rode prioriteit')),
+                ('orange', tr(context, 'Orange priority', 'أولوية برتقالية', 'Oranje prioriteit')),
+                ('yellow', tr(context, 'Yellow priority', 'أولوية صفراء', 'Gele prioriteit')),
+              ])
+                ChoiceChip(
+                  label: Text(label),
+                  selected: selectedRisk == risk,
+                  onSelected: (selected) => setState(() {
+                    _selectedRisk = selected ? risk : null;
+                  }),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (visibleRows.isEmpty)
+            Text(tr(
+              context,
+              'No alerts match this priority.',
+              'مفيش إنذارات بالأولوية دي.',
+              'Geen meldingen met deze prioriteit.',
+            )),
+        ],
+        if (!snapshot.hasError && snapshot.hasData && rows.isEmpty)
+          _Notice(
+            icon: Icons.check_circle_outline_rounded,
+            title: tr(
+              context,
+              'No active alerts',
+              'لا توجد إنذارات حالية',
+              'Geen actieve meldingen',
+            ),
+            text: tr(
+              context,
+              'No AI or configured real-sensor alert is stored for this farm.',
+              'مفيش إنذار AI أو إنذار حساس حقيقي متضبط محفوظ للمزرعة دي.',
+              'Er is geen AI- of ingestelde echte-sensormelding voor deze boerderij opgeslagen.',
+            ),
+          ),
+      ];
+      final footer = Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: Text(
             tr(
               context,
               'Background push notifications when the app is fully closed require APNs/push credentials and are a separate deployment step. This screen never fabricates sensor alerts.',
@@ -3103,8 +3127,44 @@ class _V5AlertsPanelState extends State<V5AlertsPanel> {
               height: 1.4,
             ),
             textAlign: TextAlign.center,
-          ),
-        ],
+        ),
+      );
+
+      return ListView.builder(
+        padding: const EdgeInsets.all(20),
+        itemCount: header.length + visibleRows.length + 1,
+        itemBuilder: (context, index) {
+          if (index < header.length) return header[index];
+          final rowIndex = index - header.length;
+          if (rowIndex == visibleRows.length) return footer;
+          final a = visibleRows[rowIndex];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 10),
+            child: ListTile(
+              leading: Icon(
+                a['risk'] == 'red'
+                    ? Icons.error_rounded
+                    : Icons.warning_rounded,
+                size: 36,
+                color: a['risk'] == 'red'
+                    ? VetColors.red
+                    : a['risk'] == 'orange'
+                    ? VetColors.orange
+                    : VetColors.history,
+              ),
+              title: Text(
+                a['title']?.toString() ?? '',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: a['source'] == 'sensor'
+                  ? Text(
+                      '${_metric(a['metric']?.toString() ?? '')}: ${a['value_numeric'] ?? '—'}\n${tr(context, 'Configured threshold', 'الحد المتضبط', 'Ingestelde drempel')}: ${a['threshold_text'] ?? '—'}',
+                    )
+                  : Text(a['details']?.toString() ?? ''),
+              isThreeLine: a['source'] == 'sensor',
+            ),
+          );
+        },
       );
     },
   );
