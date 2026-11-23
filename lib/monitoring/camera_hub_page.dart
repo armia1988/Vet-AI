@@ -408,28 +408,20 @@ class _CameraHubPageState extends State<CameraHubPage> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
             children: [
-              Row(
+              Wrap(
+                spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Expanded(
-                    child: Text(
-                      _t('My cameras', 'الكاميرات', 'Mijn camera\'s'),
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                  FilledButton.icon(
-                    onPressed: _addCamera,
-                    icon: const Icon(Icons.add_rounded),
-                    label: Text(_t('Add', 'إضافة', 'Toevoegen')),
+                  ChoiceChip(label: Text(_t('All', 'الكل', 'Alles')), selected: !favoritesOnly,
+                    onSelected: (_) => setState(() => favoritesOnly = false)),
+                  ChoiceChip(label: Text(_t('Favorites', 'المفضلة', 'Favorieten')), selected: favoritesOnly,
+                    onSelected: (_) => setState(() => favoritesOnly = true)),
+                  ActionChip(
+                    avatar: const Icon(Icons.grid_view_rounded, size: 18),
+                    label: Text(_t('Multi-view', 'عرض متعدد', 'Meervoudig venster')),
+                    onPressed: () => setState(() => tab = 1),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
-              Wrap(spacing: 8, children: [
-                ChoiceChip(label: Text(_t('All devices', 'كل الأجهزة', 'Alle apparaten')), selected: !favoritesOnly,
-                  onSelected: (_) => setState(() => favoritesOnly = false)),
-                ChoiceChip(label: Text(_t('Favorites', 'المفضلة', 'Favorieten')), selected: favoritesOnly,
-                  onSelected: (_) => setState(() => favoritesOnly = true)),
-              ]),
               const SizedBox(height: 18),
               if (snapshot.connectionState != ConnectionState.done)
                 const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
@@ -612,14 +604,19 @@ class _CameraHubPageState extends State<CameraHubPage> {
       appBar: tab == 1 || tab == 2
           ? null
           : AppBar(
-              title: Text(_t('Camera Center', 'مركز الكاميرات', 'Cameracentrum')),
+              title: Text(tab == 0
+                  ? _t('My devices', 'أجهزتي', 'Mijn apparaten')
+                  : _t('Camera settings', 'إعدادات الكاميرات', 'Camera-instellingen')),
+              centerTitle: false,
               actions: [
-                if (tab == 0)
+                if (tab == 0) ...[
+                  IconButton(onPressed: _addCamera, icon: const Icon(Icons.add_circle_outline), tooltip: _t('Add device', 'إضافة جهاز', 'Apparaat toevoegen')),
                   IconButton(
                     onPressed: _refreshDevices,
                     icon: const Icon(Icons.refresh_rounded),
                     tooltip: _t('Refresh', 'تحديث', 'Vernieuwen'),
                   ),
+                ],
               ],
             ),
       body: IndexedStack(index: tab, children: pages),
