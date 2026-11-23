@@ -60,6 +60,8 @@ class AnimalHealthCenterPage extends StatelessWidget {
             ),
           ),
           bottom: TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: [
               Tab(
                 icon: const Icon(Icons.dashboard_rounded),
@@ -346,6 +348,7 @@ class _AnimalsTab extends StatefulWidget {
 
 class _AnimalsTabState extends State<_AnimalsTab> {
   bool loading = true;
+  String search = '';
   Object? error;
   List<Map<String, dynamic>> rows = const [];
 
@@ -377,6 +380,8 @@ class _AnimalsTabState extends State<_AnimalsTab> {
     final breed = TextEditingController();
     final sex = TextEditingController();
     final weight = TextEditingController();
+    final tagFocus = FocusNode();
+    bool missingIdentity = false;
     var group = 'livestock';
 
     final saved = await showDialog<bool>(
@@ -416,13 +421,22 @@ class _AnimalsTabState extends State<_AnimalsTab> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: tag,
+                    focusNode: tagFocus,
+                    onChanged: (value) {
+                      if (missingIdentity && value.trim().isNotEmpty) setDialogState(() => missingIdentity = false);
+                    },
                     decoration: InputDecoration(
+                      errorMaxLines: 3,
+                      errorText: missingIdentity ? _t(context, 'Enter a name or animal ID.', 'اكتب اسم الحيوان أو رقمه.', 'Vul een naam of dier-ID in.') : null,
                       labelText: _t(context, 'Tag / ID', 'رقم أو Tag', 'Tag / ID'),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: name,
+                    onChanged: (value) {
+                      if (missingIdentity && value.trim().isNotEmpty) setDialogState(() => missingIdentity = false);
+                    },
                     decoration: InputDecoration(
                       labelText: _t(context, 'Name', 'الاسم', 'Naam'),
                     ),
@@ -468,18 +482,8 @@ class _AnimalsTabState extends State<_AnimalsTab> {
             FilledButton(
               onPressed: () {
                 if (name.text.trim().isEmpty && tag.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        _t(
-                          this.context,
-                          'Enter a name or animal ID.',
-                          'اكتب اسم الحيوان أو رقمه.',
-                          'Vul een naam of dier-ID in.',
-                        ),
-                      ),
-                    ),
-                  );
+                  setDialogState(() => missingIdentity = true);
+                  tagFocus.requestFocus();
                   return;
                 }
                 Navigator.pop(dialogContext, true);
@@ -509,6 +513,7 @@ class _AnimalsTabState extends State<_AnimalsTab> {
       }
     }
 
+    tagFocus.dispose();
     name.dispose();
     tag.dispose();
     species.dispose();
@@ -524,8 +529,26 @@ class _AnimalsTabState extends State<_AnimalsTab> {
       return _ErrorPane(message: '$error', onRetry: load);
     }
 
+    final visible = search.isEmpty ? rows : rows.where((animal) {
+      return ['name', 'external_id', 'species', 'breed'].any((field) =>
+          (animal[field] ?? '').toString().toLowerCase().contains(search));
+    }).toList();
+
     return Scaffold(
-      body: RefreshIndicator(
+      body: Column(children: [
+        if (rows.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: TextFormField(
+              initialValue: search,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                labelText: _t(context, 'Search by name or tag', 'ابحث بالاسم أو رقم الحيوان', 'Zoek op naam of diernummer'),
+              ),
+              onChanged: (value) => setState(() => search = value.trim().toLowerCase()),
+            ),
+          ),
+        Expanded(child: RefreshIndicator(
         onRefresh: load,
         child: rows.isEmpty
             ? ListView(
@@ -563,12 +586,19 @@ class _AnimalsTabState extends State<_AnimalsTab> {
                   ),
                 ],
               )
-            : ListView.separated(
+            : visible.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(24),
+                    children: [Text(_t(context, 'No matching animals', 'لا توجد حيوانات مطابقة', 'Geen overeenkomende dieren'))],
+                  )
+                : ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(12, 14, 12, 90),
-                itemCount: rows.length,
+                itemCount: visible.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
-                  final animal = rows[index];
+                  final animal = visible[index];
                   final weight = animal['weight_kg'];
                   final details = <String>[
                     if ('${animal['species'] ?? ''}'.trim().isNotEmpty)
@@ -601,7 +631,8 @@ class _AnimalsTabState extends State<_AnimalsTab> {
                   );
                 },
               ),
-      ),
+        )),
+      ]),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: addAnimal,
         icon: const Icon(Icons.add_rounded),
@@ -952,6 +983,7 @@ class _CareTab extends StatefulWidget {
 
 class _CareTabState extends State<_CareTab> {
   bool loading = true;
+  bool pendingVaccinesOnly = false;
   Object? error;
   List<Map<String, dynamic>> animals = const [];
   List<Map<String, dynamic>> vaccines = const [];
@@ -1308,6 +1340,9 @@ class _CareTabState extends State<_CareTab> {
     if (error != null) return _ErrorPane(message: '$error', onRetry: load);
 
     final animalLabels = labels;
+    final visibleVaccines = pendingVaccinesOnly
+        ? vaccines.where((row) => row['status'] == 'planned').toList()
+        : vaccines;
     return RefreshIndicator(
       onRefresh: load,
       child: ListView(
@@ -1359,12 +1394,23 @@ class _CareTabState extends State<_CareTab> {
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
-          if (vaccines.isEmpty)
+          if (vaccines.isNotEmpty)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: FilterChip(
+                label: Text(_t(context, 'Scheduled only', 'المجدولة فقط', 'Alleen gepland')),
+                selected: pendingVaccinesOnly,
+                onSelected: (value) => setState(() => pendingVaccinesOnly = value),
+              ),
+            ),
+          if (visibleVaccines.isEmpty && vaccines.isNotEmpty)
+            _EmptyCard(text: _t(context, 'No scheduled vaccinations', 'لا توجد تطعيمات مجدولة', 'Geen geplande vaccinaties'))
+          else if (vaccines.isEmpty)
             _EmptyCard(
               text: _t(context, 'No vaccination schedule yet.', 'لا يوجد جدول تطعيمات بعد.', 'Nog geen vaccinatieschema.'),
             )
           else
-            ...vaccines.map((row) {
+            ...visibleVaccines.map((row) {
               final due = _parseDate(row['due_at']);
               final administered = row['status'] == 'administered';
               final overdue = !administered && due != null && due.isBefore(DateTime.now());
@@ -1482,6 +1528,8 @@ class _FollowUpTab extends StatefulWidget {
 }
 
 class _FollowUpTabState extends State<_FollowUpTab> {
+  bool dueOnly = false;
+
   bool loading = true;
   Object? error;
   List<Map<String, dynamic>> rows = const [];
@@ -1784,6 +1832,13 @@ class _FollowUpTabState extends State<_FollowUpTab> {
     if (error != null) return _ErrorPane(message: '$error', onRetry: load);
 
     final pending = rows.where((row) => row['status'] == 'pending').toList();
+    final now = DateTime.now();
+    bool isDue(Map<String, dynamic> row) {
+      final due = _parseDate(row['due_at']);
+      return due != null && !due.isAfter(now);
+    }
+    final dueRows = pending.where(isDue).toList();
+    final visiblePending = dueOnly ? dueRows : pending;
     final completed = rows.where((row) => row['status'] == 'completed').toList().reversed.toList();
 
     return RefreshIndicator(
@@ -1815,14 +1870,23 @@ class _FollowUpTabState extends State<_FollowUpTab> {
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
-          if (pending.isEmpty)
+          if (pending.isNotEmpty)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: FilterChip(
+                selected: dueOnly,
+                label: Text("${_t(context, 'Due now', 'حلّ موعدها', 'Nu aan de beurt')} (${dueRows.length})"),
+                onSelected: (value) => setState(() => dueOnly = value),
+              ),
+            ),
+          if (visiblePending.isEmpty)
             _EmptyCard(
               text: _t(context, 'No follow-up is due right now.', 'لا توجد متابعة مطلوبة حاليًا.', 'Er is nu geen follow-up nodig.'),
             )
           else
-            ...pending.map((row) {
+            ...visiblePending.map((row) {
               final due = _parseDate(row['due_at']);
-              final overdue = due != null && due.isBefore(DateTime.now());
+              final overdue = isDue(row);
               final summary = _baselineSummary(row);
               return Card(
                 child: Padding(

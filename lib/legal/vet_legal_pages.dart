@@ -33,9 +33,8 @@ class VetLegalHubScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
         children: [
           const _BrandHeader(),
+          Text(_lt(context, 'Using Vet AI', 'استخدام Vet AI', 'Vet AI gebruiken'), style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900)),
           const SizedBox(height: 18),
-          Text(_lt(context, 'Built for serious animal-health decisions', 'مصمم لقرارات صحة الحيوان بجدية', 'Gebouwd voor serieuze diergezondheidsbeslissingen'), style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
           Text(_lt(context, 'These pages explain how Vet AI works, where its limits are, how information is protected and what you agree to when using the service.', 'الصفحات دي بتشرح بالتفصيل Vet AI بيشتغل إزاي، حدوده فين، بياناتك بتتحمى إزاي، وإيه الشروط اللي بتوافق عليها لما تستخدم الخدمة.', 'Deze pagina’s leggen uit hoe Vet AI werkt, waar de grenzen liggen, hoe gegevens worden beschermd en welke voorwaarden gelden bij gebruik.'), style: const TextStyle(color: VetColors.muted, height: 1.55, fontSize: 15.5)),
           const SizedBox(height: 18),
           for (final page in pages) Padding(
@@ -45,7 +44,7 @@ class VetLegalHubScreen extends StatelessWidget {
                 leading: Container(width: 48, height: 48, decoration: BoxDecoration(color: page.color.withValues(alpha: .1), borderRadius: BorderRadius.circular(14)), child: Icon(page.icon, color: page.color, size: 28)),
                 title: Text(page.title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
                 subtitle: Padding(padding: const EdgeInsets.only(top: 5), child: Text(page.subtitle, style: const TextStyle(height: 1.35))),
-                trailing: const Icon(Icons.chevron_right_rounded),
+                trailing: const Icon(Icons.arrow_forward),
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => VetLegalPageScreen(type: page.type))),
               ),
             ),

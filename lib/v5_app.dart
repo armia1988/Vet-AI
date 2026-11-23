@@ -27,6 +27,7 @@ import 'startup/vet_startup_experience.dart';
 import 'monitoring/smart_home_vitals.dart';
 import 'monitoring/sensor_alert_rules.dart';
 import 'monitoring/camera_center_page.dart';
+import 'monitoring/camera_hub_page.dart';
 import 'monitoring/camera_alert_center_page.dart';
 import 'monitoring/camera_gateway_page.dart';
 import 'health/animal_health_center.dart';
@@ -404,13 +405,13 @@ class _V5AuthScreenState extends State<V5AuthScreen> {
     return Scaffold(
       body: SafeArea(
         child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.fromLTRB(24, 26, 24, 34),
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Spacer(),
-                const _BrandLockup(markWidth: 178),
+                const Flexible(flex: 3, child: FittedBox(fit: BoxFit.scaleDown, child: _BrandLockup(markWidth: 178))),
                 Expanded(
                   child: Align(
                     alignment: AlignmentDirectional.topEnd,
@@ -712,14 +713,15 @@ class _V5PasswordRecoveryScreenState extends State<V5PasswordRecoveryScreen> {
           children: [
             const _MiniBrand(),
             const SizedBox(width: 12),
-            Text(
+            Expanded(child: Text(
               tr(
                 context,
                 'Reset password',
                 'تغيير كلمة المرور',
                 'Wachtwoord wijzigen',
               ),
-            ),
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+            )),
           ],
         ),
         actions: [
@@ -731,6 +733,7 @@ class _V5PasswordRecoveryScreenState extends State<V5PasswordRecoveryScreen> {
       ),
       body: SafeArea(
         child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 36),
           children: [
             if (done) ...[
@@ -853,7 +856,7 @@ class V5VerifyScreen extends StatelessWidget {
         ],
       ),
       body: Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: _Notice(
             icon: Icons.verified_user_outlined,
@@ -1047,9 +1050,7 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
           children: [
             const _MiniBrand(),
             const SizedBox(width: 12),
-            Text(
-              tr(context, 'Farm setup', 'إعداد المزرعة', 'Boerderij instellen'),
-            ),
+            Expanded(child: Text(tr(context, 'Farm setup', 'إعداد المزرعة', 'Boerderij instellen'), maxLines: 1, overflow: TextOverflow.ellipsis)),
           ],
         ),
       ),
@@ -1061,6 +1062,8 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
               children: [
+                Text(tr(context, 'Step ${step + 1} of 3', 'الخطوة ${step + 1} من 3', 'Stap ${step + 1} van 3'), style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 8),
                 if (step == 0) _farmStep(context),
                 if (step == 1) _animalsStep(context),
                 if (step == 2) _planStep(context),
@@ -1582,7 +1585,7 @@ class _V5DashboardState extends State<V5Dashboard> {
     final farmId = farm['id'] as String;
     final smart = farm['subscription_tier'] == 'smart_monitoring';
     final pages = <Widget>[
-      V5Home(farm: farm, onAccount: openAccount, smart: smart),
+      V5Home(farm: farm, onAccount: openAccount, smart: smart, onSection: (v) => setState(() => index = v), onSubscription: () async { await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => V5SubscriptionScreen(farm: farm))); await refreshFarm(); }),
       V5ScanPanel(farm: farm),
       V5SensorsPanel(farm: farm, unlocked: smart),
       V5AlertsPanel(farmId: farmId),
@@ -1661,100 +1664,71 @@ class V5Home extends StatelessWidget {
     required this.farm,
     required this.onAccount,
     required this.smart,
+    required this.onSection,
+    required this.onSubscription,
   });
   final Map<String, dynamic> farm;
   final VoidCallback onAccount;
   final bool smart;
+  final ValueChanged<int> onSection;
+  final VoidCallback onSubscription;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
       children: [
-        Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const _HeaderBrand(),
-                const Spacer(),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton.filledTonal(
-                      tooltip: tr(context, 'Language', 'اللغة', 'Taal'),
-                      style: IconButton.styleFrom(
-                        backgroundColor: VetColors.surface3,
-                      ),
-                      icon: const Icon(
-                        Icons.language_rounded,
-                        size: 30,
-                        color: VetColors.blue,
-                      ),
-                      onPressed: () => showVetLanguagePicker(context),
-                    ),
-                    const SizedBox(width: 6),
-                    IconButton.filledTonal(
-                      tooltip: tr(
-                        context,
-                        'Account & settings',
-                        'الحساب والإعدادات',
-                        'Account & instellingen',
-                      ),
-                      style: IconButton.styleFrom(
-                        backgroundColor: VetColors.surface3,
-                      ),
-                      icon: const Icon(
-                        Icons.account_circle_outlined,
-                        size: 31,
-                        color: VetColors.primary,
-                      ),
-                      onPressed: onAccount,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              farm['farm_name']?.toString() ?? 'Vet AI',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-            ),
-            if ((farm['company_name']?.toString() ?? '').isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                farm['company_name'].toString(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: VetColors.muted,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(color: VetColors.primaryDark, borderRadius: BorderRadius.circular(20)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Expanded(child: Text('Vet AI', style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w700))),
+              IconButton(tooltip: tr(context,'Language','اللغة','Taal'), onPressed: () => showVetLanguagePicker(context), icon: const Icon(Icons.language,color:Colors.white)),
+              IconButton(tooltip: tr(context,'Account','الحساب','Account'), onPressed:onAccount, icon:const Icon(Icons.account_circle_outlined,color:Colors.white)),
+            ]),
+            Text(farm['farm_name']?.toString() ?? 'Vet AI', style: const TextStyle(color:Colors.white,fontSize:28,fontWeight:FontWeight.w800)),
+            if ((farm['company_name']?.toString() ?? '').isNotEmpty)
+              Text(farm['company_name'].toString(),style:const TextStyle(color:Colors.white70)),
+          ]),
+        ),
+        const SizedBox(height: 16),
+        LayoutBuilder(builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 680 ? 3 : constraints.maxWidth >= 320 && MediaQuery.textScalerOf(context).scale(16) < 24 ? 2 : 1;
+          final width = (constraints.maxWidth - 10 * (columns - 1)) / columns;
+          final farmId = farm['id'] as String;
+          Widget entry(IconData icon, String label, VoidCallback action) => SizedBox(width:width,
+            child: Card(child: InkWell(onTap:action,borderRadius:BorderRadius.circular(16),
+              child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                Icon(icon,color:VetColors.primary),const SizedBox(height:8),
+                Text(label,style:const TextStyle(fontWeight:FontWeight.w700)),
+              ])))));
+          void go(Widget page) {Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));}
+          Widget group(String title, List<Widget> items) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Wrap(spacing: 10, runSpacing: 10, children: items),
             ],
-          ],
-        ),
-        const SizedBox(height: 14),
-        _Notice(
-          icon: Icons.shield_outlined,
-          title: tr(
-            context,
-            'Real data policy',
-            'سياسة البيانات الحقيقية',
-            'Echte-data beleid',
-          ),
-          text: tr(
-            context,
-            'No demo sensor readings and no definitive diagnosis from one image.',
-            'لا توجد قراءات حساسات وهمية ولا تشخيص نهائي من صورة واحدة.',
-            'Geen demo-sensormetingen en geen definitieve diagnose op basis van één beeld.',
-          ),
-        ),
+          );
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            group(tr(context, 'Farm monitoring', 'مراقبة المزرعة', 'Boerderijbewaking'), [
+            if(smart) entry(Icons.videocam_outlined,tr(context,'Camera center','مركز الكاميرات','Cameracentrum'),()=>go(CameraHubPage(farmId: farmId))),
+            if(smart) entry(Icons.notifications_active_outlined,tr(context,'Camera alerts','تنبيهات الكاميرات','Camerameldingen'),()=>go(CameraAlertCenterPage(farmId: farmId))),
+            entry(Icons.sensors,tr(context,'Sensors','الحساسات','Sensoren'),()=>onSection(2)),
+            ]),
+            const SizedBox(height: 18),
+            group(tr(context, 'Animal care', 'رعاية الحيوانات', 'Dierzorg'), [
+            entry(Icons.warning_amber,tr(context,'Health alerts','إنذارات الصحة','Gezondheidsmeldingen'),()=>onSection(3)),
+            if(smart) entry(Icons.pets,tr(context,'Farm health','مركز صحة المزرعة','Diergezondheid'),()=>go(AnimalHealthCenterPage(farmId: farmId))),
+            entry(Icons.document_scanner_outlined,tr(context,'AI health scan','فحص الصحة بالذكاء الاصطناعي','AI-gezondheidsscan'),()=>onSection(1)),
+              entry(Icons.manage_history, tr(context, 'Assessment history', 'سجل الفحوصات', 'Beoordelingshistorie'), () => onSection(4)),
+            ]),
+            const SizedBox(height: 18),
+            entry(Icons.card_membership,tr(context,'Subscription','الاشتراك','Abonnement'),onSubscription),
+          ]);
+        }),
         const SizedBox(height: 18),
         Row(
           children: [
@@ -2291,6 +2265,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
                         ? null
                         : (_) => setState(() {
                             group = g;
+                            selectedAnimalId = null;
                             final choices = _speciesCodesForGroup(g);
                             speciesCode = choices.isEmpty
                                 ? (g == 'dogs'
@@ -2312,17 +2287,6 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
                 .toList(),
           ),
         if (groups.length > 1) const SizedBox(height: 12),
-        _AnimalGroupBanner(
-          spriteIndex: groupSpriteIndex(group),
-          title: label(group),
-          text: tr(
-            context,
-            'This is the animal group selected for this scan.',
-            'ده قسم الحيوان المختار للفحص ده.',
-            'Dit is de diergroep die voor deze scan is geselecteerd.',
-          ),
-        ),
-        const SizedBox(height: 12),
         if (group == 'dogs')
           _DogBreedSingleSelect(
             title: tr(
@@ -2413,7 +2377,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
         ],
         const SizedBox(height: 16),
         Container(
-          height: 285,
+          height: bytes == null ? 112 : 285,
           decoration: BoxDecoration(
             color: VetColors.surface,
             borderRadius: BorderRadius.circular(22),
@@ -2431,7 +2395,7 @@ class _V5ScanPanelState extends State<V5ScanPanel> {
                   borderRadius: BorderRadius.circular(22),
                   child: Image.memory(
                     bytes!,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                     width: double.infinity,
                   ),
                 ),
@@ -2656,6 +2620,7 @@ class _V5SensorsPanelState extends State<V5SensorsPanel> {
       );
     }
     return FutureBuilder<List<Map<String, dynamic>>>(
+      key: ValueKey(farmId),
       future: devicesFuture,
       builder: (context, devices) {
         final rows = devices.data ?? const <Map<String, dynamic>>[];
@@ -2701,6 +2666,84 @@ class _V5SensorsPanelState extends State<V5SensorsPanel> {
                 ),
               ),
             ),
+
+            Row(children: [
+              Expanded(child: Text(tr(context, 'Registered sensors', 'الحساسات المسجلة', 'Geregistreerde sensoren'), style: Theme.of(context).textTheme.titleMedium)),
+              IconButton(onPressed: devices.connectionState == ConnectionState.done ? _retry : null, tooltip: tr(context, 'Refresh sensors', 'تحديث الحساسات', 'Sensoren vernieuwen'), icon: const Icon(Icons.refresh)),
+            ]),
+            const SizedBox(height: 18),
+            if (devices.connectionState != ConnectionState.done)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            if (devices.connectionState == ConnectionState.done &&
+                devices.hasError) ...[
+              _Notice(
+                icon: Icons.cloud_off_rounded,
+                title: tr(
+                  context,
+                  'Could not load sensors',
+                  'تعذر تحميل الحساسات',
+                  'Sensoren konden niet worden geladen',
+                ),
+                text: tr(
+                  context,
+                  'Vet AI stopped waiting instead of showing an endless loader. Check the connection and try again.',
+                  'Vet AI وقف التحميل بدل ما يفضل يلف للأبد. تحقق من الاتصال وجرّب تاني.',
+                  'Vet AI is gestopt met wachten in plaats van eindeloos te laden. Controleer de verbinding en probeer opnieuw.',
+                ),
+                danger: true,
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _retry,
+                icon: const Icon(Icons.refresh_rounded),
+                label: Text(
+                  tr(context, 'Retry', 'إعادة المحاولة', 'Opnieuw proberen'),
+                ),
+              ),
+            ],
+            if (devices.connectionState == ConnectionState.done &&
+                !devices.hasError &&
+                rows.isEmpty)
+              _Notice(
+                icon: Icons.sensors_off_outlined,
+                title: tr(
+                  context,
+                  'No sensors connected',
+                  'لا توجد حساسات متصلة',
+                  'Geen sensoren gekoppeld',
+                ),
+                text: tr(
+                  context,
+                  'The plan allows sensors, but no device has been provisioned yet.',
+                  'الخطة تسمح بالحساسات لكن لم يتم ربط أي جهاز حتى الآن.',
+                  'Het plan ondersteunt sensoren, maar er is nog geen apparaat ingericht.',
+                ),
+              ),
+            if (!devices.hasError)
+              for (final device in rows)
+                Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.sensors_rounded,
+                      size: 35,
+                      color: VetColors.primary,
+                    ),
+                    title: Text(device['device_uid']?.toString() ?? ''),
+                    subtitle: Text(
+                      '${device['device_type'] ?? ''}\n${device['last_seen_at'] ?? tr(context, 'Never seen', 'لم يتصل بعد', 'Nog nooit gezien')}',
+                    ),
+                    isThreeLine: true,
+                  ),
+                ),
+            ExpansionTile(
+              title: Text(tr(context, 'Farm tools and alert rules', 'أدوات المزرعة وقواعد الإنذار', 'Boerderijtools en alarmregels')),
+              children: [
             const SizedBox(height: 10),
             FilledButton.icon(
               onPressed: () => Navigator.push(
@@ -2815,76 +2858,8 @@ class _V5SensorsPanelState extends State<V5SensorsPanel> {
                 ),
               ),
             ),
-            const SizedBox(height: 18),
-            if (devices.connectionState != ConnectionState.done)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-            if (devices.connectionState == ConnectionState.done &&
-                devices.hasError) ...[
-              _Notice(
-                icon: Icons.cloud_off_rounded,
-                title: tr(
-                  context,
-                  'Could not load sensors',
-                  'تعذر تحميل الحساسات',
-                  'Sensoren konden niet worden geladen',
-                ),
-                text: tr(
-                  context,
-                  'Vet AI stopped waiting instead of showing an endless loader. Check the connection and try again.',
-                  'Vet AI وقف التحميل بدل ما يفضل يلف للأبد. تحقق من الاتصال وجرّب تاني.',
-                  'Vet AI is gestopt met wachten in plaats van eindeloos te laden. Controleer de verbinding en probeer opnieuw.',
-                ),
-                danger: true,
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: _retry,
-                icon: const Icon(Icons.refresh_rounded),
-                label: Text(
-                  tr(context, 'Retry', 'إعادة المحاولة', 'Opnieuw proberen'),
-                ),
-              ),
-            ],
-            if (devices.connectionState == ConnectionState.done &&
-                !devices.hasError &&
-                rows.isEmpty)
-              _Notice(
-                icon: Icons.sensors_off_outlined,
-                title: tr(
-                  context,
-                  'No sensors connected',
-                  'لا توجد حساسات متصلة',
-                  'Geen sensoren gekoppeld',
-                ),
-                text: tr(
-                  context,
-                  'The plan allows sensors, but no device has been provisioned yet.',
-                  'الخطة تسمح بالحساسات لكن لم يتم ربط أي جهاز حتى الآن.',
-                  'Het plan ondersteunt sensoren, maar er is nog geen apparaat ingericht.',
-                ),
-              ),
-            if (!devices.hasError)
-              for (final device in rows)
-                Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.sensors_rounded,
-                      size: 35,
-                      color: VetColors.primary,
-                    ),
-                    title: Text(device['device_uid']?.toString() ?? ''),
-                    subtitle: Text(
-                      '${device['device_type'] ?? ''}\n${device['last_seen_at'] ?? tr(context, 'Never seen', 'لم يتصل بعد', 'Nog nooit gezien')}',
-                    ),
-                    isThreeLine: true,
-                  ),
-                ),
+              ],
+            ),
           ],
         );
       },
@@ -3007,6 +2982,11 @@ class _V5AlertsPanelState extends State<V5AlertsPanel> {
         });
       }
 
+      final priorityCounts = <String, int>{};
+      for (final row in rows) {
+        final risk = row['risk']?.toString();
+        if (risk != null) priorityCounts.update(risk, (n) => n + 1, ifAbsent: () => 1);
+      }
       final selectedRisk = _selectedRisk;
       final visibleRows = snapshot.hasError
           ? const <Map<String, dynamic>>[]
@@ -3078,7 +3058,7 @@ class _V5AlertsPanelState extends State<V5AlertsPanel> {
                 ('yellow', tr(context, 'Yellow priority', 'أولوية صفراء', 'Gele prioriteit')),
               ])
                 ChoiceChip(
-                  label: Text(label),
+                  label: Text('$label (${risk == null ? rows.length : priorityCounts[risk] ?? 0})'),
                   selected: selectedRisk == risk,
                   onSelected: (selected) => setState(() {
                     _selectedRisk = selected ? risk : null;
@@ -3170,15 +3150,40 @@ class _V5AlertsPanelState extends State<V5AlertsPanel> {
   );
 }
 
-class V5HistoryPanel extends StatelessWidget {
+class V5HistoryPanel extends StatefulWidget {
   const V5HistoryPanel({super.key, required this.farmId});
   final String farmId;
+
+  @override
+  State<V5HistoryPanel> createState() => _V5HistoryPanelState();
+}
+
+class _V5HistoryPanelState extends State<V5HistoryPanel> {
+  late var assessments = VetBackend.instance.recentAssessments(widget.farmId);
+  String query = '';
+
+  @override
+  void didUpdateWidget(V5HistoryPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.farmId != widget.farmId) {
+      assessments = VetBackend.instance.recentAssessments(widget.farmId);
+      query = '';
+    }
+  }
+
+  List<Map<String, dynamic>> matches(List<Map<String, dynamic>> rows) {
+    final term = query.trim().toLowerCase();
+    return rows.where((row) => [
+      row['species_code'], row['animal_group'], row['risk'], row['status'], row['created_at'],
+    ].whereType<String>().any((value) => value.toLowerCase().contains(term)) || term.isEmpty).toList();
+  }
 
   @override
   Widget build(
     BuildContext context,
   ) => FutureBuilder<List<Map<String, dynamic>>>(
-    future: VetBackend.instance.recentAssessments(farmId),
+    key: ValueKey(widget.farmId),
+    future: assessments,
     builder: (context, s) => ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -3198,9 +3203,23 @@ class V5HistoryPanel extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 18),
+        TextField(
+          key: ValueKey(widget.farmId),
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search),
+            labelText: tr(context, 'Search recent assessments', 'ابحث في الفحوصات الأخيرة', 'Zoek in recente beoordelingen'),
+          ),
+          onChanged: (value) => setState(() => query = value),
+        ),
+        if (s.hasError)
+          TextButton.icon(
+            onPressed: () => setState(() => assessments = VetBackend.instance.recentAssessments(widget.farmId)),
+            icon: const Icon(Icons.refresh),
+            label: Text(tr(context, 'Could not load assessments. Retry', 'تعذر تحميل الفحوصات. حاول مجددًا', 'Laden mislukt. Probeer opnieuw')),
+          ),
         if (s.connectionState != ConnectionState.done)
           const Center(child: CircularProgressIndicator()),
-        if (s.connectionState == ConnectionState.done && (s.data ?? []).isEmpty)
+        if (s.connectionState == ConnectionState.done && !s.hasError && (s.data ?? []).isEmpty)
           _Notice(
             icon: Icons.inbox_outlined,
             title: tr(
@@ -3216,7 +3235,9 @@ class V5HistoryPanel extends StatelessWidget {
               'Je eerste AI-scan verschijnt hier.',
             ),
           ),
-        for (final a in s.data ?? [])
+        if (s.hasData && s.data!.isNotEmpty && matches(s.data!).isEmpty)
+          Text(tr(context, 'No matching assessments', 'لا توجد فحوصات مطابقة', 'Geen overeenkomende beoordelingen')),
+        for (final a in matches(s.data ?? []))
           Card(
             margin: const EdgeInsets.only(bottom: 10),
             child: ListTile(
@@ -3249,13 +3270,17 @@ class V5AccountHub extends StatelessWidget {
           children: [
             const _MiniBrand(),
             const SizedBox(width: 12),
-            Text(tr(context, 'Account', 'الحساب', 'Account')),
+            Expanded(child: Text(tr(context, 'Account', 'الحساب', 'Account'), maxLines: 1, overflow: TextOverflow.ellipsis)),
           ],
         ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 8),
+            child: Semantics(header: true, child: Text(tr(context, 'Farm settings', 'إعدادات المزرعة', 'Boerderij-instellingen'), style: Theme.of(context).textTheme.titleMedium)),
+          ),
           _MenuTile(
             icon: Icons.account_circle_outlined,
             title: tr(
@@ -3301,6 +3326,10 @@ class V5AccountHub extends StatelessWidget {
               'Automatisch volgens het toestel of handmatig kiezen.',
             ),
             onTap: () => showVetLanguagePicker(context),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 8),
+            child: Semantics(header: true, child: Text(tr(context, 'Help and information', 'المساعدة والمعلومات', 'Hulp en informatie'), style: Theme.of(context).textTheme.titleMedium)),
           ),
           _MenuTile(
             icon: Icons.support_agent_rounded,
@@ -3622,14 +3651,18 @@ class _V5ProfileScreenState extends State<V5ProfileScreen> {
         ),
       ),
       body: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.all(20),
         children: [
-          VetFarmProfilePhotoEditor(farm: widget.farm),
-          const SizedBox(height: 18),
           _ProfileHeroCard(
             name: c['full_name']!.text,
             email: VetBackend.instance.currentUser?.email ?? '',
             farmName: c['farm_name']!.text,
+          ),
+          const SizedBox(height: 18),
+          ExpansionTile(
+            title: Text(tr(context, 'Farm photo', 'صورة المزرعة', 'Boerderijfoto')),
+            children: [VetFarmProfilePhotoEditor(farm: widget.farm)],
           ),
           const SizedBox(height: 18),
           _StepTitle(
@@ -3915,16 +3948,36 @@ class V5SubscriptionScreen extends StatefulWidget {
 class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
   late String tier;
   late String cycle;
+  late final String savedTier;
+  late final String savedCycle;
+
+  String planLabel(String value) => switch (value) {
+    'software' => tr(context, 'Software only', 'البرنامج فقط', 'Alleen software'),
+    'smart_monitoring' => tr(context, 'Smart monitoring', 'المراقبة الذكية', 'Slimme monitoring'),
+    _ => value,
+  };
+
+  String cycleLabel(String value) => switch (value) {
+    'monthly' => tr(context, 'Monthly', 'شهري', 'Maandelijks'),
+    'annual' => tr(context, 'Annual', 'سنوي', 'Jaarlijks'),
+    _ => value,
+  };
+
   bool saving = false;
+  bool saveFailed = false;
   @override
   void initState() {
     super.initState();
-    tier = widget.farm['subscription_tier']?.toString() ?? 'software';
-    cycle = widget.farm['billing_cycle']?.toString() ?? 'monthly';
+    savedTier = tier = widget.farm['subscription_tier']?.toString() ?? 'software';
+    savedCycle = cycle = widget.farm['billing_cycle']?.toString() ?? 'monthly';
   }
 
   Future<void> save() async {
-    setState(() => saving = true);
+    if (saving) return;
+    setState(() {
+      saving = true;
+      saveFailed = false;
+    });
     try {
       await VetBackend.instance.updateSubscription(
         widget.farm['id'] as String,
@@ -3932,6 +3985,8 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
         billingCycle: cycle,
       );
       if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) setState(() => saveFailed = true);
     } finally {
       if (mounted) setState(() => saving = false);
     }
@@ -3939,6 +3994,7 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final changed = tier != savedTier || cycle != savedCycle;
     final groups = [
       if (((widget.farm['livestock_count'] as num?)?.toInt() ?? 0) > 0)
         tr(context, 'Livestock', 'مواشي', 'Vee'),
@@ -3956,7 +4012,7 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
         children: [
           _StepTitle(
             icon: Icons.workspace_premium_outlined,
-            title: tr(
+            title: groups.isEmpty ? tr(context, 'Farm plan', 'خطة المزرعة', 'Boerderijabonnement') : tr(
               context,
               'Plan for $groups',
               'الخطة لـ $groups',
@@ -3970,6 +4026,12 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
             ),
           ),
           const SizedBox(height: 18),
+          _Notice(
+            icon: Icons.verified_outlined,
+            title: tr(context, 'Current plan', 'الخطة الحالية', 'Huidig abonnement'),
+            text: '${planLabel(savedTier)} • ${cycleLabel(savedCycle)}',
+          ),
+          const SizedBox(height: 16),
           _PlanCard(
             selected: tier == 'software',
             icon: Icons.health_and_safety_outlined,
@@ -3993,7 +4055,7 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
                 'Sensoren vergrendeld',
               ),
             ],
-            onTap: () => setState(() => tier = 'software'),
+            onTap: () { if (saving) return; setState(() => tier = 'software'); },
           ),
           const SizedBox(height: 12),
           _PlanCard(
@@ -4019,7 +4081,7 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
                 'Geen gesimuleerde telemetrie',
               ),
             ],
-            onTap: () => setState(() => tier = 'smart_monitoring'),
+            onTap: () { if (saving) return; setState(() => tier = 'smart_monitoring'); },
           ),
           const SizedBox(height: 16),
           SegmentedButton<String>(
@@ -4036,7 +4098,7 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
               ),
             ],
             selected: {cycle},
-            onSelectionChanged: (v) => setState(() => cycle = v.first),
+            onSelectionChanged: saving ? null : (v) => setState(() => cycle = v.first),
           ),
           const SizedBox(height: 18),
           _Notice(
@@ -4055,8 +4117,23 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
             ),
           ),
           const SizedBox(height: 18),
+          if (changed)
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: Text(tr(context, 'Selected plan', 'الخطة المختارة', 'Gekozen abonnement')),
+              subtitle: Text('${planLabel(tier)} • ${cycleLabel(cycle)}'),
+            ),
+          if (saveFailed)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Semantics(
+                liveRegion: true,
+                child: Text(tr(context, 'Could not save the plan. Try again.', 'تعذر حفظ الخطة. حاول مرة أخرى.', 'Opslaan is mislukt. Probeer opnieuw.'),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              ),
+            ),
           ElevatedButton.icon(
-            onPressed: saving ? null : save,
+            onPressed: saving || !changed ? null : save,
             icon: saving
                 ? const SizedBox.square(
                     dimension: 20,

@@ -185,7 +185,7 @@ class _CameraAlertCenterPageState extends State<CameraAlertCenterPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF111419),
         foregroundColor: Colors.white,
-        title: const Text('Camera Alerts'),
+        title: const Text('Camera Alerts', style: TextStyle(color: Colors.white)),
         actions: [
           IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh'),
         ],
@@ -217,17 +217,17 @@ class _CameraAlertCenterPageState extends State<CameraAlertCenterPage> {
   Widget _summary() {
     final open = alerts.where((row) => !_isResolved(row)).length;
     final resolved = alerts.length - open;
-    return Row(
-      children: [
-        Expanded(child: _summaryCard('Open', '$open', Icons.notifications_active_rounded, Colors.orangeAccent)),
-        const SizedBox(width: 8),
-        Expanded(child: _summaryCard('Unack.', '$_unacknowledgedCount', Icons.mark_email_unread_rounded, Colors.amberAccent)),
-        const SizedBox(width: 8),
-        Expanded(child: _summaryCard('Critical', '$_criticalOpenCount', Icons.error_rounded, Colors.redAccent)),
-        const SizedBox(width: 8),
-        Expanded(child: _summaryCard('Resolved', '$resolved', Icons.task_alt_rounded, Colors.greenAccent)),
-      ],
-    );
+    return LayoutBuilder(builder: (context, constraints) {
+      final largeText = MediaQuery.textScalerOf(context).scale(14) > 20;
+      final columns = constraints.maxWidth >= 520 && !largeText ? 4 : 2;
+      final width = (constraints.maxWidth - 8 * (columns - 1)) / columns;
+      return Wrap(spacing: 8, runSpacing: 8, children: [
+        SizedBox(width: width, child: _summaryCard('Open', '$open', Icons.notifications_active_rounded, Colors.orangeAccent)),
+        SizedBox(width: width, child: _summaryCard('Unack.', '$_unacknowledgedCount', Icons.mark_email_unread_rounded, Colors.amberAccent)),
+        SizedBox(width: width, child: _summaryCard('Critical', '$_criticalOpenCount', Icons.error_rounded, Colors.redAccent)),
+        SizedBox(width: width, child: _summaryCard('Resolved', '$resolved', Icons.task_alt_rounded, Colors.greenAccent)),
+      ]);
+    });
   }
 
   Widget _summaryCard(String label, String value, IconData icon, Color color) => Container(
