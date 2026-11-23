@@ -2628,6 +2628,7 @@ class _V5SensorsPanelState extends State<V5SensorsPanel> {
       );
     }
     return FutureBuilder<List<Map<String, dynamic>>>(
+      key: ValueKey(farmId),
       future: devicesFuture,
       builder: (context, devices) {
         final rows = devices.data ?? const <Map<String, dynamic>>[];
@@ -2673,6 +2674,84 @@ class _V5SensorsPanelState extends State<V5SensorsPanel> {
                 ),
               ),
             ),
+
+            Row(children: [
+              Expanded(child: Text(tr(context, 'Registered sensors', 'الحساسات المسجلة', 'Geregistreerde sensoren'), style: Theme.of(context).textTheme.titleMedium)),
+              IconButton(onPressed: devices.connectionState == ConnectionState.done ? _retry : null, tooltip: tr(context, 'Refresh sensors', 'تحديث الحساسات', 'Sensoren vernieuwen'), icon: const Icon(Icons.refresh)),
+            ]),
+            const SizedBox(height: 18),
+            if (devices.connectionState != ConnectionState.done)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            if (devices.connectionState == ConnectionState.done &&
+                devices.hasError) ...[
+              _Notice(
+                icon: Icons.cloud_off_rounded,
+                title: tr(
+                  context,
+                  'Could not load sensors',
+                  'تعذر تحميل الحساسات',
+                  'Sensoren konden niet worden geladen',
+                ),
+                text: tr(
+                  context,
+                  'Vet AI stopped waiting instead of showing an endless loader. Check the connection and try again.',
+                  'Vet AI وقف التحميل بدل ما يفضل يلف للأبد. تحقق من الاتصال وجرّب تاني.',
+                  'Vet AI is gestopt met wachten in plaats van eindeloos te laden. Controleer de verbinding en probeer opnieuw.',
+                ),
+                danger: true,
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _retry,
+                icon: const Icon(Icons.refresh_rounded),
+                label: Text(
+                  tr(context, 'Retry', 'إعادة المحاولة', 'Opnieuw proberen'),
+                ),
+              ),
+            ],
+            if (devices.connectionState == ConnectionState.done &&
+                !devices.hasError &&
+                rows.isEmpty)
+              _Notice(
+                icon: Icons.sensors_off_outlined,
+                title: tr(
+                  context,
+                  'No sensors connected',
+                  'لا توجد حساسات متصلة',
+                  'Geen sensoren gekoppeld',
+                ),
+                text: tr(
+                  context,
+                  'The plan allows sensors, but no device has been provisioned yet.',
+                  'الخطة تسمح بالحساسات لكن لم يتم ربط أي جهاز حتى الآن.',
+                  'Het plan ondersteunt sensoren, maar er is nog geen apparaat ingericht.',
+                ),
+              ),
+            if (!devices.hasError)
+              for (final device in rows)
+                Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.sensors_rounded,
+                      size: 35,
+                      color: VetColors.primary,
+                    ),
+                    title: Text(device['device_uid']?.toString() ?? ''),
+                    subtitle: Text(
+                      '${device['device_type'] ?? ''}\n${device['last_seen_at'] ?? tr(context, 'Never seen', 'لم يتصل بعد', 'Nog nooit gezien')}',
+                    ),
+                    isThreeLine: true,
+                  ),
+                ),
+            ExpansionTile(
+              title: Text(tr(context, 'Farm tools and alert rules', 'أدوات المزرعة وقواعد الإنذار', 'Boerderijtools en alarmregels')),
+              children: [
             const SizedBox(height: 10),
             FilledButton.icon(
               onPressed: () => Navigator.push(
@@ -2787,76 +2866,8 @@ class _V5SensorsPanelState extends State<V5SensorsPanel> {
                 ),
               ),
             ),
-            const SizedBox(height: 18),
-            if (devices.connectionState != ConnectionState.done)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-            if (devices.connectionState == ConnectionState.done &&
-                devices.hasError) ...[
-              _Notice(
-                icon: Icons.cloud_off_rounded,
-                title: tr(
-                  context,
-                  'Could not load sensors',
-                  'تعذر تحميل الحساسات',
-                  'Sensoren konden niet worden geladen',
-                ),
-                text: tr(
-                  context,
-                  'Vet AI stopped waiting instead of showing an endless loader. Check the connection and try again.',
-                  'Vet AI وقف التحميل بدل ما يفضل يلف للأبد. تحقق من الاتصال وجرّب تاني.',
-                  'Vet AI is gestopt met wachten in plaats van eindeloos te laden. Controleer de verbinding en probeer opnieuw.',
-                ),
-                danger: true,
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: _retry,
-                icon: const Icon(Icons.refresh_rounded),
-                label: Text(
-                  tr(context, 'Retry', 'إعادة المحاولة', 'Opnieuw proberen'),
-                ),
-              ),
-            ],
-            if (devices.connectionState == ConnectionState.done &&
-                !devices.hasError &&
-                rows.isEmpty)
-              _Notice(
-                icon: Icons.sensors_off_outlined,
-                title: tr(
-                  context,
-                  'No sensors connected',
-                  'لا توجد حساسات متصلة',
-                  'Geen sensoren gekoppeld',
-                ),
-                text: tr(
-                  context,
-                  'The plan allows sensors, but no device has been provisioned yet.',
-                  'الخطة تسمح بالحساسات لكن لم يتم ربط أي جهاز حتى الآن.',
-                  'Het plan ondersteunt sensoren, maar er is nog geen apparaat ingericht.',
-                ),
-              ),
-            if (!devices.hasError)
-              for (final device in rows)
-                Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.sensors_rounded,
-                      size: 35,
-                      color: VetColors.primary,
-                    ),
-                    title: Text(device['device_uid']?.toString() ?? ''),
-                    subtitle: Text(
-                      '${device['device_type'] ?? ''}\n${device['last_seen_at'] ?? tr(context, 'Never seen', 'لم يتصل بعد', 'Nog nooit gezien')}',
-                    ),
-                    isThreeLine: true,
-                  ),
-                ),
+              ],
+            ),
           ],
         );
       },
@@ -2979,6 +2990,11 @@ class _V5AlertsPanelState extends State<V5AlertsPanel> {
         });
       }
 
+      final priorityCounts = <String, int>{};
+      for (final row in rows) {
+        final risk = row['risk']?.toString();
+        if (risk != null) priorityCounts.update(risk, (n) => n + 1, ifAbsent: () => 1);
+      }
       final selectedRisk = _selectedRisk;
       final visibleRows = snapshot.hasError
           ? const <Map<String, dynamic>>[]
@@ -3050,7 +3066,7 @@ class _V5AlertsPanelState extends State<V5AlertsPanel> {
                 ('yellow', tr(context, 'Yellow priority', 'أولوية صفراء', 'Gele prioriteit')),
               ])
                 ChoiceChip(
-                  label: Text(label),
+                  label: Text('$label (${risk == null ? rows.length : priorityCounts[risk] ?? 0})'),
                   selected: selectedRisk == risk,
                   onSelected: (selected) => setState(() {
                     _selectedRisk = selected ? risk : null;
