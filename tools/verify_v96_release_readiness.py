@@ -31,7 +31,12 @@ camera_markers = {
         'autoPlay: widget.active',
         'wallActive = false',
         '_discoverMissingStreamProfiles',
-        'CameraGatewayPage(farmId: widget.farmId)',
+    ],
+    'lib/v5_app.dart': [
+        'CameraHubPage(farmId: farmId)',
+    ],
+    'lib/monitoring/camera_hub_page.dart': [
+        'CameraCenterPage(farmId: widget.farmId)',
         'CameraAlertCenterPage(farmId: widget.farmId)',
     ],
     'lib/monitoring/camera_intelligence_page.dart': [
