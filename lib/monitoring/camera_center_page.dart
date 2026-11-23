@@ -734,14 +734,30 @@ class _CameraTileState extends State<_CameraTile> {
     return GestureDetector(
       onTap: widget.onTap,
       onDoubleTap: widget.onDoubleTap,
+      onLongPress: widget.onInfo,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: Colors.black,
           border: Border.all(color: widget.selected ? Colors.lightBlueAccent : Colors.white12, width: widget.selected ? 2 : 1),
         ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
+        child: LayoutBuilder(builder: (context, bounds) {
+          final compact = bounds.maxHeight < 100 || bounds.maxWidth < 126;
+          return Column(
+            children: [
+              SizedBox(
+                height: compact ? 18 : 24,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(children: [
+                    Expanded(child: Text(widget.camera.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700))),
+                    if (!compact && widget.camera.thermal)
+                      const Icon(Icons.thermostat_rounded, color: Colors.orangeAccent, size: 16),
+                    if (!compact) Text(widget.qualityLabel, style: const TextStyle(color: Colors.white70, fontSize: 10)),
+                  ]),
+                ),
+              ),
+              Expanded(child: Stack(fit: StackFit.expand, children: [
             if (widget.active)
               VlcPlayer(
                 controller: controller,
@@ -750,50 +766,25 @@ class _CameraTileState extends State<_CameraTile> {
               )
             else
               const Center(child: Icon(Icons.pause_circle_outline_rounded, color: Colors.white38, size: 34)),
-            Positioned(
-              left: 7,
-              top: 6,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(5)),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(width: 7, height: 7, decoration: BoxDecoration(shape: BoxShape.circle, color: initialized ? Colors.greenAccent : Colors.orangeAccent)),
-                    const SizedBox(width: 5),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 160),
-                      child: Text(widget.camera.name, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (widget.camera.thermal)
-              const Positioned(right: 7, top: 7, child: Icon(Icons.thermostat_rounded, color: Colors.orangeAccent, size: 20)),
-            Positioned(
-              right: 7,
-              top: widget.camera.thermal ? 31 : 7,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(5)),
-                child: Text(widget.qualityLabel, style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w800)),
-              ),
-            ),
-            Positioned(
-              right: 2,
-              bottom: 1,
-              child: Row(
-                children: [
-                  IconButton(onPressed: widget.active ? _reconnect : null, icon: reconnecting ? const SizedBox.square(dimension: 17, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.refresh_rounded), color: Colors.white, iconSize: 19),
-                  IconButton(onPressed: widget.onInfo, icon: const Icon(Icons.more_vert_rounded), color: Colors.white, iconSize: 19),
-                ],
-              ),
-            ),
-            if (widget.audioEnabled)
-              const Positioned(left: 8, bottom: 7, child: Icon(Icons.volume_up_rounded, color: Colors.white, size: 19)),
-          ],
-        ),
+              ])),
+              if (!compact)
+                SizedBox(height: 32, child: Row(children: [
+                  if (widget.audioEnabled)
+                    const Icon(Icons.volume_up_rounded, color: Colors.white, size: 16),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Reconnect',
+                    onPressed: widget.active && !reconnecting ? _reconnect : null,
+                    padding: EdgeInsets.zero,
+                    icon: reconnecting ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.refresh_rounded),
+                    color: Colors.white, iconSize: 18,
+                  ),
+                  IconButton(onPressed: widget.onInfo, padding: EdgeInsets.zero, tooltip: MaterialLocalizations.of(context).moreButtonTooltip,
+                    icon: const Icon(Icons.more_vert_rounded), color: Colors.white, iconSize: 18),
+                ])),
+            ],
+          );
+        }),
       ),
     );
   }
