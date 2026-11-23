@@ -3127,15 +3127,40 @@ class _V5AlertsPanelState extends State<V5AlertsPanel> {
   );
 }
 
-class V5HistoryPanel extends StatelessWidget {
+class V5HistoryPanel extends StatefulWidget {
   const V5HistoryPanel({super.key, required this.farmId});
   final String farmId;
+
+  @override
+  State<V5HistoryPanel> createState() => _V5HistoryPanelState();
+}
+
+class _V5HistoryPanelState extends State<V5HistoryPanel> {
+  late var assessments = VetBackend.instance.recentAssessments(widget.farmId);
+  String query = '';
+
+  @override
+  void didUpdateWidget(V5HistoryPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.farmId != widget.farmId) {
+      assessments = VetBackend.instance.recentAssessments(widget.farmId);
+      query = '';
+    }
+  }
+
+  List<Map<String, dynamic>> matches(List<Map<String, dynamic>> rows) {
+    final term = query.trim().toLowerCase();
+    return rows.where((row) => [
+      row['species_code'], row['animal_group'], row['risk'], row['status'], row['created_at'],
+    ].whereType<String>().any((value) => value.toLowerCase().contains(term)) || term.isEmpty).toList();
+  }
 
   @override
   Widget build(
     BuildContext context,
   ) => FutureBuilder<List<Map<String, dynamic>>>(
-    future: VetBackend.instance.recentAssessments(farmId),
+    key: ValueKey(widget.farmId),
+    future: assessments,
     builder: (context, s) => ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -3155,9 +3180,23 @@ class V5HistoryPanel extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 18),
+        TextField(
+          key: ValueKey(widget.farmId),
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search),
+            labelText: tr(context, 'Search recent assessments', 'ابحث في الفحوصات الأخيرة', 'Zoek in recente beoordelingen'),
+          ),
+          onChanged: (value) => setState(() => query = value),
+        ),
+        if (s.hasError)
+          TextButton.icon(
+            onPressed: () => setState(() => assessments = VetBackend.instance.recentAssessments(widget.farmId)),
+            icon: const Icon(Icons.refresh),
+            label: Text(tr(context, 'Could not load assessments. Retry', 'تعذر تحميل الفحوصات. حاول مجددًا', 'Laden mislukt. Probeer opnieuw')),
+          ),
         if (s.connectionState != ConnectionState.done)
           const Center(child: CircularProgressIndicator()),
-        if (s.connectionState == ConnectionState.done && (s.data ?? []).isEmpty)
+        if (s.connectionState == ConnectionState.done && !s.hasError && (s.data ?? []).isEmpty)
           _Notice(
             icon: Icons.inbox_outlined,
             title: tr(
@@ -3173,7 +3212,9 @@ class V5HistoryPanel extends StatelessWidget {
               'Je eerste AI-scan verschijnt hier.',
             ),
           ),
-        for (final a in s.data ?? [])
+        if (s.hasData && s.data!.isNotEmpty && matches(s.data!).isEmpty)
+          Text(tr(context, 'No matching assessments', 'لا توجد فحوصات مطابقة', 'Geen overeenkomende beoordelingen')),
+        for (final a in matches(s.data ?? []))
           Card(
             margin: const EdgeInsets.only(bottom: 10),
             child: ListTile(
