@@ -3914,6 +3914,7 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
   late String tier;
   late String cycle;
   bool saving = false;
+  bool saveFailed = false;
   @override
   void initState() {
     super.initState();
@@ -3922,7 +3923,11 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
   }
 
   Future<void> save() async {
-    setState(() => saving = true);
+    if (saving) return;
+    setState(() {
+      saving = true;
+      saveFailed = false;
+    });
     try {
       await VetBackend.instance.updateSubscription(
         widget.farm['id'] as String,
@@ -3930,6 +3935,8 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
         billingCycle: cycle,
       );
       if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) setState(() => saveFailed = true);
     } finally {
       if (mounted) setState(() => saving = false);
     }
@@ -3954,7 +3961,7 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
         children: [
           _StepTitle(
             icon: Icons.workspace_premium_outlined,
-            title: tr(
+            title: groups.isEmpty ? tr(context, 'Farm plan', 'خطة المزرعة', 'Boerderijabonnement') : tr(
               context,
               'Plan for $groups',
               'الخطة لـ $groups',
@@ -4053,6 +4060,15 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
             ),
           ),
           const SizedBox(height: 18),
+          if (saveFailed)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Semantics(
+                liveRegion: true,
+                child: Text(tr(context, 'Could not save the plan. Try again.', 'تعذر حفظ الخطة. حاول مرة أخرى.', 'Opslaan is mislukt. Probeer opnieuw.'),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              ),
+            ),
           ElevatedButton.icon(
             onPressed: saving ? null : save,
             icon: saving
