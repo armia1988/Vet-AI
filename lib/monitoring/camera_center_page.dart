@@ -368,20 +368,15 @@ class _CameraCenterPageState extends State<CameraCenterPage> with WidgetsBinding
             icon: const Icon(Icons.notifications_active_rounded),
             tooltip: 'Camera alerts',
           ),
-          PopupMenuButton<String>(
-            tooltip: MaterialLocalizations.of(context).showMenuTooltip,
-            onSelected: (action) {
-              if (action == 'gateway') {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => CameraGatewayPage(farmId: widget.farmId)));
-              } else {
-                _load();
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'gateway', child: Text('Local camera gateway')),
-              PopupMenuItem(value: 'refresh', child: Text('Refresh')),
-            ],
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => CameraGatewayPage(farmId: widget.farmId)),
+            ),
+            icon: const Icon(Icons.hub_rounded),
+            tooltip: 'Local camera gateway',
           ),
+          IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh'),
           IconButton(onPressed: _chooseLayout, icon: const Icon(Icons.grid_view_rounded), tooltip: 'Layout'),
         ],
       ),
