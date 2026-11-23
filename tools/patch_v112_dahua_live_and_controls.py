@@ -733,6 +733,8 @@ if "if (playerError != null)" not in s:
               ),
 """
     if marker not in s:
+        marker = '              const Center(child: Icon(Icons.pause_circle_outline_rounded, color: Colors.white38, size: 34)),\\n'
+    if marker not in s:
         raise SystemExit('V112: tile overlay anchor missing')
     s = s.replace(marker, marker + overlay, 1)
 
