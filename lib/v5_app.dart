@@ -3934,13 +3934,28 @@ class V5SubscriptionScreen extends StatefulWidget {
 class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
   late String tier;
   late String cycle;
+  late final String savedTier;
+  late final String savedCycle;
+
+  String planLabel(String value) => switch (value) {
+    'software' => tr(context, 'Software only', 'البرنامج فقط', 'Alleen software'),
+    'smart_monitoring' => tr(context, 'Smart monitoring', 'المراقبة الذكية', 'Slimme monitoring'),
+    _ => value,
+  };
+
+  String cycleLabel(String value) => switch (value) {
+    'monthly' => tr(context, 'Monthly', 'شهري', 'Maandelijks'),
+    'annual' => tr(context, 'Annual', 'سنوي', 'Jaarlijks'),
+    _ => value,
+  };
+
   bool saving = false;
   bool saveFailed = false;
   @override
   void initState() {
     super.initState();
-    tier = widget.farm['subscription_tier']?.toString() ?? 'software';
-    cycle = widget.farm['billing_cycle']?.toString() ?? 'monthly';
+    savedTier = tier = widget.farm['subscription_tier']?.toString() ?? 'software';
+    savedCycle = cycle = widget.farm['billing_cycle']?.toString() ?? 'monthly';
   }
 
   Future<void> save() async {
@@ -3965,6 +3980,7 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final changed = tier != savedTier || cycle != savedCycle;
     final groups = [
       if (((widget.farm['livestock_count'] as num?)?.toInt() ?? 0) > 0)
         tr(context, 'Livestock', 'مواشي', 'Vee'),
@@ -3996,6 +4012,12 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
             ),
           ),
           const SizedBox(height: 18),
+          _Notice(
+            icon: Icons.verified_outlined,
+            title: tr(context, 'Current plan', 'الخطة الحالية', 'Huidig abonnement'),
+            text: '${planLabel(savedTier)} • ${cycleLabel(savedCycle)}',
+          ),
+          const SizedBox(height: 16),
           _PlanCard(
             selected: tier == 'software',
             icon: Icons.health_and_safety_outlined,
@@ -4019,7 +4041,7 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
                 'Sensoren vergrendeld',
               ),
             ],
-            onTap: () => setState(() => tier = 'software'),
+            onTap: () { if (saving) return; setState(() => tier = 'software'); },
           ),
           const SizedBox(height: 12),
           _PlanCard(
@@ -4045,7 +4067,7 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
                 'Geen gesimuleerde telemetrie',
               ),
             ],
-            onTap: () => setState(() => tier = 'smart_monitoring'),
+            onTap: () { if (saving) return; setState(() => tier = 'smart_monitoring'); },
           ),
           const SizedBox(height: 16),
           SegmentedButton<String>(
@@ -4062,7 +4084,7 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
               ),
             ],
             selected: {cycle},
-            onSelectionChanged: (v) => setState(() => cycle = v.first),
+            onSelectionChanged: saving ? null : (v) => setState(() => cycle = v.first),
           ),
           const SizedBox(height: 18),
           _Notice(
@@ -4081,6 +4103,12 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
             ),
           ),
           const SizedBox(height: 18),
+          if (changed)
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: Text(tr(context, 'Selected plan', 'الخطة المختارة', 'Gekozen abonnement')),
+              subtitle: Text('${planLabel(tier)} • ${cycleLabel(cycle)}'),
+            ),
           if (saveFailed)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -4091,7 +4119,7 @@ class _V5SubscriptionScreenState extends State<V5SubscriptionScreen> {
               ),
             ),
           ElevatedButton.icon(
-            onPressed: saving ? null : save,
+            onPressed: saving || !changed ? null : save,
             icon: saving
                 ? const SizedBox.square(
                     dimension: 20,
