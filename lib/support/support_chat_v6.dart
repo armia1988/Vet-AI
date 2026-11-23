@@ -280,7 +280,7 @@ class _V6SupportScreenState extends State<V6SupportScreen> {
         title: Row(children: [
           const Icon(Icons.support_agent_rounded, size: 32, color: VetColors.primary),
           const SizedBox(width: 10),
-          Text(_t(context, 'Vet AI Support', 'دعم Vet AI', 'Vet AI Support')),
+          Expanded(child: Text(_t(context, 'Vet AI Support', 'دعم Vet AI', 'Vet AI Support'), maxLines: 1, overflow: TextOverflow.ellipsis)),
         ]),
       ),
       body: threadId == null
@@ -303,6 +303,13 @@ class _V6SupportScreenState extends State<V6SupportScreen> {
                 child: StreamBuilder<List<Map<String, dynamic>>>(
                   stream: VetBackend.instance.supportMessagesStream(threadId!),
                   builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(child: OutlinedButton.icon(
+                        onPressed: () => setState(() {}),
+                        icon: const Icon(Icons.refresh),
+                        label: Text(_t(context, 'Reconnect to chat', 'إعادة الاتصال بالمحادثة', 'Chat opnieuw verbinden')),
+                      ));
+                    }
                     if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                     final seen = <String>{};
                     final rows = snapshot.data!
