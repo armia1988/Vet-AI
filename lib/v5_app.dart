@@ -3268,13 +3268,17 @@ class V5AccountHub extends StatelessWidget {
           children: [
             const _MiniBrand(),
             const SizedBox(width: 12),
-            Text(tr(context, 'Account', 'الحساب', 'Account')),
+            Expanded(child: Text(tr(context, 'Account', 'الحساب', 'Account'), maxLines: 1, overflow: TextOverflow.ellipsis)),
           ],
         ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 8),
+            child: Semantics(header: true, child: Text(tr(context, 'Farm settings', 'إعدادات المزرعة', 'Boerderij-instellingen'), style: Theme.of(context).textTheme.titleMedium)),
+          ),
           _MenuTile(
             icon: Icons.account_circle_outlined,
             title: tr(
@@ -3320,6 +3324,10 @@ class V5AccountHub extends StatelessWidget {
               'Automatisch volgens het toestel of handmatig kiezen.',
             ),
             onTap: () => showVetLanguagePicker(context),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 8),
+            child: Semantics(header: true, child: Text(tr(context, 'Help and information', 'المساعدة والمعلومات', 'Hulp en informatie'), style: Theme.of(context).textTheme.titleMedium)),
           ),
           _MenuTile(
             icon: Icons.support_agent_rounded,
