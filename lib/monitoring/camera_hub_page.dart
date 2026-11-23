@@ -20,11 +20,27 @@ class _CameraHubPageState extends State<CameraHubPage> {
   static const _secureStorage = FlutterSecureStorage();
 
   int tab = 0;
+  bool favoritesOnly = false;
+  Set<String> favorites = {};
+  String get favoritesKey => 'camera-favorites-${widget.farmId}';
+
+  Future<void> _loadFavorites() async {
+    final raw = await _secureStorage.read(key: favoritesKey);
+    if (mounted) setState(() => favorites = (raw ?? '').split('\n').where((v) => v.isNotEmpty).toSet());
+  }
+
+  Future<void> _toggleFavorite(String id) async {
+    final next = {...favorites};
+    if (!next.remove(id)) next.add(id);
+    setState(() => favorites = next);
+    await _secureStorage.write(key: favoritesKey, value: next.join('\n'));
+  }
   late Future<List<Map<String, dynamic>>> devicesFuture;
 
   @override
   void initState() {
     super.initState();
+    _loadFavorites();
     devicesFuture = _loadDevices();
   }
 
@@ -395,14 +411,13 @@ class _CameraHubPageState extends State<CameraHubPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                _t(
-                  'Add or discover a camera once. Live view, PTZ, snapshots, recording, events and health are managed here.',
-                  'أضف أو اكتشف الكاميرا مرة واحدة. العرض المباشر وPTZ والصور والتسجيل والأحداث وفحص الحالة كلها من هنا.',
-                  'Voeg of ontdek een camera één keer. Livebeeld, PTZ, foto\'s, opname, gebeurtenissen en statusbeheer staan hier.',
-                ),
-              ),
+              const SizedBox(height: 14),
+              Wrap(spacing: 8, children: [
+                ChoiceChip(label: Text(_t('All devices', 'كل الأجهزة', 'Alle apparaten')), selected: !favoritesOnly,
+                  onSelected: (_) => setState(() => favoritesOnly = false)),
+                ChoiceChip(label: Text(_t('Favorites', 'المفضلة', 'Favorieten')), selected: favoritesOnly,
+                  onSelected: (_) => setState(() => favoritesOnly = true)),
+              ]),
               const SizedBox(height: 18),
               if (snapshot.connectionState != ConnectionState.done)
                 const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
@@ -443,7 +458,10 @@ class _CameraHubPageState extends State<CameraHubPage> {
                     ),
                   ),
                 ),
-              for (final row in devices) _cameraCard(row),
+              if (favoritesOnly && devices.isNotEmpty && !devices.any((r) => favorites.contains(r['device_uid'])))
+                Text(_t('Star a device to see it here.', 'اضغط النجمة جنب الجهاز لإضافته هنا.', 'Markeer een apparaat met een ster.')),
+              for (final row in devices)
+                if (!favoritesOnly || favorites.contains(row['device_uid'])) _cameraCard(row),
             ],
           );
         },
@@ -460,51 +478,23 @@ class _CameraHubPageState extends State<CameraHubPage> {
     final stream = (caps['stream_uri'] ?? '').toString().trim();
     final connected = caps['connection_verified'] == true && stream.isNotEmpty;
     final channel = _channelFrom(caps);
+    final uid = row['device_uid'].toString();
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  child: Icon(connected ? Icons.videocam_rounded : Icons.videocam_off_rounded),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
-                      const SizedBox(height: 4),
-                      Text([vendor, model, host].where((value) => value.trim().isNotEmpty).join(' • ')),
-                      const SizedBox(height: 5),
-                      Text('${_t('Channel', 'القناة', 'Kanaal')} $channel'),
-                      const SizedBox(height: 7),
-                      Row(
-                        children: [
-                          Icon(
-                            connected ? Icons.circle : Icons.error_outline_rounded,
-                            size: 14,
-                            color: connected ? Colors.green : Colors.orange,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              connected
-                                  ? _t('Ready for live view', 'جاهزة للعرض المباشر', 'Klaar voor livebeeld')
-                                  : _t('Connection needs verification', 'الاتصال يحتاج تحقق', 'Verbinding moet worden gecontroleerd'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                PopupMenuButton<String>(
+      margin: const EdgeInsets.only(bottom: 9),
+      child: ListTile(
+        contentPadding: const EdgeInsetsDirectional.fromSTEB(12, 8, 4, 8),
+        onTap: () => _openCamera(row),
+        leading: CircleAvatar(backgroundColor: const Color(0xffe0efeb),
+          child: Icon(stream.isEmpty ? Icons.videocam_outlined : Icons.play_arrow_rounded, color: const Color(0xff246e60))),
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Text([vendor, if (model != vendor && model != name) model, if(host.isNotEmpty) host,
+          "${_t('Channel','قناة','Kanaal')} $channel",
+          connected ? _t('Verified','تم التحقق','Geverifieerd') : _t('Unverified','غير متحقق','Ongeverifieerd')
+        ].where((v) => v.isNotEmpty).join(' · ')),
+        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+          IconButton(tooltip: _t('Favorite', 'المفضلة', 'Favoriet'), onPressed: () => _toggleFavorite(uid),
+            icon: Icon(favorites.contains(uid) ? Icons.star_rounded : Icons.star_border_rounded)),
+          PopupMenuButton<String>(
                   onSelected: (value) {
                     if (value == 'edit') _editCamera(row);
                     if (value == 'delete') _deleteCamera(row);
@@ -528,30 +518,7 @@ class _CameraHubPageState extends State<CameraHubPage> {
                     ),
                   ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: stream.isEmpty ? null : () => _openCamera(row),
-                    icon: const Icon(Icons.play_circle_fill_rounded),
-                    label: Text(_t('Open', 'فتح', 'Openen')),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => setState(() => tab = 1),
-                    icon: const Icon(Icons.grid_view_rounded),
-                    label: Text(_t('Wall', 'الشاشات', 'Wall')),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+        ]),
       ),
     );
   }
@@ -657,13 +624,7 @@ class _CameraHubPageState extends State<CameraHubPage> {
           NavigationDestination(icon: const Icon(Icons.settings_outlined), selectedIcon: const Icon(Icons.settings_rounded), label: _t('Settings', 'الإعدادات', 'Instellingen')),
         ],
       ),
-      floatingActionButton: tab == 0
-          ? FloatingActionButton(
-              onPressed: _addCamera,
-              tooltip: _t('Add camera', 'إضافة كاميرا', 'Camera toevoegen'),
-              child: const Icon(Icons.add_rounded),
-            )
-          : null,
+,
     );
   }
 }
