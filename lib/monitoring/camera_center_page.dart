@@ -356,9 +356,9 @@ class _CameraCenterPageState extends State<CameraCenterPage> with WidgetsBinding
     return Scaffold(
       backgroundColor: const Color(0xFF0B0D10),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF111419),
-        foregroundColor: Colors.white,
-        title: const Text('Camera Center'),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF162D29),
+        title: const Text('Camera Center', maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
           IconButton(
             onPressed: () => Navigator.push(
@@ -368,15 +368,20 @@ class _CameraCenterPageState extends State<CameraCenterPage> with WidgetsBinding
             icon: const Icon(Icons.notifications_active_rounded),
             tooltip: 'Camera alerts',
           ),
-          IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => CameraGatewayPage(farmId: widget.farmId)),
-            ),
-            icon: const Icon(Icons.hub_rounded),
-            tooltip: 'Local camera gateway',
+          PopupMenuButton<String>(
+            tooltip: MaterialLocalizations.of(context).showMenuTooltip,
+            onSelected: (action) {
+              if (action == 'gateway') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => CameraGatewayPage(farmId: widget.farmId)));
+              } else {
+                _load();
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'gateway', child: Text('Local camera gateway')),
+              PopupMenuItem(value: 'refresh', child: Text('Refresh')),
+            ],
           ),
-          IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded), tooltip: 'Refresh'),
           IconButton(onPressed: _chooseLayout, icon: const Icon(Icons.grid_view_rounded), tooltip: 'Layout'),
         ],
       ),
@@ -392,7 +397,6 @@ class _CameraCenterPageState extends State<CameraCenterPage> with WidgetsBinding
                         final columns = _columnsFor(layout, constraints.maxWidth);
                         return Column(
                           children: [
-                            _toolbar(),
                             Expanded(
                               child: GridView.builder(
                                 padding: const EdgeInsets.all(6),
@@ -428,6 +432,7 @@ class _CameraCenterPageState extends State<CameraCenterPage> with WidgetsBinding
                               ),
                             ),
                             if (pageCount > 1) _pager(),
+                            SafeArea(top: false, child: _toolbar()),
                           ],
                         );
                       },
@@ -438,44 +443,45 @@ class _CameraCenterPageState extends State<CameraCenterPage> with WidgetsBinding
   Widget _toolbar() {
     final selected = selectedIndex != null && selectedIndex! < cameras.length ? cameras[selectedIndex!] : null;
     return Material(
-      color: const Color(0xFF161A20),
+      color: Colors.white,
       child: SizedBox(
         height: 52,
-        child: Row(
+        child: ListView(
+          scrollDirection: Axis.horizontal,
           children: [
             const SizedBox(width: 8),
             IconButton(
               onPressed: selected == null ? null : () => setState(() => audioEnabled = !audioEnabled),
-              color: Colors.white,
-              disabledColor: Colors.white24,
+              color: const Color(0xFF162D29),
+              disabledColor: Colors.black26,
               icon: Icon(audioEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded),
               tooltip: audioEnabled ? 'Mute' : 'Listen',
             ),
             IconButton(
               onPressed: selected == null ? null : () => _openFullscreen(selected),
-              color: Colors.white,
-              disabledColor: Colors.white24,
+              color: const Color(0xFF162D29),
+              disabledColor: Colors.black26,
               icon: const Icon(Icons.fullscreen_rounded),
               tooltip: 'Fullscreen',
             ),
             IconButton(
               onPressed: selected == null ? null : () => _cameraControls(selected),
-              color: Colors.white,
-              disabledColor: Colors.white24,
+              color: const Color(0xFF162D29),
+              disabledColor: Colors.black26,
               icon: const Icon(Icons.control_camera_rounded),
               tooltip: 'Camera controls',
             ),
             IconButton(
               onPressed: selected == null ? null : () => _cameraIntelligence(selected),
-              color: Colors.white,
-              disabledColor: Colors.white24,
+              color: const Color(0xFF162D29),
+              disabledColor: Colors.black26,
               icon: const Icon(Icons.psychology_alt_rounded),
               tooltip: 'Capabilities / Thermal / AI',
             ),
             PopupMenuButton<String>(
               tooltip: 'Wall stream quality',
               initialValue: qualityMode,
-              icon: const Icon(Icons.high_quality_rounded, color: Colors.white),
+              icon: const Icon(Icons.high_quality_rounded, color: Colors.black87),
               onSelected: (value) => setState(() => qualityMode = value),
               itemBuilder: (context) => const [
                 PopupMenuItem(value: 'auto', child: Text('Auto — main up to 4, substream from 6+')),
@@ -483,9 +489,9 @@ class _CameraCenterPageState extends State<CameraCenterPage> with WidgetsBinding
                 PopupMenuItem(value: 'low', child: Text('Low — substream when available')),
               ],
             ),
-            Text(qualityMode.toUpperCase(), style: const TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w800)),
-            const Spacer(),
-            Text('$layout view', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+            Text(qualityMode.toUpperCase(), style: const TextStyle(color: Colors.black54, fontSize: 11, fontWeight: FontWeight.w800)),
+            const SizedBox(width: 16),
+            Text('$layout view', style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w700)),
             const SizedBox(width: 12),
           ],
         ),
