@@ -203,14 +203,14 @@ s = s.replace("    message.dispose();\n    super.dispose();", "    message.dispo
 old_appbar = """        title: Row(children: [
           const Icon(Icons.support_agent_rounded, size: 32, color: VetColors.primary),
           const SizedBox(width: 10),
-          Text(_t(context, 'Vet AI Support', 'دعم Vet AI', 'Vet AI Support')),
+          Expanded(child: Text(_t(context, 'Vet AI Support', 'دعم Vet AI', 'Vet AI Support'), maxLines: 1, overflow: TextOverflow.ellipsis)),
         ]),
       ),
 """
 new_appbar = """        title: Row(children: [
           const Icon(Icons.support_agent_rounded, size: 32, color: VetColors.primary),
           const SizedBox(width: 10),
-          Text(_t(context, 'Vet AI Support', 'دعم Vet AI', 'Vet AI Support')),
+          Expanded(child: Text(_t(context, 'Vet AI Support', 'دعم Vet AI', 'Vet AI Support'), maxLines: 1, overflow: TextOverflow.ellipsis)),
         ]),
         actions: [
           IconButton(tooltip: _t(context, 'Video call', 'مكالمة فيديو', 'Videogesprek'), onPressed: threadId == null ? null : () => _startSupportCall('video'), icon: const Icon(Icons.videocam_rounded)),
