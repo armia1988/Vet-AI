@@ -334,11 +334,12 @@ s = s.replace(
     "    required this.password,\n    this.vendor = '',\n  });",
     1,
 )
-s = s.replace(
-    "  final String password;\n",
-    "  final String password;\n  final String vendor;\n",
-    1,
-)
+if '  final String vendor;' not in s:
+    s = s.replace(
+        "  final String password;\n",
+        "  final String password;\n  final String vendor;\n",
+        1,
+    )
 if 'final String vendor;' not in s:
     raise SystemExit('V112: CameraControlPage vendor field missing')
 
