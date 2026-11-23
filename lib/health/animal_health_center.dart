@@ -377,6 +377,8 @@ class _AnimalsTabState extends State<_AnimalsTab> {
     final breed = TextEditingController();
     final sex = TextEditingController();
     final weight = TextEditingController();
+    final tagFocus = FocusNode();
+    bool missingIdentity = false;
     var group = 'livestock';
 
     final saved = await showDialog<bool>(
@@ -416,13 +418,22 @@ class _AnimalsTabState extends State<_AnimalsTab> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: tag,
+                    focusNode: tagFocus,
+                    onChanged: (value) {
+                      if (missingIdentity && value.trim().isNotEmpty) setDialogState(() => missingIdentity = false);
+                    },
                     decoration: InputDecoration(
+                      errorMaxLines: 3,
+                      errorText: missingIdentity ? _t(context, 'Enter a name or animal ID.', 'اكتب اسم الحيوان أو رقمه.', 'Vul een naam of dier-ID in.') : null,
                       labelText: _t(context, 'Tag / ID', 'رقم أو Tag', 'Tag / ID'),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: name,
+                    onChanged: (value) {
+                      if (missingIdentity && value.trim().isNotEmpty) setDialogState(() => missingIdentity = false);
+                    },
                     decoration: InputDecoration(
                       labelText: _t(context, 'Name', 'الاسم', 'Naam'),
                     ),
@@ -468,18 +479,8 @@ class _AnimalsTabState extends State<_AnimalsTab> {
             FilledButton(
               onPressed: () {
                 if (name.text.trim().isEmpty && tag.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        _t(
-                          this.context,
-                          'Enter a name or animal ID.',
-                          'اكتب اسم الحيوان أو رقمه.',
-                          'Vul een naam of dier-ID in.',
-                        ),
-                      ),
-                    ),
-                  );
+                  setDialogState(() => missingIdentity = true);
+                  tagFocus.requestFocus();
                   return;
                 }
                 Navigator.pop(dialogContext, true);
@@ -509,6 +510,7 @@ class _AnimalsTabState extends State<_AnimalsTab> {
       }
     }
 
+    tagFocus.dispose();
     name.dispose();
     tag.dispose();
     species.dispose();
