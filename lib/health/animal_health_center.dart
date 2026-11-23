@@ -60,6 +60,8 @@ class AnimalHealthCenterPage extends StatelessWidget {
             ),
           ),
           bottom: TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: [
               Tab(
                 icon: const Icon(Icons.dashboard_rounded),
@@ -981,6 +983,7 @@ class _CareTab extends StatefulWidget {
 
 class _CareTabState extends State<_CareTab> {
   bool loading = true;
+  bool pendingVaccinesOnly = false;
   Object? error;
   List<Map<String, dynamic>> animals = const [];
   List<Map<String, dynamic>> vaccines = const [];
@@ -1337,6 +1340,9 @@ class _CareTabState extends State<_CareTab> {
     if (error != null) return _ErrorPane(message: '$error', onRetry: load);
 
     final animalLabels = labels;
+    final visibleVaccines = pendingVaccinesOnly
+        ? vaccines.where((row) => row['status'] == 'planned').toList()
+        : vaccines;
     return RefreshIndicator(
       onRefresh: load,
       child: ListView(
@@ -1388,12 +1394,23 @@ class _CareTabState extends State<_CareTab> {
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
-          if (vaccines.isEmpty)
+          if (vaccines.isNotEmpty)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: FilterChip(
+                label: Text(_t(context, 'Scheduled only', 'المجدولة فقط', 'Alleen gepland')),
+                selected: pendingVaccinesOnly,
+                onSelected: (value) => setState(() => pendingVaccinesOnly = value),
+              ),
+            ),
+          if (visibleVaccines.isEmpty && vaccines.isNotEmpty)
+            _EmptyCard(text: _t(context, 'No scheduled vaccinations', 'لا توجد تطعيمات مجدولة', 'Geen geplande vaccinaties'))
+          else if (vaccines.isEmpty)
             _EmptyCard(
               text: _t(context, 'No vaccination schedule yet.', 'لا يوجد جدول تطعيمات بعد.', 'Nog geen vaccinatieschema.'),
             )
           else
-            ...vaccines.map((row) {
+            ...visibleVaccines.map((row) {
               final due = _parseDate(row['due_at']);
               final administered = row['status'] == 'administered';
               final overdue = !administered && due != null && due.isBefore(DateTime.now());
