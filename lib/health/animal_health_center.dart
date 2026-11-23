@@ -1528,6 +1528,8 @@ class _FollowUpTab extends StatefulWidget {
 }
 
 class _FollowUpTabState extends State<_FollowUpTab> {
+  bool dueOnly = false;
+
   bool loading = true;
   Object? error;
   List<Map<String, dynamic>> rows = const [];
@@ -1830,6 +1832,13 @@ class _FollowUpTabState extends State<_FollowUpTab> {
     if (error != null) return _ErrorPane(message: '$error', onRetry: load);
 
     final pending = rows.where((row) => row['status'] == 'pending').toList();
+    final now = DateTime.now();
+    bool isDue(Map<String, dynamic> row) {
+      final due = _parseDate(row['due_at']);
+      return due != null && !due.isAfter(now);
+    }
+    final dueRows = pending.where(isDue).toList();
+    final visiblePending = dueOnly ? dueRows : pending;
     final completed = rows.where((row) => row['status'] == 'completed').toList().reversed.toList();
 
     return RefreshIndicator(
@@ -1861,14 +1870,23 @@ class _FollowUpTabState extends State<_FollowUpTab> {
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
-          if (pending.isEmpty)
+          if (pending.isNotEmpty)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: FilterChip(
+                selected: dueOnly,
+                label: Text("${_t(context, 'Due now', 'حلّ موعدها', 'Nu aan de beurt')} (${dueRows.length})"),
+                onSelected: (value) => setState(() => dueOnly = value),
+              ),
+            ),
+          if (visiblePending.isEmpty)
             _EmptyCard(
               text: _t(context, 'No follow-up is due right now.', 'لا توجد متابعة مطلوبة حاليًا.', 'Er is nu geen follow-up nodig.'),
             )
           else
-            ...pending.map((row) {
+            ...visiblePending.map((row) {
               final due = _parseDate(row['due_at']);
-              final overdue = due != null && due.isBefore(DateTime.now());
+              final overdue = isDue(row);
               final summary = _baselineSummary(row);
               return Card(
                 child: Padding(
