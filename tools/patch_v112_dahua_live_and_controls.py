@@ -702,43 +702,39 @@ replacement = """                placeholder: const Center(child: CircularProgre
 """
 # Keep VLC placeholder but add an explicit non-infinite failure overlay after it.
 if "if (playerError != null)" not in s:
-    marker = """            Positioned(
-              left: 7,
-              top: 6,
+    marker = """            if (widget.audioEnabled)
+              const Positioned(left: 8, bottom: 7, child: Icon(Icons.volume_up_rounded, color: Colors.white, size: 19)),
 """
     overlay = """            if (playerError != null)
               Positioned.fill(
-                child: Container(
-                  color: Colors.black87,
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.videocam_off_rounded,
-                          color: Colors.orangeAccent, size: 30),
-                      const SizedBox(height: 6),
-                      const Text('Live stream unavailable',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 5),
-                      Text(playerError!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white60, fontSize: 10)),
-                      const SizedBox(height: 6),
-                      TextButton.icon(
-                        onPressed: _reconnect,
-                        icon: const Icon(Icons.refresh_rounded, size: 16),
-                        label: const Text('Retry'),
-                      ),
-                    ],
-                  ),
+                child: Material(
+                  color: const Color(0xff142329),
+                  child: LayoutBuilder(builder: (context, bounds) {
+                    final language = Localizations.localeOf(context).languageCode;
+                    final retry = language == 'ar' ? 'إعادة المحاولة' : language == 'nl' ? 'Opnieuw' : 'Retry';
+                    final title = language == 'ar' ? 'البث غير متاح' : language == 'nl' ? 'Geen livebeeld' : 'Live stream unavailable';
+                    return Semantics(
+                      label: '${widget.camera.name}: $title',
+                      child: Center(child: SingleChildScrollView(child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (bounds.maxHeight >= 100)
+                            Text(widget.camera.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Colors.white70)),
+                          if (bounds.maxWidth >= 120)
+                            Text(title, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white)),
+                          IconButton(tooltip: retry, onPressed: reconnecting ? null : _reconnect,
+                            icon: const Icon(Icons.refresh_rounded, color: Colors.white)),
+                        ],
+                      ))),
+                    );
+                  }),
                 ),
               ),
 """
     if marker not in s:
         raise SystemExit('V112: tile overlay anchor missing')
-    s = s.replace(marker, overlay + marker, 1)
+    s = s.replace(marker, marker + overlay, 1)
 
 # Fullscreen uses the compatibility stream, not a hard-coded main stream.
 s = s.replace(
