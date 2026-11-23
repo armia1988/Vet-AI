@@ -405,13 +405,13 @@ class _V5AuthScreenState extends State<V5AuthScreen> {
     return Scaffold(
       body: SafeArea(
         child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.fromLTRB(24, 26, 24, 34),
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Spacer(),
-                const _BrandLockup(markWidth: 178),
+                const Flexible(flex: 3, child: FittedBox(fit: BoxFit.scaleDown, child: _BrandLockup(markWidth: 178))),
                 Expanded(
                   child: Align(
                     alignment: AlignmentDirectional.topEnd,
@@ -713,14 +713,15 @@ class _V5PasswordRecoveryScreenState extends State<V5PasswordRecoveryScreen> {
           children: [
             const _MiniBrand(),
             const SizedBox(width: 12),
-            Text(
+            Expanded(child: Text(
               tr(
                 context,
                 'Reset password',
                 'تغيير كلمة المرور',
                 'Wachtwoord wijzigen',
               ),
-            ),
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+            )),
           ],
         ),
         actions: [
@@ -732,6 +733,7 @@ class _V5PasswordRecoveryScreenState extends State<V5PasswordRecoveryScreen> {
       ),
       body: SafeArea(
         child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 36),
           children: [
             if (done) ...[
@@ -854,7 +856,7 @@ class V5VerifyScreen extends StatelessWidget {
         ],
       ),
       body: Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: _Notice(
             icon: Icons.verified_user_outlined,
@@ -1048,9 +1050,7 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
           children: [
             const _MiniBrand(),
             const SizedBox(width: 12),
-            Text(
-              tr(context, 'Farm setup', 'إعداد المزرعة', 'Boerderij instellen'),
-            ),
+            Expanded(child: Text(tr(context, 'Farm setup', 'إعداد المزرعة', 'Boerderij instellen'), maxLines: 1, overflow: TextOverflow.ellipsis)),
           ],
         ),
       ),
@@ -1062,6 +1062,8 @@ class _V5OnboardingScreenState extends State<V5OnboardingScreen> {
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
               children: [
+                Text(tr(context, 'Step ${step + 1} of 3', 'الخطوة ${step + 1} من 3', 'Stap ${step + 1} van 3'), style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 8),
                 if (step == 0) _farmStep(context),
                 if (step == 1) _animalsStep(context),
                 if (step == 2) _planStep(context),
@@ -3649,14 +3651,18 @@ class _V5ProfileScreenState extends State<V5ProfileScreen> {
         ),
       ),
       body: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.all(20),
         children: [
-          VetFarmProfilePhotoEditor(farm: widget.farm),
-          const SizedBox(height: 18),
           _ProfileHeroCard(
             name: c['full_name']!.text,
             email: VetBackend.instance.currentUser?.email ?? '',
             farmName: c['farm_name']!.text,
+          ),
+          const SizedBox(height: 18),
+          ExpansionTile(
+            title: Text(tr(context, 'Farm photo', 'صورة المزرعة', 'Boerderijfoto')),
+            children: [VetFarmProfilePhotoEditor(farm: widget.farm)],
           ),
           const SizedBox(height: 18),
           _StepTitle(
