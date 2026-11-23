@@ -346,6 +346,7 @@ class _AnimalsTab extends StatefulWidget {
 
 class _AnimalsTabState extends State<_AnimalsTab> {
   bool loading = true;
+  String search = '';
   Object? error;
   List<Map<String, dynamic>> rows = const [];
 
@@ -526,8 +527,26 @@ class _AnimalsTabState extends State<_AnimalsTab> {
       return _ErrorPane(message: '$error', onRetry: load);
     }
 
+    final visible = search.isEmpty ? rows : rows.where((animal) {
+      return ['name', 'external_id', 'species', 'breed'].any((field) =>
+          (animal[field] ?? '').toString().toLowerCase().contains(search));
+    }).toList();
+
     return Scaffold(
-      body: RefreshIndicator(
+      body: Column(children: [
+        if (rows.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: TextFormField(
+              initialValue: search,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                labelText: _t(context, 'Search by name or tag', 'ابحث بالاسم أو رقم الحيوان', 'Zoek op naam of diernummer'),
+              ),
+              onChanged: (value) => setState(() => search = value.trim().toLowerCase()),
+            ),
+          ),
+        Expanded(child: RefreshIndicator(
         onRefresh: load,
         child: rows.isEmpty
             ? ListView(
@@ -565,12 +584,19 @@ class _AnimalsTabState extends State<_AnimalsTab> {
                   ),
                 ],
               )
-            : ListView.separated(
+            : visible.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(24),
+                    children: [Text(_t(context, 'No matching animals', 'لا توجد حيوانات مطابقة', 'Geen overeenkomende dieren'))],
+                  )
+                : ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(12, 14, 12, 90),
-                itemCount: rows.length,
+                itemCount: visible.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
-                  final animal = rows[index];
+                  final animal = visible[index];
                   final weight = animal['weight_kg'];
                   final details = <String>[
                     if ('${animal['species'] ?? ''}'.trim().isNotEmpty)
@@ -603,7 +629,8 @@ class _AnimalsTabState extends State<_AnimalsTab> {
                   );
                 },
               ),
-      ),
+        )),
+      ]),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: addAnimal,
         icon: const Icon(Icons.add_rounded),
