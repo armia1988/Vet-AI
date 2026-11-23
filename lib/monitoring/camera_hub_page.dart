@@ -5,6 +5,7 @@ import '../services/vet_backend.dart';
 import 'camera_alert_center_page.dart';
 import 'camera_center_page.dart';
 import 'camera_device_page.dart';
+import 'recorder_view.dart';
 import 'dahua_thermal_camera_onboarding_page.dart';
 
 class CameraHubPage extends StatefulWidget {
@@ -132,10 +133,7 @@ class _CameraHubPageState extends State<CameraHubPage> {
     final password = await _passwordFor(row, caps);
     if (!mounted) return;
     final channel = _channelFrom(caps);
-    await Navigator.push<void>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CameraDevicePage(
+    CameraDevicePage detail(int selected) => CameraDevicePage(
           cameraName: (caps['camera_name'] ?? row['controller_model'] ?? 'IP Camera').toString(),
           vendor: (caps['vendor'] ?? 'IP Camera').toString(),
           host: (caps['host'] ?? '').toString(),
@@ -146,11 +144,25 @@ class _CameraHubPageState extends State<CameraHubPage> {
           streamUri: stream,
           subStreamUri: (caps['substream_uri'] ?? '').toString().trim(),
           onvif: caps['onvif'] == true,
-          channel: channel,
+          channel: selected,
           onChannelChanged: (nextChannel) => _saveChannel(row, caps, nextChannel),
-        ),
-      ),
-    );
+        );
+    final sub = (caps['substream_uri'] ?? '').toString().trim();
+    final source = Uri.tryParse(sub.isEmpty ? stream : sub);
+    final channelKey = source?.queryParameters.keys.where((key) => key.toLowerCase() == 'channel').firstOrNull;
+    final canPreviewChannels = source != null && source.scheme == 'rtsp' && channelKey != null;
+    await Navigator.push<void>(context, MaterialPageRoute(builder: (_) {
+      if (source == null || channelKey == null || !canPreviewChannels) return detail(channel);
+      return RecorderView(
+        name: (caps['camera_name'] ?? row['controller_model'] ?? 'Camera').toString(),
+        initialChannel: channel,
+        channelCount: int.tryParse('${caps['channel_count']}'),
+        streamFor: (number) => source.replace(queryParameters: {...source.queryParameters, channelKey: '$number'}).toString(),
+        username: (caps['username'] ?? '').toString(),
+        password: password,
+        detail: detail,
+      );
+    }));
   }
 
   Future<void> _saveChannel(
