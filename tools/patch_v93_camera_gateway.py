@@ -100,7 +100,7 @@ checks = {
     'lib/monitoring/camera_center_page.dart': [
         "import 'camera_gateway_page.dart';",
         'CameraGatewayPage(farmId: widget.farmId)',
-        "Text('Local camera gateway')",
+        "tooltip: 'Local camera gateway'",
     ],
     'lib/v5_app.dart': [
         "import 'monitoring/camera_gateway_page.dart';",
