@@ -27,6 +27,7 @@ import 'startup/vet_startup_experience.dart';
 import 'monitoring/smart_home_vitals.dart';
 import 'monitoring/sensor_alert_rules.dart';
 import 'monitoring/camera_center_page.dart';
+import 'monitoring/camera_hub_page.dart';
 import 'monitoring/camera_alert_center_page.dart';
 import 'monitoring/camera_gateway_page.dart';
 import 'health/animal_health_center.dart';
@@ -1582,7 +1583,7 @@ class _V5DashboardState extends State<V5Dashboard> {
     final farmId = farm['id'] as String;
     final smart = farm['subscription_tier'] == 'smart_monitoring';
     final pages = <Widget>[
-      V5Home(farm: farm, onAccount: openAccount, smart: smart),
+      V5Home(farm: farm, onAccount: openAccount, smart: smart, onSection: (v) => setState(() => index = v), onSubscription: () async { await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => V5SubscriptionScreen(farm: farm))); await refreshFarm(); }),
       V5ScanPanel(farm: farm),
       V5SensorsPanel(farm: farm, unlocked: smart),
       V5AlertsPanel(farmId: farmId),
@@ -1661,100 +1662,56 @@ class V5Home extends StatelessWidget {
     required this.farm,
     required this.onAccount,
     required this.smart,
+    required this.onSection,
+    required this.onSubscription,
   });
   final Map<String, dynamic> farm;
   final VoidCallback onAccount;
   final bool smart;
+  final ValueChanged<int> onSection;
+  final VoidCallback onSubscription;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
       children: [
-        Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const _HeaderBrand(),
-                const Spacer(),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton.filledTonal(
-                      tooltip: tr(context, 'Language', 'اللغة', 'Taal'),
-                      style: IconButton.styleFrom(
-                        backgroundColor: VetColors.surface3,
-                      ),
-                      icon: const Icon(
-                        Icons.language_rounded,
-                        size: 30,
-                        color: VetColors.blue,
-                      ),
-                      onPressed: () => showVetLanguagePicker(context),
-                    ),
-                    const SizedBox(width: 6),
-                    IconButton.filledTonal(
-                      tooltip: tr(
-                        context,
-                        'Account & settings',
-                        'الحساب والإعدادات',
-                        'Account & instellingen',
-                      ),
-                      style: IconButton.styleFrom(
-                        backgroundColor: VetColors.surface3,
-                      ),
-                      icon: const Icon(
-                        Icons.account_circle_outlined,
-                        size: 31,
-                        color: VetColors.primary,
-                      ),
-                      onPressed: onAccount,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              farm['farm_name']?.toString() ?? 'Vet AI',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-            ),
-            if ((farm['company_name']?.toString() ?? '').isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                farm['company_name'].toString(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: VetColors.muted,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ],
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(color: const Color(0xff292747), borderRadius: BorderRadius.circular(20)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Expanded(child: Text('Vet AI', style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w700))),
+              IconButton(tooltip: tr(context,'Language','اللغة','Taal'), onPressed: () => showVetLanguagePicker(context), icon: const Icon(Icons.language,color:Colors.white)),
+              IconButton(tooltip: tr(context,'Account','الحساب','Account'), onPressed:onAccount, icon:const Icon(Icons.account_circle_outlined,color:Colors.white)),
+            ]),
+            Text(farm['farm_name']?.toString() ?? 'Vet AI', style: const TextStyle(color:Colors.white,fontSize:28,fontWeight:FontWeight.w800)),
+            if ((farm['company_name']?.toString() ?? '').isNotEmpty)
+              Text(farm['company_name'].toString(),style:const TextStyle(color:Colors.white70)),
+          ]),
         ),
-        const SizedBox(height: 14),
-        _Notice(
-          icon: Icons.shield_outlined,
-          title: tr(
-            context,
-            'Real data policy',
-            'سياسة البيانات الحقيقية',
-            'Echte-data beleid',
-          ),
-          text: tr(
-            context,
-            'No demo sensor readings and no definitive diagnosis from one image.',
-            'لا توجد قراءات حساسات وهمية ولا تشخيص نهائي من صورة واحدة.',
-            'Geen demo-sensormetingen en geen definitieve diagnose op basis van één beeld.',
-          ),
-        ),
+        const SizedBox(height: 16),
+        LayoutBuilder(builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 680 ? 3 : constraints.maxWidth >= 320 && MediaQuery.textScalerOf(context).scale(16) < 24 ? 2 : 1;
+          final width = (constraints.maxWidth - 10 * (columns - 1)) / columns;
+          final farmId = farm['id'] as String;
+          Widget entry(IconData icon, String label, VoidCallback action) => SizedBox(width:width,
+            child: Card(child: InkWell(onTap:action,borderRadius:BorderRadius.circular(16),
+              child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                Icon(icon,color:VetColors.primary),const SizedBox(height:8),
+                Text(label,style:const TextStyle(fontWeight:FontWeight.w700)),
+              ])))));
+          void go(Widget page) {Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));}
+          return Wrap(spacing:10,runSpacing:10,children:[
+            if(smart) entry(Icons.videocam_outlined,tr(context,'Camera center','مركز الكاميرات','Cameracentrum'),()=>go(CameraHubPage(farmId: farmId))),
+            if(smart) entry(Icons.notifications_active_outlined,tr(context,'Camera alerts','تنبيهات الكاميرات','Camerameldingen'),()=>go(CameraAlertCenterPage(farmId: farmId))),
+            entry(Icons.document_scanner_outlined,tr(context,'AI health scan','فحص الصحة بالذكاء الاصطناعي','AI-gezondheidsscan'),()=>onSection(1)),
+            entry(Icons.sensors,tr(context,'Sensors','الحساسات','Sensoren'),()=>onSection(2)),
+            entry(Icons.warning_amber,tr(context,'Health alerts','إنذارات الصحة','Gezondheidsmeldingen'),()=>onSection(3)),
+            if(smart) entry(Icons.pets,tr(context,'Farm health','مركز صحة المزرعة','Diergezondheid'),()=>go(AnimalHealthCenterPage(farmId: farmId))),
+            entry(Icons.card_membership,tr(context,'Subscription','الاشتراك','Abonnement'),onSubscription),
+          ]);
+        }),
         const SizedBox(height: 18),
         Row(
           children: [
